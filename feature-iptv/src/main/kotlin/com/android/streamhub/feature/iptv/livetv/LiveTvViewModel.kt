@@ -65,17 +65,19 @@ class LiveTvViewModel @Inject constructor(
             runCatching { browseRepository.getChannels(category.id) }
                 .onSuccess { channels ->
                     _uiState.update { it.copy(channels = channels, isLoadingChannels = false) }
-                    channels.firstOrNull()?.let(::focusChannel)
+                    // Only auto-preview a channel the first time - once something's already
+                    // playing, browsing into a different category shouldn't interrupt it.
+                    if (_uiState.value.focusedChannel == null) {
+                        channels.firstOrNull()?.let(::focusChannel)
+                    }
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoadingChannels = false, errorMessage = e.message ?: "Failed to load channels") } }
         }
     }
 
+    /** Deliberately leaves focusedChannel/the mini-player alone - going back to the category list shouldn't interrupt whatever's previewing. */
     fun clearCategorySelection() {
-        miniPlayerController.pause()
-        _uiState.update {
-            it.copy(selectedCategory = null, channels = emptyList(), focusedChannel = null, nowProgram = null, nextProgram = null)
-        }
+        _uiState.update { it.copy(selectedCategory = null, channels = emptyList()) }
     }
 
     /** Called when a channel is focused (TV D-pad) or tapped (phone) - drives the mini-player preview. */

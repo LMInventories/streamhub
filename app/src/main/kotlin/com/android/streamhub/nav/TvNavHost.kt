@@ -1,6 +1,7 @@
 package com.android.streamhub.nav
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,7 +25,14 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
         currentRoute = currentRoute,
         tabRowVisible = currentRoute == Route.HOME_PATTERN || currentRoute == Route.LIVE_TV_PATTERN,
         onNavigate = { route ->
-            navController.navigate(route) { launchSingleTop = true }
+            // Same "switch tabs, keep each tab's state" pattern as the phone nav host - without
+            // this, hopping Home <-> Live TV would restart the mini-player every time instead
+            // of resuming the one already running.
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         },
     ) {
         NavHost(navController = navController, startDestination = Route.HOME_PATTERN) {
