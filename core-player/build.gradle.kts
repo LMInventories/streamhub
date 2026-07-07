@@ -40,6 +40,12 @@ dependencies {
     api(libs.androidx.media3.common)
     implementation(libs.androidx.media3.exoplayer.hls)
     api(libs.androidx.media3.ui)
+    // Core Media3 doesn't ship AC3/EAC3 (Dolby) software decoding for licensing reasons - it
+    // relies on the device's hardware decoder, which plenty of phones/boxes don't have, and
+    // playback then goes silent with no error. This is a prebuilt Maven artifact from the
+    // Jellyfin project (GPL-3.0, fine for a personal-use app) - Google's own FFmpeg extension
+    // isn't published to Maven at all and would need building from source with the NDK.
+    implementation(libs.jellyfin.media3.ffmpeg.decoder)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

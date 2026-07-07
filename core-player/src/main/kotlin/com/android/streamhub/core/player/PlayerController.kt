@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import com.android.streamhub.core.common.domain.PlaybackItem
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,7 +37,15 @@ class PlayerController @Inject constructor(
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState
 
-    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build()
+    // EXTENSION_RENDERER_MODE_ON: prefer the platform's hardware decoder, but fall back to the
+    // FFmpeg extension (org.jellyfin.media3:media3-ffmpeg-decoder, on the classpath below) for
+    // codecs the device can't decode in hardware - AC3/EAC3 (Dolby) audio is common in IPTV/
+    // satellite-sourced streams and isn't decoded by MediaCodec on most devices, which is why
+    // some streams were previously silent instead of erroring.
+    private val renderersFactory = DefaultRenderersFactory(context)
+        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+
+    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context, renderersFactory).build()
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
