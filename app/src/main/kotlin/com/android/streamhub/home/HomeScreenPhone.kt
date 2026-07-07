@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -53,6 +54,7 @@ fun HomeScreenPhone(
                         Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
                     }
                 },
+                modifier = Modifier.statusBarsPadding(),
             )
 
             uiState.sourceErrors.forEach { error ->

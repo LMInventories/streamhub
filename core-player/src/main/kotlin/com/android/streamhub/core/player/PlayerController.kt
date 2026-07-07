@@ -111,6 +111,17 @@ class PlayerController @Inject constructor(
         exoPlayer.seekTo(positionMs)
     }
 
+    fun setMuted(muted: Boolean) {
+        exoPlayer.volume = if (muted) 0f else 1f
+        _uiState.update { it.copy(isMuted = muted) }
+    }
+
+    fun toggleMuted() = setMuted(!uiState.value.isMuted)
+
+    fun setAspectMode(mode: VideoAspectMode) {
+        _uiState.update { it.copy(aspectMode = mode) }
+    }
+
     fun selectAudioTrack(trackId: String) = selectTrack(C.TRACK_TYPE_AUDIO, trackId)
 
     fun selectTextTrack(trackId: String) {

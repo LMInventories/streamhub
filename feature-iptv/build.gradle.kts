@@ -35,6 +35,7 @@ kotlin {
 
 dependencies {
     api(project(":core-common"))
+    api(project(":core-player"))
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))
 
@@ -42,7 +43,10 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.coil.compose)
 
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)

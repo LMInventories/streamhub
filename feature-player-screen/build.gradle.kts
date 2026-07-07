@@ -42,8 +42,6 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)
-    implementation(libs.androidx.media3.ui.compose)
-    implementation(libs.androidx.media3.common)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.hilt.android)

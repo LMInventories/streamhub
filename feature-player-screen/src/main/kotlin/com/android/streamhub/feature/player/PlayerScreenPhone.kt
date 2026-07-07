@@ -1,5 +1,7 @@
 package com.android.streamhub.feature.player
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,10 +15,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
@@ -24,6 +29,8 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +39,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,13 +53,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.compose.PlayerSurface
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
+import com.android.streamhub.core.player.VideoAspectMode
+import com.android.streamhub.core.player.VideoSurface
 import kotlinx.coroutines.delay
 
-@OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreenPhone(
     onBack: () -> Unit,
@@ -63,6 +70,8 @@ fun PlayerScreenPhone(
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showSubtitlePicker by remember { mutableStateOf(false) }
+
+    LockLandscapeWhilePlaying()
 
     LaunchedEffect(controlsVisible, uiState.isPlaying) {
         if (controlsVisible && uiState.isPlaying) {
@@ -79,7 +88,11 @@ fun PlayerScreenPhone(
                 detectTapGestures { controlsVisible = !controlsVisible }
             },
     ) {
-        PlayerSurface(player = viewModel.exoPlayer, modifier = Modifier.fillMaxSize())
+        VideoSurface(
+            exoPlayer = viewModel.exoPlayer,
+            aspectMode = uiState.aspectMode,
+            modifier = Modifier.fillMaxSize(),
+        )
 
         if (uiState.isBuffering) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -93,6 +106,7 @@ fun PlayerScreenPhone(
                 onSeek = viewModel::seekTo,
                 onAudioTrackClick = { showAudioPicker = true },
                 onSubtitleTrackClick = { showSubtitlePicker = true },
+                onAspectModeSelected = viewModel::setAspectMode,
                 onOpenExternally = { viewModel.openExternally(context) },
             )
         }
@@ -120,6 +134,17 @@ fun PlayerScreenPhone(
     }
 }
 
+/** Standard video-player UX: force landscape while this screen is on-screen, restore afterward. */
+@Composable
+private fun LockLandscapeWhilePlaying() {
+    val activity = LocalContext.current as? Activity ?: return
+    DisposableEffect(Unit) {
+        val previousOrientation = activity.requestedOrientation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        onDispose { activity.requestedOrientation = previousOrientation }
+    }
+}
+
 @Composable
 private fun PhonePlayerControls(
     uiState: PlayerUiState,
@@ -128,15 +153,18 @@ private fun PhonePlayerControls(
     onSeek: (Long) -> Unit,
     onAudioTrackClick: () -> Unit,
     onSubtitleTrackClick: () -> Unit,
+    onAspectModeSelected: (VideoAspectMode) -> Unit,
     onOpenExternally: () -> Unit,
 ) {
+    var showAspectMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f)),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
@@ -150,7 +178,7 @@ private fun PhonePlayerControls(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
             Slider(
                 value = uiState.positionMs.toFloat(),
                 onValueChange = { onSeek(it.toLong()) },
@@ -178,12 +206,37 @@ private fun PhonePlayerControls(
                 IconButton(onClick = onSubtitleTrackClick) {
                     Icon(Icons.Filled.ClosedCaption, contentDescription = "Subtitles", tint = Color.White)
                 }
+                Box {
+                    IconButton(onClick = { showAspectMenu = true }) {
+                        Icon(Icons.Filled.AspectRatio, contentDescription = "Aspect ratio", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = showAspectMenu, onDismissRequest = { showAspectMenu = false }) {
+                        AspectMenuItem("Fit to screen", VideoAspectMode.FIT, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
+                        AspectMenuItem("Fill", VideoAspectMode.FILL, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
+                        AspectMenuItem("4:3", VideoAspectMode.RATIO_4_3, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
+                        AspectMenuItem("16:9", VideoAspectMode.RATIO_16_9, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
+                    }
+                }
                 IconButton(onClick = onOpenExternally) {
                     Icon(Icons.Filled.OpenInNew, contentDescription = "Open externally", tint = Color.White)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun AspectMenuItem(
+    label: String,
+    mode: VideoAspectMode,
+    current: VideoAspectMode,
+    onSelected: (VideoAspectMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(if (mode == current) "$label ✓" else label) },
+        onClick = { onSelected(mode); onDismiss() },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

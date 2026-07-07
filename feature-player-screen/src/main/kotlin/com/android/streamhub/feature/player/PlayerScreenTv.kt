@@ -27,18 +27,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.compose.PlayerSurface
 import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
+import com.android.streamhub.core.player.VideoAspectMode
+import com.android.streamhub.core.player.VideoSurface
 import kotlinx.coroutines.delay
 
 private const val SEEK_STEP_MS = 10_000L
 
-@OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreenTv(
     onBack: () -> Unit,
@@ -50,6 +49,7 @@ fun PlayerScreenTv(
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showSubtitlePicker by remember { mutableStateOf(false) }
+    var showAspectPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(controlsVisible, uiState.isPlaying) {
         if (controlsVisible && uiState.isPlaying) {
@@ -59,7 +59,11 @@ fun PlayerScreenTv(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        PlayerSurface(player = viewModel.exoPlayer, modifier = Modifier.fillMaxSize())
+        VideoSurface(
+            exoPlayer = viewModel.exoPlayer,
+            aspectMode = uiState.aspectMode,
+            modifier = Modifier.fillMaxSize(),
+        )
 
         if (uiState.isBuffering) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -74,8 +78,30 @@ fun PlayerScreenTv(
                 onSeekForward = { viewModel.seekTo((uiState.positionMs + SEEK_STEP_MS).coerceAtMost(uiState.durationMs)) },
                 onAudioTrackClick = { showAudioPicker = true },
                 onSubtitleTrackClick = { showSubtitlePicker = true },
+                onAspectModeClick = { showAspectPicker = true },
                 onOpenExternally = { viewModel.openExternally(context) },
             )
+        }
+    }
+
+    if (showAspectPicker) {
+        Dialog(onDismissRequest = { showAspectPicker = false }) {
+            MaterialTheme {
+                Column(modifier = Modifier.background(Color(0xFF1C1B1F)).padding(24.dp)) {
+                    Text(text = "Aspect ratio", color = Color.White)
+                    Spacer(modifier = Modifier.padding(top = 12.dp))
+                    listOf(
+                        "Fit to screen" to VideoAspectMode.FIT,
+                        "Fill" to VideoAspectMode.FILL,
+                        "4:3" to VideoAspectMode.RATIO_4_3,
+                        "16:9" to VideoAspectMode.RATIO_16_9,
+                    ).forEach { (label, mode) ->
+                        Button(onClick = { viewModel.setAspectMode(mode); showAspectPicker = false }) {
+                            Text(if (mode == uiState.aspectMode) "$label (selected)" else label)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -110,6 +136,7 @@ private fun TvPlayerControls(
     onSeekForward: () -> Unit,
     onAudioTrackClick: () -> Unit,
     onSubtitleTrackClick: () -> Unit,
+    onAspectModeClick: () -> Unit,
     onOpenExternally: () -> Unit,
 ) {
     Column(
@@ -140,6 +167,8 @@ private fun TvPlayerControls(
             Button(onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty()) { Text("Audio") }
             Spacer(modifier = Modifier.padding(horizontal = 8.dp))
             Button(onClick = onSubtitleTrackClick) { Text("Subtitles") }
+            Spacer(modifier = Modifier.padding(horizontal = 8.dp))
+            Button(onClick = onAspectModeClick) { Text("Aspect ratio") }
             Spacer(modifier = Modifier.padding(horizontal = 8.dp))
             Button(onClick = onOpenExternally) { Text("Open externally") }
         }

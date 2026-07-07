@@ -12,6 +12,7 @@ data class TvNavItem(val route: String, val label: String)
 
 val tvNavItems = listOf(
     TvNavItem(route = "home", label = "Home"),
+    TvNavItem(route = "live_tv", label = "Live TV"),
     // Same list-driven shape as the phone bottom bar - Search/Favorites append here later.
 )
 

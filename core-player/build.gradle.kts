@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
 }
 
@@ -10,6 +11,10 @@ android {
 
     defaultConfig {
         minSdk = 26
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     compileOptions {
@@ -34,7 +39,11 @@ dependencies {
     api(libs.androidx.media3.exoplayer)
     api(libs.androidx.media3.common)
     implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.ui)
+    api(libs.androidx.media3.ui)
+
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
 
     // @Inject-constructor classes here still need Dagger/Hilt's annotation processor to
     // generate their factories, even though this module never applies the Hilt Gradle plugin

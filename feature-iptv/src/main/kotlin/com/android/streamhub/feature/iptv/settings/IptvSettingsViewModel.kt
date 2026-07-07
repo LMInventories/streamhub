@@ -20,6 +20,7 @@ data class IptvSettingsUiState(
     val xtreamUsername: String = "",
     val xtreamPassword: String = "",
     val m3uPlaylistUrl: String = "",
+    val m3uEpgUrl: String = "",
     val saved: Boolean = false,
 )
 
@@ -43,7 +44,11 @@ class IptvSettingsViewModel @Inject constructor(
                     )
                 }
                 is IptvSourceConfig.M3u -> _uiState.update {
-                    it.copy(providerType = IptvProviderType.M3U, m3uPlaylistUrl = config.playlistUrl)
+                    it.copy(
+                        providerType = IptvProviderType.M3U,
+                        m3uPlaylistUrl = config.playlistUrl,
+                        m3uEpgUrl = config.epgUrl.orEmpty(),
+                    )
                 }
                 null -> Unit
             }
@@ -55,6 +60,7 @@ class IptvSettingsViewModel @Inject constructor(
     fun updateXtreamUsername(value: String) = _uiState.update { it.copy(xtreamUsername = value, saved = false) }
     fun updateXtreamPassword(value: String) = _uiState.update { it.copy(xtreamPassword = value, saved = false) }
     fun updateM3uPlaylistUrl(value: String) = _uiState.update { it.copy(m3uPlaylistUrl = value, saved = false) }
+    fun updateM3uEpgUrl(value: String) = _uiState.update { it.copy(m3uEpgUrl = value, saved = false) }
 
     fun save() {
         val state = _uiState.value
@@ -64,7 +70,10 @@ class IptvSettingsViewModel @Inject constructor(
                 username = state.xtreamUsername.trim(),
                 password = state.xtreamPassword.trim(),
             )
-            IptvProviderType.M3U -> IptvSourceConfig.M3u(playlistUrl = state.m3uPlaylistUrl.trim())
+            IptvProviderType.M3U -> IptvSourceConfig.M3u(
+                playlistUrl = state.m3uPlaylistUrl.trim(),
+                epgUrl = state.m3uEpgUrl.trim().takeIf { it.isNotEmpty() },
+            )
         }
         viewModelScope.launch {
             repository.save(config)

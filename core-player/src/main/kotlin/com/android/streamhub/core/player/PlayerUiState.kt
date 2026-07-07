@@ -8,5 +8,7 @@ data class PlayerUiState(
     val audioTracks: List<TrackOption> = emptyList(),
     val subtitleTracks: List<TrackOption> = emptyList(),
     val subtitlesOff: Boolean = true,
+    val isMuted: Boolean = false,
+    val aspectMode: VideoAspectMode = VideoAspectMode.FIT,
     val errorMessage: String? = null,
 )

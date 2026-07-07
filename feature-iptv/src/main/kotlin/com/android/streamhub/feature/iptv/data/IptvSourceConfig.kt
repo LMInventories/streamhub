@@ -22,6 +22,7 @@ sealed class IptvSourceConfig {
     @SerialName("m3u")
     data class M3u(
         val playlistUrl: String,
+        val epgUrl: String? = null,
     ) : IptvSourceConfig()
 }
 

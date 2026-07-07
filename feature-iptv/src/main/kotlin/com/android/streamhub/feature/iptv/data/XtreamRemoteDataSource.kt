@@ -27,6 +27,15 @@ class XtreamRemoteDataSource @Inject constructor(
             .create(XtreamApi::class.java)
     }
 
-    suspend fun getLiveStreams(config: IptvSourceConfig.Xtream): List<XtreamLiveStream> =
-        apiFor(config.baseUrl).getLiveStreams(config.username, config.password)
+    suspend fun getLiveStreams(config: IptvSourceConfig.Xtream, categoryId: String? = null): List<XtreamLiveStream> =
+        apiFor(config.baseUrl).getLiveStreams(config.username, config.password, categoryId = categoryId)
+
+    suspend fun getLiveCategories(config: IptvSourceConfig.Xtream): List<XtreamLiveCategory> =
+        apiFor(config.baseUrl).getLiveCategories(config.username, config.password)
+
+    suspend fun getShortEpg(config: IptvSourceConfig.Xtream, streamId: String): List<EpgProgram> =
+        apiFor(config.baseUrl)
+            .getShortEpg(config.username, config.password, streamId)
+            .epgListings
+            .mapNotNull { it.toEpgProgram() }
 }

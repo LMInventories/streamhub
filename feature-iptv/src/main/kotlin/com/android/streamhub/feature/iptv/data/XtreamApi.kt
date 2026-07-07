@@ -23,4 +23,13 @@ interface XtreamApi {
         @Query("action") action: String = "get_live_streams",
         @Query("category_id") categoryId: String? = null,
     ): List<XtreamLiveStream>
+
+    @GET("player_api.php")
+    suspend fun getShortEpg(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("stream_id") streamId: String,
+        @Query("limit") limit: Int = 4,
+        @Query("action") action: String = "get_short_epg",
+    ): XtreamShortEpgResponse
 }

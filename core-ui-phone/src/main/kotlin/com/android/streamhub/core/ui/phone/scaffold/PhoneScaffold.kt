@@ -3,6 +3,7 @@ package com.android.streamhub.core.ui.phone.scaffold
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,6 +20,7 @@ data class PhoneNavItem(
 
 val phoneNavItems = listOf(
     PhoneNavItem(route = "home", label = "Home", icon = Icons.Filled.Home),
+    PhoneNavItem(route = "live_tv", label = "Live TV", icon = Icons.Filled.LiveTv),
     // Search/Favorites tabs join this list in later milestones - the bottom bar already
     // renders a list, so adding an entry is the only change needed there.
 )

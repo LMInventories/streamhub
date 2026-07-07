@@ -10,6 +10,7 @@ import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.player.ExternalPlayerLauncher
 import com.android.streamhub.core.player.PlayerController
 import com.android.streamhub.core.player.PlayerUiState
+import com.android.streamhub.core.player.VideoAspectMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -59,6 +60,8 @@ class PlayerViewModel @Inject constructor(
     fun selectSubtitleTrack(trackId: String) = playerController.selectTextTrack(trackId)
 
     fun clearSubtitles() = playerController.clearTextTrack()
+
+    fun setAspectMode(mode: VideoAspectMode) = playerController.setAspectMode(mode)
 
     /** Returns true if handoff to an external player actually launched. */
     fun openExternally(context: Context): Boolean {
