@@ -1,0 +1,47 @@
+package com.android.streamhub.core.ui.tv.scaffold
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.tv.material3.Tab
+import androidx.tv.material3.TabRow
+import androidx.tv.material3.Text
+
+data class TvNavItem(val route: String, val label: String)
+
+val tvNavItems = listOf(
+    TvNavItem(route = "home", label = "Home"),
+    // Same list-driven shape as the phone bottom bar - Search/Favorites append here later.
+)
+
+/**
+ * Top tab row shell for TV. D-pad focus moves along the tab row (tv-material's TabRow handles
+ * the focus/remote-key wiring) and down into whatever [content] renders below it.
+ */
+@Composable
+fun TvScaffold(
+    currentRoute: String?,
+    tabRowVisible: Boolean,
+    onNavigate: (String) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (tabRowVisible) {
+            val selectedIndex = tvNavItems.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+
+            TabRow(selectedTabIndex = selectedIndex) {
+                tvNavItems.forEachIndexed { index, item ->
+                    Tab(
+                        selected = index == selectedIndex,
+                        onFocus = { onNavigate(item.route) },
+                        onClick = { onNavigate(item.route) },
+                    ) {
+                        Text(text = item.label)
+                    }
+                }
+            }
+        }
+        content()
+    }
+}

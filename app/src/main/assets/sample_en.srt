@@ -1,0 +1,11 @@
+1
+00:00:00,000 --> 00:00:03,000
+[English] StreamHub subtitle test - track 1
+
+2
+00:00:03,000 --> 00:00:06,000
+If you can read this in English, subtitle switching works.
+
+3
+00:00:06,000 --> 00:00:10,000
+Try switching to Spanish from the subtitle picker now.
