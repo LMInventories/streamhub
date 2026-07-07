@@ -19,10 +19,6 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = false
-        // Media3's Format/TrackGroup/Tracks touch a couple of android.* framework calls in
-        // static init; without a real device/Robolectric, plain JUnit needs default stub
-        // values instead of "not mocked" exceptions.
-        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -31,12 +27,14 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core-common"))
-
-    implementation(libs.androidx.media3.exoplayer)
+    // PlaybackItem (core-common) and ExoPlayer/Player (media3) appear in PlayerController's
+    // public signature, so downstream modules need them on their own compile classpath too -
+    // `api`, not `implementation`.
+    api(project(":core-common"))
+    api(libs.androidx.media3.exoplayer)
+    api(libs.androidx.media3.common)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.common)
 
     // @Inject-constructor classes here still need Dagger/Hilt's annotation processor to
     // generate their factories, even though this module never applies the Hilt Gradle plugin
@@ -45,4 +43,7 @@ dependencies {
     ksp(libs.hilt.android.compiler)
 
     testImplementation(libs.junit)
+    // Format/TrackGroup/Tracks touch android.* framework internals during construction;
+    // Robolectric shims those so the test JVM doesn't need a real device.
+    testImplementation(libs.robolectric)
 }
