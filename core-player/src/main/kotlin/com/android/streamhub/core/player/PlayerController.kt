@@ -74,6 +74,11 @@ class PlayerController @Inject constructor(
         exoPlayer.addListener(playerListener)
     }
 
+    /** For failures that happen before playback even starts (e.g. resolving the item over the network). */
+    fun reportError(message: String) {
+        _uiState.update { it.copy(errorMessage = message) }
+    }
+
     fun prepare(item: PlaybackItem) {
         val mediaItem = MediaItem.Builder()
             .setUri(item.streamUri)

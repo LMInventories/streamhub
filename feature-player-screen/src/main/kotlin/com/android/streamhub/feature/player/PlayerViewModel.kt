@@ -35,11 +35,16 @@ class PlayerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val source = mediaSources.firstOrNull { it.sourceType == sourceType }
-                ?: error("No MediaSource registered for $sourceType")
-            val item = source.resolvePlayback(itemId)
-            resolvedItem = item
-            playerController.prepare(item)
+            runCatching {
+                val source = mediaSources.firstOrNull { it.sourceType == sourceType }
+                    ?: error("No MediaSource registered for $sourceType")
+                source.resolvePlayback(itemId)
+            }.onSuccess { item ->
+                resolvedItem = item
+                playerController.prepare(item)
+            }.onFailure { throwable ->
+                playerController.reportError(throwable.message ?: "Failed to resolve playback item")
+            }
         }
     }
 

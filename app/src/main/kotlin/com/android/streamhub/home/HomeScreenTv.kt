@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,6 +37,10 @@ fun HomeScreenTv(
     Column(modifier = Modifier.fillMaxSize()) {
         Button(onClick = onSettingsClick, modifier = Modifier.padding(24.dp, 24.dp, 24.dp, 0.dp)) {
             Text("IPTV settings")
+        }
+
+        uiState.sourceErrors.forEach { error ->
+            Text(text = error, color = Color.Red, modifier = Modifier.padding(24.dp, 4.dp))
         }
 
         Box(modifier = Modifier.fillMaxSize()) {

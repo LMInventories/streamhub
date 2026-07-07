@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +54,14 @@ fun HomeScreenPhone(
                     }
                 },
             )
+
+            uiState.sourceErrors.forEach { error ->
+                Text(
+                    text = error,
+                    color = Color.Red,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (uiState.isLoading) {
