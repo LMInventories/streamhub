@@ -30,13 +30,20 @@ data class XtreamEpgListing(
     val startLocal: String? = null,
     @SerialName("end")
     val endLocal: String? = null,
+    @SerialName("description")
+    val descriptionBase64: String? = null,
 )
 
 fun XtreamEpgListing.toEpgProgram(): EpgProgram? {
     val start = resolveInstant(startTimestamp, startLocal) ?: return null
     val end = resolveInstant(stopTimestamp, endLocal) ?: return null
     val title = decodeXtreamText(titleBase64) ?: return null
-    return EpgProgram(title = title, startAt = start, endAt = end)
+    return EpgProgram(
+        title = title,
+        startAt = start,
+        endAt = end,
+        description = decodeXtreamText(descriptionBase64),
+    )
 }
 
 private fun resolveInstant(epochSeconds: String?, localDateTime: String?): Instant? {

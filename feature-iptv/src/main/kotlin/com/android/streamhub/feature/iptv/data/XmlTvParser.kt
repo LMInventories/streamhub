@@ -31,7 +31,9 @@ object XmlTvParser {
             var programStart: Instant? = null
             var programStop: Instant? = null
             var title: StringBuilder? = null
+            var desc: StringBuilder? = null
             var inTitle = false
+            var inDesc = false
 
             override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
                 when (qName) {
@@ -40,28 +42,40 @@ object XmlTvParser {
                         programStart = parseTimestamp(attributes?.getValue("start"))
                         programStop = parseTimestamp(attributes?.getValue("stop"))
                         title = null
+                        desc = null
                     }
                     "title" -> {
                         inTitle = true
                         title = StringBuilder()
                     }
+                    "desc" -> {
+                        inDesc = true
+                        desc = StringBuilder()
+                    }
                 }
             }
 
             override fun characters(ch: CharArray?, start: Int, length: Int) {
-                if (inTitle && ch != null) title?.append(ch, start, length)
+                if (ch == null) return
+                if (inTitle) title?.append(ch, start, length)
+                if (inDesc) desc?.append(ch, start, length)
             }
 
             override fun endElement(uri: String?, localName: String?, qName: String?) {
                 when (qName) {
                     "title" -> inTitle = false
+                    "desc" -> inDesc = false
                     "programme" -> {
                         val channel = channelId
                         val start = programStart
                         val stop = programStop
                         val text = title?.toString()?.trim()
+                        val descriptionText = desc?.toString()?.trim()?.takeIf(String::isNotBlank)
                         if (!channel.isNullOrBlank() && start != null && stop != null && !text.isNullOrBlank()) {
-                            results += XmlTvProgramme(channel, EpgProgram(title = text, startAt = start, endAt = stop))
+                            results += XmlTvProgramme(
+                                channel,
+                                EpgProgram(title = text, startAt = start, endAt = stop, description = descriptionText),
+                            )
                         }
                     }
                 }

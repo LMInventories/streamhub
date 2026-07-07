@@ -7,6 +7,7 @@ data class EpgProgram(
     val title: String,
     val startAt: Instant,
     val endAt: Instant,
+    val description: String? = null,
 ) {
     fun isCurrentAt(instant: Instant): Boolean = instant >= startAt && instant < endAt
 }

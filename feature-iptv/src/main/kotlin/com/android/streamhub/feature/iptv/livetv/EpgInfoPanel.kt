@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.android.streamhub.core.design.AppFonts
 import com.android.streamhub.core.design.AppTextStyles
@@ -48,6 +49,15 @@ fun EpgInfoPanel(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 segmentCount = 20,
             )
+            nowProgram.description?.let { description ->
+                BasicText(
+                    text = description,
+                    style = TextStyle(color = Palette.TextMuted, fontFamily = AppFonts.Body, fontSize = AppTextStyles.bodySmall.fontSize),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                )
+            }
         }
         if (nextProgram != null) {
             BasicText(
