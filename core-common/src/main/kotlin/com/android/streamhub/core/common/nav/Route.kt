@@ -9,10 +9,13 @@ import com.android.streamhub.core.common.domain.SourceType
 sealed class Route {
     data object Home : Route()
 
+    data object IptvSettings : Route()
+
     data class Player(val itemId: String, val sourceType: SourceType) : Route()
 
     companion object {
         const val HOME_PATTERN = "home"
+        const val IPTV_SETTINGS_PATTERN = "iptv_settings"
         const val PLAYER_PATTERN = "player/{sourceType}/{itemId}"
 
         fun playerRoute(itemId: String, sourceType: SourceType): String =

@@ -23,4 +23,5 @@ include(
     ":core-ui-phone",
     ":core-ui-tv",
     ":feature-player-screen",
+    ":feature-iptv",
 )

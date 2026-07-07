@@ -10,6 +10,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.phone.scaffold.PhoneScaffold
+import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
 import com.android.streamhub.home.HomeScreenPhone
 
@@ -31,7 +32,11 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     onItemClick = { item ->
                         navController.navigate(Route.playerRoute(item.id, item.sourceType))
                     },
+                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                 )
+            }
+            composable(Route.IPTV_SETTINGS_PATTERN) {
+                IptvSettingsScreen(onDone = { navController.popBackStack() })
             }
             composable(
                 route = Route.PLAYER_PATTERN,
