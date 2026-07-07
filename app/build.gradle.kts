@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.android.streamhub"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.android.streamhub"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0-milestone1"
     }

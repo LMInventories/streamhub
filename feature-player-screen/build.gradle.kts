@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.android.streamhub.feature.player"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
