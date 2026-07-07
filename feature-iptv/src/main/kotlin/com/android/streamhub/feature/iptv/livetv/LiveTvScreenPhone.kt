@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +48,7 @@ fun LiveTvScreenPhone(
     paddingValues: PaddingValues,
     onSettingsClick: () -> Unit,
     onFullscreen: (channelId: String) -> Unit,
+    onOpenGuide: (categoryId: String) -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -109,6 +111,7 @@ fun LiveTvScreenPhone(
                 onSelectCategory = viewModel::selectCategory,
                 onBackToCategories = viewModel::clearCategorySelection,
                 onFocusChannel = viewModel::focusChannel,
+                onOpenGuide = onOpenGuide,
             )
         }
     }
@@ -120,6 +123,7 @@ private fun LiveTvBrowseContent(
     onSelectCategory: (IptvCategoryInfo) -> Unit,
     onBackToCategories: () -> Unit,
     onFocusChannel: (IptvChannelInfo) -> Unit,
+    onOpenGuide: (categoryId: String) -> Unit,
 ) {
     val selectedCategory = uiState.selectedCategory
 
@@ -143,6 +147,11 @@ private fun LiveTvBrowseContent(
                     leadingContent = {
                         IconButton(onClick = onBackToCategories) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to categories")
+                        }
+                    },
+                    trailingContent = {
+                        IconButton(onClick = { onOpenGuide(selectedCategory.id) }) {
+                            Icon(Icons.Filled.CalendarViewWeek, contentDescription = "7-day guide")
                         }
                     },
                 )

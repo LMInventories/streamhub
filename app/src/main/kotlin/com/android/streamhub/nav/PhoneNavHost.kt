@@ -13,6 +13,7 @@ import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.phone.scaffold.PhoneScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenPhone
+import com.android.streamhub.feature.iptv.livetv.epggrid.EpgGridScreen
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
 import com.android.streamhub.home.HomeScreenPhone
@@ -53,7 +54,16 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     onFullscreen = { channelId ->
                         navController.navigate(Route.playerRoute(channelId, SourceType.IPTV))
                     },
+                    onOpenGuide = { categoryId ->
+                        navController.navigate(Route.epgGridRoute(categoryId))
+                    },
                 )
+            }
+            composable(
+                route = Route.EPG_GRID_PATTERN,
+                arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
+            ) {
+                EpgGridScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
                 IptvSettingsScreen(onDone = { navController.popBackStack() })

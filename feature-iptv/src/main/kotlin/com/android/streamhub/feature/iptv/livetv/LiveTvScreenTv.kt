@@ -35,6 +35,7 @@ import androidx.tv.material3.Text
 fun LiveTvScreenTv(
     onSettingsClick: () -> Unit,
     onFullscreen: (channelId: String) -> Unit,
+    onOpenGuide: (categoryId: String) -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -82,8 +83,14 @@ fun LiveTvScreenTv(
                 }
 
                 else -> Column(modifier = Modifier.fillMaxSize()) {
-                    Button(onClick = viewModel::clearCategorySelection) {
-                        Text("< ${selectedCategory.name}")
+                    Row {
+                        Button(onClick = viewModel::clearCategorySelection) {
+                            Text("< ${selectedCategory.name}")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = { onOpenGuide(selectedCategory.id) }) {
+                            Text("7-day guide")
+                        }
                     }
                     if (uiState.isLoadingChannels) {
                         Box(modifier = Modifier.fillMaxSize()) {
