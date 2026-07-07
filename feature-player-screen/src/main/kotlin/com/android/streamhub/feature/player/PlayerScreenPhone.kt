@@ -37,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
@@ -95,7 +97,7 @@ fun PlayerScreenPhone(
         )
 
         if (uiState.isBuffering) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            CircularProgressIndicator(color = Palette.Accent, modifier = Modifier.align(Alignment.Center))
         }
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
@@ -172,7 +174,7 @@ private fun PhonePlayerControls(
             }
             Spacer(modifier = Modifier.weight(1f))
             uiState.errorMessage?.let {
-                Text(text = it, color = Color.Red)
+                Text(text = it, color = Palette.Error)
             }
         }
 
@@ -183,6 +185,11 @@ private fun PhonePlayerControls(
                 value = uiState.positionMs.toFloat(),
                 onValueChange = { onSeek(it.toLong()) },
                 valueRange = 0f..uiState.durationMs.coerceAtLeast(1L).toFloat(),
+                colors = SliderDefaults.colors(
+                    thumbColor = Palette.Accent,
+                    activeTrackColor = Palette.Accent,
+                    inactiveTrackColor = Palette.Border,
+                ),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),

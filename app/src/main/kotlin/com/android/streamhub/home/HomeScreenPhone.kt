@@ -26,12 +26,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.SourceBadge
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +61,7 @@ fun HomeScreenPhone(
             uiState.sourceErrors.forEach { error ->
                 Text(
                     text = error,
-                    color = Color.Red,
+                    color = Palette.Error,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
@@ -83,6 +84,7 @@ fun HomeScreenPhone(
                                         )
                                     }
                                 },
+                                trailingContent = { SourceBadge(item.sourceType) },
                                 modifier = Modifier.clickable { onItemClick(item) },
                             )
                         }

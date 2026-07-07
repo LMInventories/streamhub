@@ -19,6 +19,7 @@ rootProject.name = "StreamHub"
 include(
     ":app",
     ":core-common",
+    ":core-design",
     ":core-player",
     ":core-ui-phone",
     ":core-ui-tv",

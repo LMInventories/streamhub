@@ -12,9 +12,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +23,8 @@ import androidx.tv.material3.Card
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.SourceBadge
 
 @Composable
 fun HomeScreenTv(
@@ -40,7 +42,7 @@ fun HomeScreenTv(
         }
 
         uiState.sourceErrors.forEach { error ->
-            Text(text = error, color = Color.Red, modifier = Modifier.padding(24.dp, 4.dp))
+            Text(text = error, color = Palette.Error, modifier = Modifier.padding(24.dp, 4.dp))
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -64,7 +66,10 @@ fun HomeScreenTv(
                                         modifier = Modifier.size(64.dp).padding(top = 8.dp),
                                     )
                                 }
-                                Text(text = item.title, modifier = Modifier.padding(16.dp))
+                                Text(text = item.title, modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp))
+                                Row(modifier = Modifier.padding(16.dp, 0.dp, 16.dp, 12.dp)) {
+                                    SourceBadge(item.sourceType)
+                                }
                             }
                         }
                     }

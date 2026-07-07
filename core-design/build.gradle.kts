@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.android.streamhub.core.ui.phone"
+    namespace = "com.android.streamhub.core.design"
     compileSdk = 36
 
     defaultConfig {
@@ -27,14 +27,9 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core-common"))
-    api(project(":core-design"))
+    api(project(":core-common"))
 
     implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.compose.material.icons.extended)
+    api(libs.androidx.compose.ui)
+    api(libs.androidx.compose.foundation)
 }

@@ -30,6 +30,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core-common"))
+    implementation(project(":core-design"))
     implementation(project(":core-player"))
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))

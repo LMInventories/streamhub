@@ -28,6 +28,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core-common"))
+    api(project(":core-design"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

@@ -35,6 +35,7 @@ kotlin {
 
 dependencies {
     api(project(":core-common"))
+    api(project(":core-design"))
     api(project(":core-player"))
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))

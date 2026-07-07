@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
@@ -66,7 +67,7 @@ fun PlayerScreenTv(
         )
 
         if (uiState.isBuffering) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            CircularProgressIndicator(color = Palette.Accent, modifier = Modifier.align(Alignment.Center))
         }
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
@@ -87,7 +88,7 @@ fun PlayerScreenTv(
     if (showAspectPicker) {
         Dialog(onDismissRequest = { showAspectPicker = false }) {
             MaterialTheme {
-                Column(modifier = Modifier.background(Color(0xFF1C1B1F)).padding(24.dp)) {
+                Column(modifier = Modifier.background(Palette.SurfaceElevated).padding(24.dp)) {
                     Text(text = "Aspect ratio", color = Color.White)
                     Spacer(modifier = Modifier.padding(top = 12.dp))
                     listOf(
@@ -153,7 +154,7 @@ private fun TvPlayerControls(
             text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
             color = Color.White,
         )
-        uiState.errorMessage?.let { Text(text = it, color = Color.Red) }
+        uiState.errorMessage?.let { Text(text = it, color = Palette.Error) }
 
         Spacer(modifier = Modifier.padding(top = 12.dp))
 
@@ -188,7 +189,7 @@ private fun TvTrackPickerDialog(
         MaterialTheme {
             Column(
                 modifier = Modifier
-                    .background(Color(0xFF1C1B1F))
+                    .background(Palette.SurfaceElevated)
                     .padding(24.dp),
             ) {
                 Text(text = title, color = Color.White)
