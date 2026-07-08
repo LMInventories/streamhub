@@ -3,7 +3,7 @@ package com.android.streamhub.feature.iptv.data
 import org.xml.sax.Attributes
 import org.xml.sax.InputSource
 import org.xml.sax.helpers.DefaultHandler
-import java.io.StringReader
+import java.io.InputStream
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
@@ -18,12 +18,24 @@ data class XmlTvProgramme(val channelId: String, val program: EpgProgram)
  * into a flat list. Uses SAX rather than StAX - javax.xml.stream isn't part of the Android
  * runtime (it would only work in the host-JVM unit test, then throw NoClassDefFoundError on a
  * real device), whereas javax.xml.parsers/org.xml.sax are available on both.
+ *
+ * Takes a raw InputStream, not a String - some providers' xmltv.php dumps run into the hundreds
+ * of MB (observed on a real device: a single response requiring a ~283MB contiguous allocation),
+ * and reading that into one String first - as this used to do - reliably OOMs regardless of
+ * anything downstream. SAX parses incrementally straight off the stream, so peak memory here is
+ * bounded by the *parsed* output, not the raw XML size.
  */
 object XmlTvParser {
     private val offsetFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z")
     private val localFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
 
-    fun parse(xml: String): List<XmlTvProgramme> {
+    /**
+     * [keepFrom]/[keepUntil] discard programmes outside the window as they're parsed, rather than
+     * after - for a guide with months of data across thousands of channels, keeping only the
+     * days the grid actually displays meaningfully bounds the result list's own memory footprint
+     * too, on top of the streaming fix above.
+     */
+    fun parse(input: InputStream, keepFrom: Instant? = null, keepUntil: Instant? = null): List<XmlTvProgramme> {
         val results = mutableListOf<XmlTvProgramme>()
 
         val handler = object : DefaultHandler() {
@@ -72,17 +84,20 @@ object XmlTvParser {
                         val text = title?.toString()?.trim()
                         val descriptionText = desc?.toString()?.trim()?.takeIf(String::isNotBlank)
                         if (!channel.isNullOrBlank() && start != null && stop != null && !text.isNullOrBlank()) {
-                            results += XmlTvProgramme(
-                                channel,
-                                EpgProgram(title = text, startAt = start, endAt = stop, description = descriptionText),
-                            )
+                            val inWindow = (keepFrom == null || stop >= keepFrom) && (keepUntil == null || start <= keepUntil)
+                            if (inWindow) {
+                                results += XmlTvProgramme(
+                                    channel,
+                                    EpgProgram(title = text, startAt = start, endAt = stop, description = descriptionText),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        SAXParserFactory.newInstance().newSAXParser().parse(InputSource(StringReader(xml)), handler)
+        SAXParserFactory.newInstance().newSAXParser().parse(InputSource(input), handler)
         return results
     }
 

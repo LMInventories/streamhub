@@ -9,6 +9,7 @@ import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfig
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
 import com.android.streamhub.feature.iptv.data.XmlTvParser
+import com.android.streamhub.feature.iptv.data.XmlTvProgramme
 import com.android.streamhub.feature.iptv.data.epgKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -17,10 +18,12 @@ import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okio.Buffer
+import org.xml.sax.SAXException
+import java.io.FilterInputStream
 import java.io.IOException
-import java.nio.charset.StandardCharsets
+import java.io.InputStream
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -56,10 +59,11 @@ class EpgGridRepository @Inject constructor(
      * Fetches and stores the full guide if the cache is missing or stale. Every failure mode
      * (no EPG configured, download failed, response wasn't valid XMLTV, valid XML but zero
      * programmes in it) is reported distinctly rather than collapsed into a plain false/true -
-     * this used to fail completely silently, which made a real bug (channel-id mismatch, fixed
-     * separately) impossible to diagnose from a bug report alone. [onProgress] is only invoked
-     * while an actual download is happening - if the cache is still fresh, it's never called, so
-     * callers can use "did I get any progress calls" to decide whether to show a bar.
+     * this used to fail completely silently, which made a real bug (an OutOfMemoryError from
+     * buffering a 280MB+ guide into one String, fixed here by streaming straight into the SAX
+     * parser instead) impossible to diagnose from a bug report alone. [onProgress] is only
+     * invoked while an actual download is happening - if the cache is still fresh, it's never
+     * called, so callers can use "did I get any progress calls" to decide whether to show a bar.
      * [forceRefresh] skips the freshness check entirely - used by "Update Playlist" in Settings.
      */
     suspend fun ensureFresh(forceRefresh: Boolean = false, onProgress: (Float) -> Unit = {}): EpgRefreshResult = withContext(Dispatchers.IO) {
@@ -72,24 +76,16 @@ class EpgGridRepository @Inject constructor(
             return@withContext EpgRefreshResult.UpToDate
         }
 
-        val fetchResult = fetchText(xmltvUrl, onProgress)
-        val xml = fetchResult.getOrElse { throwable ->
+        val fetchResult = fetchAndParse(xmltvUrl, onProgress)
+        val programmes = fetchResult.getOrElse { throwable ->
             return@withContext EpgRefreshResult.Failed(
                 reason = describeFetchFailure(throwable),
                 hasCachedData = dao.count() > 0,
             )
         }
-
-        val parseResult = runCatching { XmlTvParser.parse(xml) }
-        val programmes = parseResult.getOrElse { throwable ->
-            return@withContext EpgRefreshResult.Failed(
-                reason = "Guide downloaded but couldn't be read as XMLTV (${throwable.message ?: throwable::class.simpleName})",
-                hasCachedData = dao.count() > 0,
-            )
-        }
         if (programmes.isEmpty()) {
             return@withContext EpgRefreshResult.Failed(
-                reason = "Guide downloaded successfully but contained no programme entries",
+                reason = "Guide downloaded successfully but contained no programme entries in the relevant date range",
                 hasCachedData = dao.count() > 0,
             )
         }
@@ -141,6 +137,7 @@ class EpgGridRepository @Inject constructor(
 
     private fun describeFetchFailure(throwable: Throwable): String = when (throwable) {
         is HttpStatusException -> "Guide download failed: HTTP ${throwable.code}"
+        is SAXException -> "Guide downloaded but couldn't be read as XMLTV (${throwable.message ?: throwable::class.simpleName})"
         is IOException -> "Guide download failed: ${throwable.message ?: "network error"}"
         else -> "Guide download failed: ${throwable.message ?: throwable::class.simpleName}"
     }
@@ -148,27 +145,52 @@ class EpgGridRepository @Inject constructor(
     private class HttpStatusException(val code: Int) : IOException("HTTP $code")
     private class EmptyBodyException : IOException("Empty response body")
 
-    /** Streams the response so we can report real download percentage instead of blocking silently on .string(). */
-    private fun fetchText(url: String, onProgress: (Float) -> Unit): Result<String> = runCatching {
+    /**
+     * Streams the response body straight into the SAX parser - never materializes the raw XML as
+     * a String/byte buffer first. A ~283MB single-allocation OutOfMemoryError was observed on a
+     * real device from the old fetch-whole-body-then-parse approach; some providers' xmltv.php
+     * dumps really are that large. keepFrom/keepUntil additionally bound the *parsed* result to
+     * roughly the window callers actually use, so a guide spanning months of data doesn't also
+     * balloon the in-memory result list or the Room insert.
+     */
+    private fun fetchAndParse(url: String, onProgress: (Float) -> Unit): Result<List<XmlTvProgramme>> = runCatching {
+        val now = Instant.now()
+        val keepFrom = now.minus(1, ChronoUnit.DAYS)
+        val keepUntil = now.plus(8, ChronoUnit.DAYS)
+
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw HttpStatusException(response.code)
             val body = response.body ?: throw EmptyBodyException()
             val contentLength = body.contentLength()
-            val source = body.source()
-            val buffer = Buffer()
-            var totalRead = 0L
-            val chunkSize = 32L * 1024L
+            val progressStream = ProgressInputStream(body.byteStream(), contentLength, onProgress)
+            XmlTvParser.parse(progressStream, keepFrom = keepFrom, keepUntil = keepUntil)
+        }
+    }
 
-            while (true) {
-                val read = source.read(buffer, chunkSize)
-                if (read == -1L) break
-                totalRead += read
-                if (contentLength > 0) {
-                    onProgress((totalRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
-                }
-            }
-            buffer.readString(StandardCharsets.UTF_8)
+    /** Reports download progress as SAX consumes the stream, rather than reporting 100% only once the whole body has separately been buffered first. */
+    private class ProgressInputStream(
+        delegate: InputStream,
+        private val totalBytes: Long,
+        private val onProgress: (Float) -> Unit,
+    ) : FilterInputStream(delegate) {
+        private var bytesRead = 0L
+
+        override fun read(): Int {
+            val b = super.read()
+            if (b != -1) track(1)
+            return b
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val n = super.read(b, off, len)
+            if (n > 0) track(n.toLong())
+            return n
+        }
+
+        private fun track(n: Long) {
+            bytesRead += n
+            if (totalBytes > 0) onProgress((bytesRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f))
         }
     }
 }

@@ -20,7 +20,7 @@ class XmlTvParserTest {
             </tv>
         """.trimIndent()
 
-        val programmes = XmlTvParser.parse(xml)
+        val programmes = XmlTvParser.parse(xml.byteInputStream())
 
         assertEquals(1, programmes.size)
         assertEquals("bbc1.uk", programmes[0].channelId)
@@ -40,7 +40,7 @@ class XmlTvParserTest {
             </tv>
         """.trimIndent()
 
-        val programmes = XmlTvParser.parse(xml)
+        val programmes = XmlTvParser.parse(xml.byteInputStream())
 
         assertEquals(1, programmes.size)
         assertEquals(null, programmes[0].program.description)
@@ -56,7 +56,7 @@ class XmlTvParserTest {
             </tv>
         """.trimIndent()
 
-        val programmes = XmlTvParser.parse(xml)
+        val programmes = XmlTvParser.parse(xml.byteInputStream())
 
         assertEquals(1, programmes.size)
         assertEquals(Instant.parse("2026-07-07T20:00:00Z"), programmes[0].program.startAt)
@@ -71,7 +71,7 @@ class XmlTvParserTest {
             </tv>
         """.trimIndent()
 
-        assertTrue(XmlTvParser.parse(xml).isEmpty())
+        assertTrue(XmlTvParser.parse(xml.byteInputStream()).isEmpty())
     }
 
     @Test
@@ -84,7 +84,7 @@ class XmlTvParserTest {
             </tv>
         """.trimIndent()
 
-        val grouped = XmlTvParser.parse(xml).groupBy(keySelector = { it.channelId }, valueTransform = { it.program })
+        val grouped = XmlTvParser.parse(xml.byteInputStream()).groupBy(keySelector = { it.channelId }, valueTransform = { it.program })
 
         assertEquals(2, grouped["a"]?.size)
         assertEquals(1, grouped["b"]?.size)
