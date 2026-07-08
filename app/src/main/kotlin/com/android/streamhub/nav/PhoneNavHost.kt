@@ -21,6 +21,10 @@ import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenPhone
+import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreen
+import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
+import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreen
+import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
 import com.android.streamhub.home.HomeScreenPhone
@@ -114,11 +118,44 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
-                ComingSoonScreen(
-                    title = "Jellyfin",
-                    message = "Jellyfin integration isn't wired up yet.",
+                JellyfinHomeScreen(
                     paddingValues = paddingValues,
-                    onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
+                    onSettingsClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
+                    onOpenLibrary = { library ->
+                        navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
+                    },
+                    onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
+                )
+            }
+            composable(
+                route = Route.JELLYFIN_LIBRARY_PATTERN,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("itemType") { type = NavType.StringType },
+                ),
+            ) {
+                JellyfinLibraryScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
+                )
+            }
+            composable(
+                route = Route.JELLYFIN_ITEM_DETAIL_PATTERN,
+                arguments = listOf(navArgument("itemId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val itemId = checkNotNull(backStackEntry.arguments?.getString("itemId"))
+                JellyfinItemDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onPlay = { navController.navigate(Route.playerRoute(itemId, SourceType.JELLYFIN)) },
+                )
+            }
+            composable(
+                route = Route.JELLYFIN_SERIES_DETAIL_PATTERN,
+                arguments = listOf(navArgument("seriesId") { type = NavType.StringType }),
+            ) {
+                JellyfinSeriesDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenEpisode = { itemId -> navController.navigate(Route.jellyfinItemDetailRoute(itemId)) },
                 )
             }
             composable(Route.SETTINGS_PATTERN) {

@@ -27,6 +27,12 @@ sealed class Route {
 
     data class VodSeriesDetail(val seriesId: String) : Route()
 
+    data class JellyfinLibrary(val libraryId: String, val itemType: String) : Route()
+
+    data class JellyfinItemDetail(val itemId: String) : Route()
+
+    data class JellyfinSeriesDetail(val seriesId: String) : Route()
+
     data class Player(val itemId: String, val sourceType: SourceType) : Route()
 
     companion object {
@@ -40,6 +46,9 @@ sealed class Route {
         const val JELLYFIN_SETTINGS_PATTERN = "jellyfin_settings"
         const val VOD_ITEM_DETAIL_PATTERN = "vod_item_detail/{itemId}"
         const val VOD_SERIES_DETAIL_PATTERN = "vod_series_detail/{seriesId}"
+        const val JELLYFIN_LIBRARY_PATTERN = "jellyfin_library/{libraryId}/{itemType}"
+        const val JELLYFIN_ITEM_DETAIL_PATTERN = "jellyfin_item_detail/{itemId}"
+        const val JELLYFIN_SERIES_DETAIL_PATTERN = "jellyfin_series_detail/{seriesId}"
         const val PLAYER_PATTERN = "player/{sourceType}/{itemId}"
 
         fun playerRoute(itemId: String, sourceType: SourceType): String =
@@ -51,5 +60,14 @@ sealed class Route {
         fun vodItemDetailRoute(itemId: String): String = "vod_item_detail/$itemId"
 
         fun vodSeriesDetailRoute(seriesId: String): String = "vod_series_detail/$seriesId"
+
+        // itemType is a plain enum name (e.g. "MOVIE"/"SERIES") - no special characters, safe
+        // as a raw path segment. The library's display name isn't passed here - the screen looks
+        // it up itself, same reasoning as vodItemDetailRoute not carrying a title either.
+        fun jellyfinLibraryRoute(libraryId: String, itemType: String): String = "jellyfin_library/$libraryId/$itemType"
+
+        fun jellyfinItemDetailRoute(itemId: String): String = "jellyfin_item_detail/$itemId"
+
+        fun jellyfinSeriesDetailRoute(seriesId: String): String = "jellyfin_series_detail/$seriesId"
     }
 }
