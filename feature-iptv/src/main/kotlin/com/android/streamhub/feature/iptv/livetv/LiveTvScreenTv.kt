@@ -37,6 +37,11 @@ fun LiveTvScreenTv(
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (!uiState.hasSource) {
+            AddSourcePromptTv(onSetupClick = onSettingsClick, modifier = Modifier.weight(1f))
+            return@Column
+        }
+
         Row(modifier = Modifier.fillMaxWidth().height(180.dp).padding(24.dp, 24.dp, 24.dp, 0.dp)) {
             MiniPlayerPreview(
                 exoPlayer = viewModel.miniPlayerController.exoPlayer,
@@ -61,7 +66,10 @@ fun LiveTvScreenTv(
 
         val selectedCategory = uiState.selectedCategory
 
-        Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        // weight(1f) here is load-bearing, not decorative - without it this competed for height
+        // with the fixed-size header Row above under Column's default (unbounded) child
+        // measurement, which is what made the grid silently fail to render.
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(24.dp)) {
             when {
                 selectedCategory == null && uiState.isLoadingCategories ->
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -76,7 +84,7 @@ fun LiveTvScreenTv(
                         Text("< ${selectedCategory.name}")
                     }
                     if (uiState.isLoadingChannels) {
-                        Box(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                         }
                     } else {
@@ -90,10 +98,23 @@ fun LiveTvScreenTv(
                             windowEnd = uiState.gridWindowEnd,
                             loadProgress = uiState.epgGridLoadProgress,
                             onFocusChannel = viewModel::focusChannel,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddSourcePromptTv(onSetupClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("No playlist added yet")
+            Text("Add an Xtream Codes or M3U playlist to start watching Live TV.", modifier = Modifier.padding(top = 8.dp))
+            Button(onClick = onSetupClick, modifier = Modifier.padding(top = 16.dp)) {
+                Text("Add playlist")
             }
         }
     }

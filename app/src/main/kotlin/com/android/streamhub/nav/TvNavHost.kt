@@ -16,6 +16,8 @@ import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.tv.scaffold.TvScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
+import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
+import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenTv
 import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.home.HomeScreenTv
@@ -66,9 +68,27 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             composable(Route.VOD_PATTERN) {
                 VodScreenTv(
                     onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
-                    onFullscreen = { itemId ->
-                        navController.navigate(Route.playerRoute(itemId, SourceType.IPTV))
-                    },
+                    onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
+                    onOpenShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
+                )
+            }
+            composable(
+                route = Route.VOD_ITEM_DETAIL_PATTERN,
+                arguments = listOf(navArgument("itemId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val itemId = checkNotNull(backStackEntry.arguments?.getString("itemId"))
+                ItemDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onPlay = { navController.navigate(Route.playerRoute(itemId, SourceType.IPTV)) },
+                )
+            }
+            composable(
+                route = Route.VOD_SERIES_DETAIL_PATTERN,
+                arguments = listOf(navArgument("seriesId") { type = NavType.StringType }),
+            ) {
+                SeriesDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenEpisode = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
                 )
             }
             composable(Route.EMBY_HOME_PATTERN) {

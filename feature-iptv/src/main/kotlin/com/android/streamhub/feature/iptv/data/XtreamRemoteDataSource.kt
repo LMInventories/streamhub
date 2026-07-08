@@ -44,4 +44,16 @@ class XtreamRemoteDataSource @Inject constructor(
 
     suspend fun getVodStreams(config: IptvSourceConfig.Xtream, categoryId: String? = null): List<XtreamVodStream> =
         apiFor(config.baseUrl).getVodStreams(config.username, config.password, categoryId = categoryId)
+
+    suspend fun getVodInfo(config: IptvSourceConfig.Xtream, vodId: String): XtreamVodInfoResponse =
+        apiFor(config.baseUrl).getVodInfo(config.username, config.password, vodId = vodId)
+
+    suspend fun getSeriesCategories(config: IptvSourceConfig.Xtream): List<XtreamSeriesCategory> =
+        apiFor(config.baseUrl).getSeriesCategories(config.username, config.password)
+
+    suspend fun getSeries(config: IptvSourceConfig.Xtream, categoryId: String? = null): List<XtreamSeries> =
+        apiFor(config.baseUrl).getSeries(config.username, config.password, categoryId = categoryId)
+
+    suspend fun getSeriesInfo(config: IptvSourceConfig.Xtream, seriesId: String): XtreamSeriesInfoResponse =
+        apiFor(config.baseUrl).getSeriesInfo(config.username, config.password, seriesId = seriesId)
 }

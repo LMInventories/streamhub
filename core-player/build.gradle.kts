@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
 }
 
@@ -51,9 +52,10 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
 
-    // @Inject-constructor classes here still need Dagger/Hilt's annotation processor to
-    // generate their factories, even though this module never applies the Hilt Gradle plugin
-    // itself (that only runs where @AndroidEntryPoint/@HiltAndroidApp live, i.e. :app).
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
 

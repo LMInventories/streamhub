@@ -14,13 +14,33 @@ android {
         applicationId = "com.android.streamhub"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0-milestone2"
+        versionCode = 3
+        versionName = "0.3.0-milestone2"
+    }
+
+    signingConfigs {
+        // A stable, committed keystore rather than AGP's implicit per-machine debug.keystore -
+        // CI runs on a fresh runner every time with no ~/.android/debug.keystore, so without
+        // this each build was signed with a brand new random key, and Android refuses to
+        // install-update an APK signed with a different key than what's already installed
+        // ("package conflicts with an existing package"). This keystore is a plain debug-only
+        // key (standard "android"/"androiddebugkey" credentials) - never used for release/Play
+        // Store signing, safe to commit.
+        create("debugStable") {
+            storeFile = file("../keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debugStable")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debugStable")
         }
     }
 

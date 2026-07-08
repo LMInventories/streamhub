@@ -69,6 +69,11 @@ fun LiveTvScreenPhone(
                 Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
             }
 
+            if (!uiState.hasSource) {
+                AddSourcePrompt(onSetupClick = onSettingsClick, modifier = Modifier.weight(1f))
+                return@Column
+            }
+
             if (isLandscape) {
                 Row(modifier = Modifier.fillMaxWidth().height(140.dp)) {
                     MiniPlayerPreview(
@@ -110,7 +115,30 @@ fun LiveTvScreenPhone(
                 onSelectCategory = viewModel::selectCategory,
                 onBackToCategories = viewModel::clearCategorySelection,
                 onFocusChannel = viewModel::focusChannel,
+                // Without this, this content competes for height with the fixed-size mini-player
+                // row/header above it under Column's default (unbounded) child measurement,
+                // which is what made the grid/list silently fail to render in landscape - there's
+                // much less vertical room there than portrait, so the mis-measurement was far
+                // more visible even though the same bug existed in both orientations.
+                modifier = Modifier.weight(1f),
             )
+        }
+    }
+}
+
+@Composable
+private fun AddSourcePrompt(onSetupClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("No playlist added yet", color = Color.White)
+            Text(
+                text = "Add an Xtream Codes or M3U playlist to start watching Live TV.",
+                color = Color.Gray,
+                modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
+            )
+            IconButton(onClick = onSetupClick, modifier = Modifier.padding(top = 16.dp)) {
+                Icon(Icons.Filled.Settings, contentDescription = "Add playlist")
+            }
         }
     }
 }
@@ -122,10 +150,11 @@ private fun LiveTvBrowseContent(
     onSelectCategory: (IptvCategoryInfo) -> Unit,
     onBackToCategories: () -> Unit,
     onFocusChannel: (IptvChannelInfo) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxWidth()) {
         when {
             selectedCategory == null && uiState.isLoadingCategories ->
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -149,7 +178,7 @@ private fun LiveTvBrowseContent(
                     },
                 )
                 when {
-                    uiState.isLoadingChannels -> Box(modifier = Modifier.fillMaxSize()) {
+                    uiState.isLoadingChannels -> Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     }
                     // EPG only appears in landscape, inline - not as a separate screen.
@@ -160,9 +189,9 @@ private fun LiveTvBrowseContent(
                         windowEnd = uiState.gridWindowEnd,
                         loadProgress = uiState.epgGridLoadProgress,
                         onFocusChannel = onFocusChannel,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
-                    else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         items(uiState.channels, key = { it.id }) { channel ->
                             ListItem(
                                 headlineContent = { Text(channel.name) },

@@ -10,6 +10,7 @@ import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
+import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,9 @@ import javax.inject.Inject
 private const val GRID_DAYS = 7L
 
 data class LiveTvUiState(
+    // Defaults true so the first frame shows the normal loading spinner rather than a flash of
+    // the "add playlist" prompt before the DataStore read (fast, but not instant) resolves.
+    val hasSource: Boolean = true,
     val categories: List<IptvCategoryInfo> = emptyList(),
     val isLoadingCategories: Boolean = true,
     val selectedCategory: IptvCategoryInfo? = null,
@@ -50,6 +54,7 @@ data class LiveTvUiState(
 class LiveTvViewModel @Inject constructor(
     private val browseRepository: IptvBrowseRepository,
     private val epgGridRepository: EpgGridRepository,
+    private val configRepository: IptvSourceConfigRepository,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -60,7 +65,16 @@ class LiveTvViewModel @Inject constructor(
 
     init {
         miniPlayerController.setMuted(true)
-        loadCategories()
+        // Observed continuously (not a one-shot check) so saving a playlist in Settings and
+        // navigating back to Live TV - without restarting the app - immediately swaps the "add
+        // playlist" prompt for the real browse UI, and editing an existing source re-fetches.
+        viewModelScope.launch {
+            configRepository.configFlow.collect { config ->
+                val hasSource = config != null
+                _uiState.update { it.copy(hasSource = hasSource) }
+                if (hasSource) loadCategories()
+            }
+        }
     }
 
     fun loadCategories() {

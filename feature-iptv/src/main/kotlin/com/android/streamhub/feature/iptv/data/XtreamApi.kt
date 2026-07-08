@@ -47,4 +47,35 @@ interface XtreamApi {
         @Query("action") action: String = "get_vod_streams",
         @Query("category_id") categoryId: String? = null,
     ): List<XtreamVodStream>
+
+    @GET("player_api.php")
+    suspend fun getVodInfo(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_vod_info",
+        @Query("vod_id") vodId: String,
+    ): XtreamVodInfoResponse
+
+    @GET("player_api.php")
+    suspend fun getSeriesCategories(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_series_categories",
+    ): List<XtreamSeriesCategory>
+
+    @GET("player_api.php")
+    suspend fun getSeries(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_series",
+        @Query("category_id") categoryId: String? = null,
+    ): List<XtreamSeries>
+
+    @GET("player_api.php")
+    suspend fun getSeriesInfo(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_series_info",
+        @Query("series_id") seriesId: String,
+    ): XtreamSeriesInfoResponse
 }
