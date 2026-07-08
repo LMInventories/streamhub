@@ -11,8 +11,8 @@ import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
-import com.android.streamhub.feature.iptv.data.epgKey
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
+import com.android.streamhub.feature.iptv.data.epg.EpgRefreshResult
 import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -139,7 +139,7 @@ class LiveTvViewModel @Inject constructor(
                     if (_uiState.value.focusedChannel == null) {
                         channels.firstOrNull()?.let(::focusChannel)
                     }
-                    loadEpgGrid(channels.map { it.epgKey })
+                    loadEpgGrid(channels)
                 }
             }
             return
@@ -154,7 +154,7 @@ class LiveTvViewModel @Inject constructor(
                     if (_uiState.value.focusedChannel == null) {
                         channels.firstOrNull()?.let(::focusChannel)
                     }
-                    loadEpgGrid(channels.map { it.epgKey })
+                    loadEpgGrid(channels)
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoadingChannels = false, errorMessage = e.message ?: "Failed to load channels") } }
         }
@@ -176,7 +176,7 @@ class LiveTvViewModel @Inject constructor(
             runCatching { browseRepository.getChannels(category.id) }
                 .onSuccess { channels ->
                     _uiState.update { it.copy(channels = channels, isLoadingChannels = false) }
-                    loadEpgGrid(channels.map { it.id }, forceRefresh = true)
+                    loadEpgGrid(channels, forceRefresh = true)
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoadingChannels = false, errorMessage = e.message ?: "Failed to refresh channels") } }
         }
@@ -215,22 +215,35 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
-    private fun loadEpgGrid(channelIds: List<String>, forceRefresh: Boolean = false) {
+    private fun loadEpgGrid(channels: List<IptvChannelInfo>, forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingEpgGrid = true) }
             // ensureFresh only calls this while an actual download is in flight - if the cache
             // is already fresh, it never fires, so no progress bar flashes for a cache hit.
-            val hasEpg = runCatching {
+            val result = runCatching {
                 epgGridRepository.ensureFresh(forceRefresh = forceRefresh) { progress ->
                     _uiState.update { it.copy(epgGridLoadProgress = progress) }
                 }
-            }.getOrDefault(false)
+            }.getOrElse { e -> EpgRefreshResult.Failed(e.message ?: "Unknown error", hasCachedData = false) }
             _uiState.update { it.copy(epgGridLoadProgress = null) }
+
+            // Every failure mode gets surfaced (rather than just quietly leaving the grid empty)
+            // so a real report of "the grid never shows anything" is actually diagnosable next
+            // time - this used to swallow every failure silently.
+            val hasEpg = when (result) {
+                is EpgRefreshResult.UpToDate, is EpgRefreshResult.Fetched -> true
+                is EpgRefreshResult.Failed -> result.hasCachedData
+                EpgRefreshResult.NotConfigured -> false
+            }
+            // Unconditional, not ?: it.errorMessage - loadEpgGrid only ever runs after channels
+            // already loaded successfully, so there's no other error here it could be clobbering,
+            // and a later successful fetch needs to actually clear a previously-shown EPG error.
+            _uiState.update { it.copy(errorMessage = (result as? EpgRefreshResult.Failed)?.let { f -> "EPG guide: ${f.reason}" }) }
 
             if (hasEpg) {
                 val windowStart = Instant.now().truncatedTo(ChronoUnit.HOURS)
                 val windowEnd = windowStart.plus(GRID_DAYS, ChronoUnit.DAYS)
-                val grid = runCatching { epgGridRepository.getGrid(channelIds, windowStart, windowEnd) }.getOrDefault(emptyMap())
+                val grid = runCatching { epgGridRepository.getGrid(channels, windowStart, windowEnd) }.getOrDefault(emptyMap())
                 _uiState.update {
                     it.copy(programmesByChannel = grid, gridWindowStart = windowStart, gridWindowEnd = windowEnd)
                 }
