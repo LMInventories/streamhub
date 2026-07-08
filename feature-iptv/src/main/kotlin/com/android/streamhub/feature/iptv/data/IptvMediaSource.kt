@@ -59,6 +59,11 @@ class IptvMediaSource @Inject constructor(
         }
         return browse().first { it.id == itemId }
     }
+
+    /** Forces the next browse() to refetch instead of returning the cached list - used by "Update Playlist" in Settings. */
+    fun invalidateCache() {
+        cachedConfig = null
+    }
 }
 
 // Xtream live and VOD stream ids are separate numbering spaces on the provider side and can

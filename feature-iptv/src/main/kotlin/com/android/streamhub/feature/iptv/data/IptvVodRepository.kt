@@ -25,6 +25,7 @@ data class VodEpisodeInfo(
     val title: String,
     val seasonNumber: Int,
     val episodeNumber: Int,
+    val plot: String? = null,
 )
 
 data class VodSeriesDetailInfo(
@@ -144,6 +145,7 @@ class IptvVodRepository @Inject constructor(
                     title = episode.title?.takeIf(String::isNotBlank) ?: "Episode $episodeNum",
                     seasonNumber = season,
                     episodeNumber = episodeNum,
+                    plot = episode.info?.plot?.takeIf(String::isNotBlank),
                 )
             }
             .sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))

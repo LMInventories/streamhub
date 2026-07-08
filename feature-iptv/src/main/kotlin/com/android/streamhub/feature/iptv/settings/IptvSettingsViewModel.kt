@@ -2,8 +2,11 @@ package com.android.streamhub.feature.iptv.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
+import com.android.streamhub.feature.iptv.data.IptvMediaSource
 import com.android.streamhub.feature.iptv.data.IptvSourceConfig
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
+import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,11 +25,17 @@ data class IptvSettingsUiState(
     val m3uPlaylistUrl: String = "",
     val m3uEpgUrl: String = "",
     val saved: Boolean = false,
+    val hasSource: Boolean = false,
+    val isUpdating: Boolean = false,
+    val updated: Boolean = false,
 )
 
 @HiltViewModel
 class IptvSettingsViewModel @Inject constructor(
     private val repository: IptvSourceConfigRepository,
+    private val mediaSource: IptvMediaSource,
+    private val browseRepository: IptvBrowseRepository,
+    private val epgGridRepository: EpgGridRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IptvSettingsUiState())
@@ -41,6 +50,7 @@ class IptvSettingsViewModel @Inject constructor(
                         xtreamBaseUrl = config.baseUrl,
                         xtreamUsername = config.username,
                         xtreamPassword = config.password,
+                        hasSource = true,
                     )
                 }
                 is IptvSourceConfig.M3u -> _uiState.update {
@@ -48,6 +58,7 @@ class IptvSettingsViewModel @Inject constructor(
                         providerType = IptvProviderType.M3U,
                         m3uPlaylistUrl = config.playlistUrl,
                         m3uEpgUrl = config.epgUrl.orEmpty(),
+                        hasSource = true,
                     )
                 }
                 null -> Unit
@@ -77,7 +88,24 @@ class IptvSettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             repository.save(config)
-            _uiState.update { it.copy(saved = true) }
+            _uiState.update { it.copy(saved = true, hasSource = true) }
+        }
+    }
+
+    /**
+     * Drops every IPTV cache (live/VOD item list, M3U EPG, the 7-day grid's freshness timestamp)
+     * and tells any active Live TV/VOD screens to refetch - without this, those screens would
+     * keep showing whatever they last loaded until the app was restarted.
+     */
+    fun updatePlaylist() {
+        if (!_uiState.value.hasSource) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUpdating = true, updated = false) }
+            mediaSource.invalidateCache()
+            browseRepository.invalidateCache()
+            runCatching { epgGridRepository.ensureFresh(forceRefresh = true) }
+            repository.requestRefresh()
+            _uiState.update { it.copy(isUpdating = false, updated = true) }
         }
     }
 }

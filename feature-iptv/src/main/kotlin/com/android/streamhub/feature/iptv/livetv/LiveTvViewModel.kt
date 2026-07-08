@@ -38,6 +38,12 @@ data class LiveTvUiState(
     // Landscape-only 7-day grid data - loaded alongside the channel list but only rendered by
     // the landscape layout (portrait/TV-card layouts ignore it), per "EPG should only appear
     // when landscape, not as a separate screen".
+    // True for the whole fetch-and-populate sequence, not just the tracked-progress download -
+    // epgGridLoadProgress alone leaves a gap (Room read / cache hit / a fetch too fast to catch
+    // a progress callback) where the grid would otherwise render as an empty timeline with no
+    // explanation. This flag is what actually gates showing a loading indicator; progress is
+    // just extra detail shown when we happen to have it.
+    val isLoadingEpgGrid: Boolean = false,
     val epgGridLoadProgress: Float? = null,
     val programmesByChannel: Map<String, List<EpgProgram>> = emptyMap(),
     val gridWindowStart: Instant = Instant.now().truncatedTo(ChronoUnit.HOURS),
@@ -75,6 +81,15 @@ class LiveTvViewModel @Inject constructor(
                 if (hasSource) loadCategories()
             }
         }
+        // "Update Playlist" in Settings - re-saving the same config doesn't change configFlow's
+        // emitted value, so this is a separate explicit signal to drop caches and refetch.
+        viewModelScope.launch {
+            configRepository.refreshEvents.collect {
+                browseRepository.invalidateCache()
+                loadCategories()
+                refreshCurrentSelection()
+            }
+        }
     }
 
     fun loadCategories() {
@@ -108,6 +123,20 @@ class LiveTvViewModel @Inject constructor(
         _uiState.update { it.copy(selectedCategory = null, channels = emptyList()) }
     }
 
+    /** Re-fetches the currently selected category's channels + force-refreshes its EPG - used by "Update Playlist". Leaves focusedChannel/selectedCategory alone. */
+    private fun refreshCurrentSelection() {
+        val category = _uiState.value.selectedCategory ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingChannels = true) }
+            runCatching { browseRepository.getChannels(category.id) }
+                .onSuccess { channels ->
+                    _uiState.update { it.copy(channels = channels, isLoadingChannels = false) }
+                    loadEpgGrid(channels.map { it.id }, forceRefresh = true)
+                }
+                .onFailure { e -> _uiState.update { it.copy(isLoadingChannels = false, errorMessage = e.message ?: "Failed to refresh channels") } }
+        }
+    }
+
     /** Called when a channel is focused (TV D-pad) or tapped (phone) - drives the mini-player preview. */
     fun focusChannel(channel: IptvChannelInfo) {
         if (channel.id == _uiState.value.focusedChannel?.id) return
@@ -131,12 +160,13 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
-    private fun loadEpgGrid(channelIds: List<String>) {
+    private fun loadEpgGrid(channelIds: List<String>, forceRefresh: Boolean = false) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingEpgGrid = true) }
             // ensureFresh only calls this while an actual download is in flight - if the cache
             // is already fresh, it never fires, so no progress bar flashes for a cache hit.
             val hasEpg = runCatching {
-                epgGridRepository.ensureFresh { progress ->
+                epgGridRepository.ensureFresh(forceRefresh = forceRefresh) { progress ->
                     _uiState.update { it.copy(epgGridLoadProgress = progress) }
                 }
             }.getOrDefault(false)
@@ -150,10 +180,21 @@ class LiveTvViewModel @Inject constructor(
                     it.copy(programmesByChannel = grid, gridWindowStart = windowStart, gridWindowEnd = windowEnd)
                 }
             }
+            _uiState.update { it.copy(isLoadingEpgGrid = false) }
         }
     }
 
     fun toggleMiniPlayerMute() = miniPlayerController.toggleMuted()
+
+    /** Called when the Live TV screen re-enters composition (including the first time) - resumes whatever channel was already focused. */
+    fun resumeMiniPlayer() {
+        if (_uiState.value.focusedChannel != null) miniPlayerController.play()
+    }
+
+    /** Called when the Live TV screen leaves composition for a different section of the app (or fullscreen) - no point decoding/buffering a channel the user can no longer see. */
+    fun pauseMiniPlayer() {
+        miniPlayerController.pause()
+    }
 
     override fun onCleared() {
         miniPlayerController.release()

@@ -7,14 +7,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -128,6 +132,25 @@ fun IptvSettingsScreen(
 
             if (uiState.saved) {
                 Text("Saved.")
+            }
+
+            if (uiState.hasSource) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Palette.Border)
+
+                Text("Playlist not showing everything it should? Refetch it without re-entering your details.", color = Palette.TextMuted)
+
+                OutlinedButton(onClick = viewModel::updatePlaylist, enabled = !uiState.isUpdating) {
+                    if (uiState.isUpdating) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                        Text("Updating…", modifier = Modifier.padding(start = 8.dp))
+                    } else {
+                        Text("Update Playlist")
+                    }
+                }
+
+                if (uiState.updated && !uiState.isUpdating) {
+                    Text("Playlist updated.", color = Palette.TextMuted)
+                }
             }
         }
     }

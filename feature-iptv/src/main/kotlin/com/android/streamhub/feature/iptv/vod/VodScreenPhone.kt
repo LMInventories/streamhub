@@ -17,11 +17,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,12 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,19 +55,21 @@ fun VodScreenPhone(
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             TopAppBar(
-                title = {
-                    if (selectedCategory == null) {
-                        ModeDropdown(mode = uiState.mode, onModeChange = viewModel::setMode)
-                    } else {
-                        Text("VOD")
-                    }
-                },
+                title = { Text("VOD") },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
                     }
                 },
             )
+
+            if (selectedCategory == null && uiState.hasSource && uiState.isSupported) {
+                ModePillToggle(
+                    mode = uiState.mode,
+                    onModeChange = viewModel::setMode,
+                    modifier = Modifier.padding(16.dp, 8.dp),
+                )
+            }
 
             uiState.errorMessage?.let { error ->
                 Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
@@ -153,20 +150,23 @@ fun VodScreenPhone(
 }
 
 @Composable
-private fun ModeDropdown(mode: VodMode, onModeChange: (VodMode) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier.clickable { expanded = true },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(if (mode == VodMode.MOVIES) "Movies" else "TV Shows")
-            Icon(Icons.Filled.ArrowDropDown, contentDescription = "Switch between Movies and TV Shows")
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(text = { Text("Movies") }, onClick = { onModeChange(VodMode.MOVIES); expanded = false })
-            DropdownMenuItem(text = { Text("TV Shows") }, onClick = { onModeChange(VodMode.SHOWS); expanded = false })
-        }
+private fun ModePillToggle(mode: VodMode, onModeChange: (VodMode) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier = modifier.background(Palette.Surface, AppShapes.pill).padding(4.dp)) {
+        PillOption(label = "Movies", selected = mode == VodMode.MOVIES, onClick = { onModeChange(VodMode.MOVIES) })
+        PillOption(label = "TV Shows", selected = mode == VodMode.SHOWS, onClick = { onModeChange(VodMode.SHOWS) })
+    }
+}
+
+@Composable
+private fun PillOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(AppShapes.pill)
+            .background(if (selected) Palette.Accent else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(text = label, color = if (selected) Color.White else Palette.TextMuted)
     }
 }
 

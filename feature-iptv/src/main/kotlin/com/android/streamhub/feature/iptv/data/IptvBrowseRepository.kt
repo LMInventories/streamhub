@@ -86,4 +86,10 @@ class IptvBrowseRepository @Inject constructor(
         cachedEpgByChannelId = fetched
         return fetched
     }
+
+    /** Forces the next now/next lookup to refetch the M3U EPG instead of returning the cached one - used by "Update Playlist" in Settings. */
+    fun invalidateCache() {
+        cachedEpgUrl = null
+        cachedEpgByChannelId = emptyMap()
+    }
 }

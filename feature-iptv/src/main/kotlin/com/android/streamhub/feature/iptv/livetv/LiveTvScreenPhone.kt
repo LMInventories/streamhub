@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,16 @@ fun LiveTvScreenPhone(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    // Resumes the focused channel whenever this screen enters composition (first time, or
+    // returning from another tab/fullscreen) and pauses it whenever it leaves - there's no
+    // reason to keep a channel the user can't see decoding/buffering in the background.
+    // Category/channel browsing happens entirely within this same composable, so it never
+    // triggers this - only genuinely navigating away from Live TV does.
+    DisposableEffect(Unit) {
+        viewModel.resumeMiniPlayer()
+        onDispose { viewModel.pauseMiniPlayer() }
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
@@ -187,6 +198,7 @@ private fun LiveTvBrowseContent(
                         programmesByChannel = uiState.programmesByChannel,
                         windowStart = uiState.gridWindowStart,
                         windowEnd = uiState.gridWindowEnd,
+                        isLoading = uiState.isLoadingEpgGrid,
                         loadProgress = uiState.epgGridLoadProgress,
                         onFocusChannel = onFocusChannel,
                         modifier = Modifier.weight(1f).fillMaxWidth(),

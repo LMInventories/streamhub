@@ -46,14 +46,15 @@ class EpgGridRepository @Inject constructor(
      * there's nothing to fetch (no EPG configured) or the fetch failed. [onProgress] is only
      * invoked while an actual download is happening - if the cache is still fresh, it's never
      * called, so callers can use "did I get any progress calls" to decide whether to show a bar.
+     * [forceRefresh] skips the freshness check entirely - used by "Update Playlist" in Settings.
      */
-    suspend fun ensureFresh(onProgress: (Float) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
+    suspend fun ensureFresh(forceRefresh: Boolean = false, onProgress: (Float) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
         val config = configRepository.configFlow.first() ?: return@withContext false
         val xmltvUrl = xmltvUrlFor(config) ?: return@withContext false
 
         val lastRefreshed = dataStore.data.map { it[lastRefreshedKey] ?: 0L }.first()
         val now = Instant.now().epochSecond
-        if (now - lastRefreshed < refreshIntervalSeconds && dao.count() > 0) return@withContext true
+        if (!forceRefresh && now - lastRefreshed < refreshIntervalSeconds && dao.count() > 0) return@withContext true
 
         val xml = fetchText(xmltvUrl, onProgress) ?: return@withContext dao.count() > 0
         val programmes = XmlTvParser.parse(xml)

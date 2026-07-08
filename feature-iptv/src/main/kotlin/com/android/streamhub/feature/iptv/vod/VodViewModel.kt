@@ -54,6 +54,15 @@ class VodViewModel @Inject constructor(
                 if (isSupported) loadCategories()
             }
         }
+        // "Update Playlist" in Settings - IptvVodRepository has no cache of its own (every call
+        // already hits the network fresh), so refreshing just means re-running whatever's
+        // currently visible.
+        viewModelScope.launch {
+            configRepository.refreshEvents.collect {
+                loadCategories()
+                _uiState.value.selectedCategory?.let(::selectCategory)
+            }
+        }
     }
 
     fun setMode(mode: VodMode) {

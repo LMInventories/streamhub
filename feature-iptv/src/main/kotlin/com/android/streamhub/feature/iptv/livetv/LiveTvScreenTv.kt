@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,16 @@ fun LiveTvScreenTv(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
+
+    // Resumes the focused channel whenever this screen enters composition (first time, or
+    // returning from another tab/fullscreen) and pauses it whenever it leaves - there's no
+    // reason to keep a channel the user can't see decoding/buffering in the background.
+    // Category/channel browsing happens entirely within this same composable, so it never
+    // triggers this - only genuinely navigating away from Live TV does.
+    DisposableEffect(Unit) {
+        viewModel.resumeMiniPlayer()
+        onDispose { viewModel.pauseMiniPlayer() }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (!uiState.hasSource) {
@@ -96,6 +107,7 @@ fun LiveTvScreenTv(
                             programmesByChannel = uiState.programmesByChannel,
                             windowStart = uiState.gridWindowStart,
                             windowEnd = uiState.gridWindowEnd,
+                            isLoading = uiState.isLoadingEpgGrid,
                             loadProgress = uiState.epgGridLoadProgress,
                             onFocusChannel = viewModel::focusChannel,
                             modifier = Modifier.weight(1f).fillMaxWidth(),

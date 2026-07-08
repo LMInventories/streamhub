@@ -1,5 +1,11 @@
 package com.android.streamhub.feature.iptv.livetv
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
@@ -58,6 +65,7 @@ fun EpgGridPanel(
     programmesByChannel: Map<String, List<EpgProgram>>,
     windowStart: Instant,
     windowEnd: Instant,
+    isLoading: Boolean,
     loadProgress: Float?,
     onFocusChannel: (IptvChannelInfo) -> Unit,
     modifier: Modifier = Modifier,
@@ -65,6 +73,9 @@ fun EpgGridPanel(
     val sharedScrollState = rememberScrollState()
 
     Column(modifier = modifier) {
+        // isLoading alone (no real progress yet) covers the gap loadProgress leaves - a Room
+        // read, a cache hit, or a download too fast to catch a callback - where the grid would
+        // otherwise render as an empty timeline with no explanation that anything's happening.
         if (loadProgress != null) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
                 BasicText(
@@ -76,6 +87,14 @@ fun EpgGridPanel(
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     segmentCount = 32,
                 )
+            }
+        } else if (isLoading) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+                BasicText(
+                    text = "Loading guide…",
+                    style = TextStyle(color = Palette.TextMuted, fontSize = 12.sp),
+                )
+                IndeterminateSignalBar(modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
             }
         }
 
@@ -101,6 +120,21 @@ fun EpgGridPanel(
             }
         }
     }
+}
+
+@Composable
+private fun IndeterminateSignalBar(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "epg-loading")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "epg-loading-progress",
+    )
+    SignalBar(progress = progress, modifier = modifier, segmentCount = 32)
 }
 
 @Composable
