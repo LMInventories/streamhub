@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.Jellyfin
-import org.jellyfin.sdk.api.client.extensions.userApi
+import org.jellyfin.sdk.api.client.extensions.authenticateUserByName
+import org.jellyfin.sdk.api.client.extensions.authenticationApi
 import javax.inject.Inject
 
 data class JellyfinSettingsUiState(
@@ -61,7 +62,7 @@ class JellyfinSettingsViewModel @Inject constructor(
             _uiState.update { it.copy(isSigningIn = true, errorMessage = null) }
             val api = jellyfin.createApi(baseUrl = serverUrl)
             runCatching {
-                api.userApi.authenticateUserByName(username = state.username, password = state.password).content
+                api.authenticationApi.authenticateUserByName(username = state.username, password = state.password).content
             }.onSuccess { result ->
                 val accessToken = result.accessToken
                 val userId = result.user?.id?.toString()
