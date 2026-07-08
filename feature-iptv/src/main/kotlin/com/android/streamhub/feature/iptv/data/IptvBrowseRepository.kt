@@ -40,22 +40,36 @@ class IptvBrowseRepository @Inject constructor(
     private var cachedEpgUrl: String? = null
     private var cachedEpgByChannelId: Map<String, List<EpgProgram>> = emptyMap()
 
+    // Categories/channels weren't cached at all before this - every category tap re-hit the
+    // network (an Xtream API call, or for M3U, a full re-download+re-parse of the whole
+    // playlist just to filter it client-side by category). Cleared by invalidateCache(), which
+    // "Update Playlist" and the auto-update setting both already call through to.
+    private var cachedCategories: List<IptvCategoryInfo>? = null
+    private val cachedChannelsByCategory = mutableMapOf<String, List<IptvChannelInfo>>()
+    // The one raw fetch+parse of the M3U playlist that both getCategories() and every
+    // getChannels() call now share, instead of each doing its own independent fetch+parse.
+    private var cachedM3uChannels: List<M3uChannel>? = null
+
     suspend fun getCategories(): List<IptvCategoryInfo> {
+        cachedCategories?.let { return it }
         val config = configRepository.configFlow.first() ?: return emptyList()
-        return when (config) {
+        val result = when (config) {
             is IptvSourceConfig.Xtream ->
                 xtreamRemoteDataSource.getLiveCategories(config).map { IptvCategoryInfo(it.categoryId, it.categoryName) }
             is IptvSourceConfig.M3u ->
-                m3uRemoteDataSource.fetchChannels(config.playlistUrl)
+                m3uChannels(config.playlistUrl)
                     .map { it.groupTitle?.takeIf(String::isNotBlank) ?: UNCATEGORIZED_ID }
                     .distinct()
                     .map { IptvCategoryInfo(id = it, name = if (it == UNCATEGORIZED_ID) "Uncategorized" else it) }
         }
+        cachedCategories = result
+        return result
     }
 
     suspend fun getChannels(categoryId: String): List<IptvChannelInfo> {
+        cachedChannelsByCategory[categoryId]?.let { return it }
         val config = configRepository.configFlow.first() ?: return emptyList()
-        return when (config) {
+        val result = when (config) {
             is IptvSourceConfig.Xtream ->
                 xtreamRemoteDataSource.getLiveStreams(config, categoryId).map {
                     IptvChannelInfo(
@@ -67,10 +81,19 @@ class IptvBrowseRepository @Inject constructor(
                     )
                 }
             is IptvSourceConfig.M3u ->
-                m3uRemoteDataSource.fetchChannels(config.playlistUrl)
+                m3uChannels(config.playlistUrl)
                     .filter { (it.groupTitle?.takeIf(String::isNotBlank) ?: UNCATEGORIZED_ID) == categoryId }
                     .map { IptvChannelInfo(id = it.id, name = it.name, logoUrl = it.logoUrl, streamUrl = it.streamUrl) }
         }
+        cachedChannelsByCategory[categoryId] = result
+        return result
+    }
+
+    private suspend fun m3uChannels(playlistUrl: String): List<M3uChannel> {
+        cachedM3uChannels?.let { return it }
+        val fetched = m3uRemoteDataSource.fetchChannels(playlistUrl)
+        cachedM3uChannels = fetched
+        return fetched
     }
 
     /** Fetched on demand for whichever single channel is focused (e.g. in the mini-player) - not for a whole list. */
@@ -96,9 +119,12 @@ class IptvBrowseRepository @Inject constructor(
         return fetched
     }
 
-    /** Forces the next now/next lookup to refetch the M3U EPG instead of returning the cached one - used by "Update Playlist" in Settings. */
+    /** Drops every in-memory cache (categories, channels-by-category, the raw M3U playlist, the M3U EPG) - used by "Update Playlist" in Settings and the auto-update setting. */
     fun invalidateCache() {
         cachedEpgUrl = null
         cachedEpgByChannelId = emptyMap()
+        cachedCategories = null
+        cachedChannelsByCategory.clear()
+        cachedM3uChannels = null
     }
 }

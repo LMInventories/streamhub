@@ -26,12 +26,16 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_DAY_OPTIONS
+import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_HOUR_OPTIONS
+import com.android.streamhub.feature.iptv.data.AutoUpdateMode
 
 // This screen uses mobile Material3 components but is reachable from the TV nav host too, which
 // only wraps content in tv-material3's MaterialTheme, not this one - without a local wrapper the
@@ -150,6 +154,65 @@ fun IptvSettingsScreen(
 
                 if (uiState.updated && !uiState.isUpdating) {
                     Text("Playlist updated.", color = Palette.TextMuted)
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Palette.Border)
+
+                Text("Auto-update", color = Palette.TextPrimary)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    FilterChip(
+                        selected = uiState.autoUpdate.mode == AutoUpdateMode.OFF,
+                        onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.OFF) },
+                        label = { Text("Off") },
+                    )
+                    FilterChip(
+                        selected = uiState.autoUpdate.mode == AutoUpdateMode.ON_APP_OPEN,
+                        onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.ON_APP_OPEN) },
+                        label = { Text("On App Open") },
+                    )
+                    FilterChip(
+                        selected = uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_DAYS,
+                        onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.EVERY_N_DAYS) },
+                        label = { Text("Every few days") },
+                    )
+                    FilterChip(
+                        selected = uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_HOURS,
+                        onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.EVERY_N_HOURS) },
+                        label = { Text("Every few hours") },
+                    )
+                }
+
+                if (uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_DAYS) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        AUTO_UPDATE_DAY_OPTIONS.forEach { days ->
+                            FilterChip(
+                                selected = uiState.autoUpdate.days == days,
+                                onClick = { viewModel.setAutoUpdateDays(days) },
+                                label = { Text(if (days == 1) "1 day" else "$days days") },
+                            )
+                        }
+                    }
+                }
+
+                if (uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_HOURS) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        AUTO_UPDATE_HOUR_OPTIONS.forEach { hours ->
+                            FilterChip(
+                                selected = uiState.autoUpdate.hours == hours,
+                                onClick = { viewModel.setAutoUpdateHours(hours) },
+                                label = { Text("$hours hours") },
+                            )
+                        }
+                    }
                 }
             }
         }

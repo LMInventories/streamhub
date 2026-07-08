@@ -2,11 +2,11 @@ package com.android.streamhub.feature.iptv.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
-import com.android.streamhub.feature.iptv.data.IptvMediaSource
+import com.android.streamhub.feature.iptv.data.AutoUpdateMode
+import com.android.streamhub.feature.iptv.data.AutoUpdateSetting
+import com.android.streamhub.feature.iptv.data.IptvAutoUpdateRepository
 import com.android.streamhub.feature.iptv.data.IptvSourceConfig
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
-import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,14 +28,13 @@ data class IptvSettingsUiState(
     val hasSource: Boolean = false,
     val isUpdating: Boolean = false,
     val updated: Boolean = false,
+    val autoUpdate: AutoUpdateSetting = AutoUpdateSetting(),
 )
 
 @HiltViewModel
 class IptvSettingsViewModel @Inject constructor(
     private val repository: IptvSourceConfigRepository,
-    private val mediaSource: IptvMediaSource,
-    private val browseRepository: IptvBrowseRepository,
-    private val epgGridRepository: EpgGridRepository,
+    private val autoUpdateRepository: IptvAutoUpdateRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IptvSettingsUiState())
@@ -64,6 +63,20 @@ class IptvSettingsViewModel @Inject constructor(
                 null -> Unit
             }
         }
+        viewModelScope.launch {
+            autoUpdateRepository.settingFlow.collect { setting -> _uiState.update { it.copy(autoUpdate = setting) } }
+        }
+    }
+
+    /** Saves immediately, not bundled into the source-config Save button - this is a standalone background-behavior toggle. */
+    fun selectAutoUpdateMode(mode: AutoUpdateMode) = saveAutoUpdate { it.copy(mode = mode) }
+    fun setAutoUpdateDays(days: Int) = saveAutoUpdate { it.copy(days = days) }
+    fun setAutoUpdateHours(hours: Int) = saveAutoUpdate { it.copy(hours = hours) }
+
+    private fun saveAutoUpdate(transform: (AutoUpdateSetting) -> AutoUpdateSetting) {
+        val updated = transform(_uiState.value.autoUpdate)
+        _uiState.update { it.copy(autoUpdate = updated) }
+        viewModelScope.launch { autoUpdateRepository.saveSetting(updated) }
     }
 
     fun selectProviderType(type: IptvProviderType) = _uiState.update { it.copy(providerType = type, saved = false) }
@@ -92,19 +105,12 @@ class IptvSettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Drops every IPTV cache (live/VOD item list, M3U EPG, the 7-day grid's freshness timestamp)
-     * and tells any active Live TV/VOD screens to refetch - without this, those screens would
-     * keep showing whatever they last loaded until the app was restarted.
-     */
+    /** Unconditional full refresh (see IptvAutoUpdateRepository.forceRefreshNow) - without this, active Live TV/VOD screens would keep showing whatever they last loaded until the app was restarted. */
     fun updatePlaylist() {
         if (!_uiState.value.hasSource) return
         viewModelScope.launch {
             _uiState.update { it.copy(isUpdating = true, updated = false) }
-            mediaSource.invalidateCache()
-            browseRepository.invalidateCache()
-            runCatching { epgGridRepository.ensureFresh(forceRefresh = true) }
-            repository.requestRefresh()
+            autoUpdateRepository.forceRefreshNow()
             _uiState.update { it.copy(isUpdating = false, updated = true) }
         }
     }

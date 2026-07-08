@@ -13,6 +13,7 @@ import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.phone.scaffold.PhoneScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenPhone
+import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
@@ -33,6 +34,8 @@ private val TAB_ROUTES = setOf(
 @Composable
 fun PhoneApp(navController: NavHostController = rememberNavController()) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
+    IptvAutoUpdateEffect()
 
     PhoneScaffold(
         currentRoute = currentRoute,

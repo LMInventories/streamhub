@@ -27,8 +27,11 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -189,21 +192,49 @@ private fun GridChannelRow(
                 .horizontalScroll(sharedScrollState)
                 .fillMaxHeight(),
         ) {
-            ChannelTimeline(programmes = programmes, windowStart = windowStart, windowEnd = windowEnd)
+            ChannelTimeline(programmes = programmes, windowStart = windowStart, windowEnd = windowEnd, sharedScrollState = sharedScrollState)
         }
     }
 }
+
+// A channel can have 150-300+ programmes over a 7-day guide; with ~10-15 rows visible in the
+// LazyColumn at once, rendering every block unconditionally (as this used to) put thousands of
+// simultaneous BasicText layouts into composition regardless of scroll position - that's what
+// made both horizontal and vertical scrolling feel heavy. This buffer is generous enough to
+// safely cover any realistic viewport width (including a very wide TV screen) while still only
+// rendering a fraction of the full week at once.
+private const val RENDER_WINDOW_BUFFER_HOURS = 12L
 
 @Composable
 private fun ChannelTimeline(
     programmes: List<EpgProgram>,
     windowStart: Instant,
     windowEnd: Instant,
+    sharedScrollState: ScrollState,
 ) {
     val totalMinutes = ChronoUnit.MINUTES.between(windowStart, windowEnd).toInt()
+    val density = LocalDensity.current
+    val pxPerMinute = with(density) { PIXELS_PER_MINUTE.toPx() }
+
+    // derivedStateOf so downstream recomposition is skipped whenever a scroll delta doesn't
+    // actually change which programmes fall inside the render window, rather than recomposing
+    // the whole timeline on every pixel of scroll.
+    val visibleProgrammes by remember(programmes) {
+        derivedStateOf {
+            val scrollMinutes = sharedScrollState.value / pxPerMinute
+            val bufferMinutes = (RENDER_WINDOW_BUFFER_HOURS * 60).toFloat()
+            val loMinute = scrollMinutes - bufferMinutes
+            val hiMinute = scrollMinutes + bufferMinutes
+            programmes.filter { program ->
+                val startMinute = ChronoUnit.MINUTES.between(windowStart, program.startAt).toFloat()
+                val endMinute = ChronoUnit.MINUTES.between(windowStart, program.endAt).toFloat()
+                endMinute >= loMinute && startMinute <= hiMinute
+            }
+        }
+    }
 
     Box(modifier = Modifier.width(PIXELS_PER_MINUTE * totalMinutes).fillMaxHeight()) {
-        programmes.forEach { program ->
+        visibleProgrammes.forEach { program ->
             val clampedStart = maxOf(program.startAt, windowStart)
             val clampedEnd = minOf(program.endAt, windowEnd)
             if (clampedEnd <= clampedStart) return@forEach
