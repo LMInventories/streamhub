@@ -39,6 +39,7 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
+import com.android.streamhub.feature.iptv.data.epgKey
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -110,7 +111,9 @@ fun EpgGridPanel(
             items(channels, key = { it.id }) { channel ->
                 GridChannelRow(
                     channel = channel,
-                    programmes = programmesByChannel[channel.id].orEmpty(),
+                    // Never channel.id here - for Xtream that's stream_id, which doesn't match
+                    // xmltv.php's <programme channel="..."> attribute (that's epg_channel_id).
+                    programmes = programmesByChannel[channel.epgKey].orEmpty(),
                     windowStart = windowStart,
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,

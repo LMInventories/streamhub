@@ -18,7 +18,15 @@ class IptvFavoritesRepository @Inject constructor(
 ) {
     fun observeFavorites(): Flow<List<IptvChannelInfo>> =
         dao.observeAll().map { entities ->
-            entities.map { IptvChannelInfo(id = it.channelId, name = it.name, logoUrl = it.logoUrl, streamUrl = it.streamUrl) }
+            entities.map {
+                IptvChannelInfo(
+                    id = it.channelId,
+                    name = it.name,
+                    logoUrl = it.logoUrl,
+                    streamUrl = it.streamUrl,
+                    epgChannelId = it.epgChannelId,
+                )
+            }
         }
 
     fun observeFavoriteIds(): Flow<Set<String>> =
@@ -31,6 +39,7 @@ class IptvFavoritesRepository @Inject constructor(
                 name = channel.name,
                 logoUrl = channel.logoUrl,
                 streamUrl = channel.streamUrl,
+                epgChannelId = channel.epgChannelId,
                 addedAtEpochSeconds = Instant.now().epochSecond,
             ),
         )

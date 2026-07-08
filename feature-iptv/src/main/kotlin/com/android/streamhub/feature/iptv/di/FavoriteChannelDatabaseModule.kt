@@ -18,7 +18,9 @@ object FavoriteChannelDatabaseModule {
     @Provides
     @Singleton
     fun provideFavoriteChannelDatabase(@ApplicationContext context: Context): FavoriteChannelDatabase =
-        Room.databaseBuilder(context, FavoriteChannelDatabase::class.java, "favorite_channels.db").build()
+        Room.databaseBuilder(context, FavoriteChannelDatabase::class.java, "favorite_channels.db")
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides
     fun provideFavoriteChannelDao(database: FavoriteChannelDatabase): FavoriteChannelDao = database.favoriteChannelDao()

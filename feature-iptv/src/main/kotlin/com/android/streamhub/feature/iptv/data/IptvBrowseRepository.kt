@@ -8,11 +8,19 @@ import javax.inject.Singleton
 data class IptvCategoryInfo(val id: String, val name: String)
 
 data class IptvChannelInfo(
+    // Xtream's stream_id - identifies the channel for playback (live stream URL, get_short_epg).
     val id: String,
     val name: String,
     val logoUrl: String?,
     val streamUrl: String,
+    // Xtream's epg_channel_id - a *separate* identifier from stream_id, and the one that
+    // actually matches xmltv.php's <programme channel="..."> attribute. null for M3U, where
+    // there's no such split - id (already tvg-id-derived, see M3uParser) serves both purposes.
+    val epgChannelId: String? = null,
 )
+
+/** The id to look up this channel's bulk EPG grid data by - never id directly, which for Xtream is stream_id and won't match xmltv.php's channel identifiers. */
+val IptvChannelInfo.epgKey: String get() = epgChannelId ?: id
 
 private const val UNCATEGORIZED_ID = "uncategorized"
 
@@ -55,6 +63,7 @@ class IptvBrowseRepository @Inject constructor(
                         name = it.name,
                         logoUrl = it.streamIcon,
                         streamUrl = config.liveStreamUrl(it.streamId),
+                        epgChannelId = it.epgChannelId?.takeIf(String::isNotBlank),
                     )
                 }
             is IptvSourceConfig.M3u ->

@@ -11,6 +11,7 @@ import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
+import com.android.streamhub.feature.iptv.data.epgKey
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -138,7 +139,7 @@ class LiveTvViewModel @Inject constructor(
                     if (_uiState.value.focusedChannel == null) {
                         channels.firstOrNull()?.let(::focusChannel)
                     }
-                    loadEpgGrid(channels.map { it.id })
+                    loadEpgGrid(channels.map { it.epgKey })
                 }
             }
             return
@@ -153,7 +154,7 @@ class LiveTvViewModel @Inject constructor(
                     if (_uiState.value.focusedChannel == null) {
                         channels.firstOrNull()?.let(::focusChannel)
                     }
-                    loadEpgGrid(channels.map { it.id })
+                    loadEpgGrid(channels.map { it.epgKey })
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoadingChannels = false, errorMessage = e.message ?: "Failed to load channels") } }
         }

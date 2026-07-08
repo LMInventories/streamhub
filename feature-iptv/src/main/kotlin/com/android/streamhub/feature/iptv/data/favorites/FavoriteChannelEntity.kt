@@ -15,5 +15,9 @@ data class FavoriteChannelEntity(
     val name: String,
     val logoUrl: String?,
     val streamUrl: String,
+    // Needed to look up this channel's EPG grid data correctly (Xtream's stream_id, used for
+    // channelId/playback, is a different identifier from the epg_channel_id that xmltv.php's
+    // <programme channel="..."> actually references).
+    val epgChannelId: String?,
     val addedAtEpochSeconds: Long,
 )
