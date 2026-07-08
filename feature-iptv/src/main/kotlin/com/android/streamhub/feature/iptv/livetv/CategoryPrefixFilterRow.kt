@@ -47,8 +47,10 @@ fun CategoryPrefixFilterRow(
     onSelectPrefix: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // distinct() keeps first-occurrence order, which is the playlist's own order - not sorted
+    // alphabetically, so the filter row matches how the provider actually ordered categories.
     val prefixes = remember(categories) {
-        categories.map(IptvCategoryInfo::name).map(::categoryPrefix).distinct().sorted()
+        categories.map(IptvCategoryInfo::name).map(::categoryPrefix).distinct()
     }
     // Not worth a filter row when every category already falls under one group.
     if (prefixes.size <= 1) return

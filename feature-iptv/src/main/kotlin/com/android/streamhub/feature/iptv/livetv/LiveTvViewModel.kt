@@ -12,7 +12,9 @@ import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
+import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -35,6 +37,10 @@ data class LiveTvUiState(
     val focusedChannel: IptvChannelInfo? = null,
     val nowProgram: EpgProgram? = null,
     val nextProgram: EpgProgram? = null,
+    // Reactive - updates immediately everywhere (pinned category, every channel row's long-press
+    // menu) as soon as a favourite is added/removed anywhere, not just within the list it was
+    // toggled from.
+    val favoriteChannelIds: Set<String> = emptySet(),
     // Landscape-only 7-day grid data - loaded alongside the channel list but only rendered by
     // the landscape layout (portrait/TV-card layouts ignore it), per "EPG should only appear
     // when landscape, not as a separate screen".
@@ -61,16 +67,34 @@ class LiveTvViewModel @Inject constructor(
     private val browseRepository: IptvBrowseRepository,
     private val epgGridRepository: EpgGridRepository,
     private val configRepository: IptvSourceConfigRepository,
+    private val favoritesRepository: IptvFavoritesRepository,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
+
+    companion object {
+        // Not a real provider category id - a sentinel selectCategory() branches on to show the
+        // aggregated favourites list instead of fetching a category's channels.
+        const val FAVORITES_CATEGORY_ID = "__favorites__"
+        val FAVORITES_CATEGORY = IptvCategoryInfo(id = FAVORITES_CATEGORY_ID, name = "Favourites")
+    }
 
     private val _uiState = MutableStateFlow(LiveTvUiState())
     val uiState: StateFlow<LiveTvUiState> = _uiState
 
     val miniPlayerUiState: StateFlow<PlayerUiState> = miniPlayerController.uiState
 
+    // Only non-null while the Favourites category is selected - a live Flow collector (not a
+    // one-shot fetch like every other category) so removing a favourite while looking at this
+    // list updates it immediately, matching every other favourite-driven UI update.
+    private var favoritesCollectJob: Job? = null
+
     init {
         miniPlayerController.setMuted(true)
+        viewModelScope.launch {
+            favoritesRepository.observeFavoriteIds().collect { ids ->
+                _uiState.update { it.copy(favoriteChannelIds = ids) }
+            }
+        }
         // Observed continuously (not a one-shot check) so saving a playlist in Settings and
         // navigating back to Live TV - without restarting the app - immediately swaps the "add
         // playlist" prompt for the real browse UI, and editing an existing source re-fetches.
@@ -102,7 +126,24 @@ class LiveTvViewModel @Inject constructor(
     }
 
     fun selectCategory(category: IptvCategoryInfo) {
+        favoritesCollectJob?.cancel()
+        favoritesCollectJob = null
+
         _uiState.update { it.copy(selectedCategory = category, channels = emptyList(), isLoadingChannels = true) }
+
+        if (category.id == FAVORITES_CATEGORY_ID) {
+            favoritesCollectJob = viewModelScope.launch {
+                favoritesRepository.observeFavorites().collect { channels ->
+                    _uiState.update { it.copy(channels = channels, isLoadingChannels = false) }
+                    if (_uiState.value.focusedChannel == null) {
+                        channels.firstOrNull()?.let(::focusChannel)
+                    }
+                    loadEpgGrid(channels.map { it.id })
+                }
+            }
+            return
+        }
+
         viewModelScope.launch {
             runCatching { browseRepository.getChannels(category.id) }
                 .onSuccess { channels ->
@@ -120,12 +161,15 @@ class LiveTvViewModel @Inject constructor(
 
     /** Deliberately leaves focusedChannel/the mini-player alone - going back to the category list shouldn't interrupt whatever's previewing. */
     fun clearCategorySelection() {
+        favoritesCollectJob?.cancel()
+        favoritesCollectJob = null
         _uiState.update { it.copy(selectedCategory = null, channels = emptyList()) }
     }
 
     /** Re-fetches the currently selected category's channels + force-refreshes its EPG - used by "Update Playlist". Leaves focusedChannel/selectedCategory alone. */
     private fun refreshCurrentSelection() {
         val category = _uiState.value.selectedCategory ?: return
+        if (category.id == FAVORITES_CATEGORY_ID) return // already reactive, nothing to force-refresh
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingChannels = true) }
             runCatching { browseRepository.getChannels(category.id) }
@@ -157,6 +201,16 @@ class LiveTvViewModel @Inject constructor(
             runCatching { browseRepository.getNowNext(channel.id) }
                 .onSuccess { (now, next) -> _uiState.update { it.copy(nowProgram = now, nextProgram = next) } }
             // EPG being unavailable/failing shouldn't disrupt the live preview itself.
+        }
+    }
+
+    fun toggleFavorite(channel: IptvChannelInfo) {
+        viewModelScope.launch {
+            if (channel.id in _uiState.value.favoriteChannelIds) {
+                favoritesRepository.removeFavorite(channel.id)
+            } else {
+                favoritesRepository.addFavorite(channel)
+            }
         }
     }
 

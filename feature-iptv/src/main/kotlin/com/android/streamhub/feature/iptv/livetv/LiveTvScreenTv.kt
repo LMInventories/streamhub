@@ -28,7 +28,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 
 @Composable
@@ -90,6 +93,10 @@ fun LiveTvScreenTv(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
                 selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
+                    Button(onClick = { viewModel.selectCategory(LiveTvViewModel.FAVORITES_CATEGORY) }) {
+                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                        Text("Favourites")
+                    }
                     CategoryPrefixFilterRow(
                         categories = uiState.categories,
                         selectedPrefix = selectedPrefix,

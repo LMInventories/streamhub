@@ -1,8 +1,10 @@
 package com.android.streamhub.feature.iptv.livetv
 
 import android.content.res.Configuration
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,8 +21,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -129,6 +137,8 @@ fun LiveTvScreenPhone(
                 onSelectCategory = viewModel::selectCategory,
                 onBackToCategories = viewModel::clearCategorySelection,
                 onFocusChannel = viewModel::focusChannel,
+                onPlayFullscreen = onFullscreen,
+                onToggleFavorite = viewModel::toggleFavorite,
                 // Without this, this content competes for height with the fixed-size mini-player
                 // row/header above it under Column's default (unbounded) child measurement,
                 // which is what made the grid/list silently fail to render in landscape - there's
@@ -157,6 +167,7 @@ private fun AddSourcePrompt(onSetupClick: () -> Unit, modifier: Modifier = Modif
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LiveTvBrowseContent(
     uiState: LiveTvUiState,
@@ -164,10 +175,13 @@ private fun LiveTvBrowseContent(
     onSelectCategory: (IptvCategoryInfo) -> Unit,
     onBackToCategories: () -> Unit,
     onFocusChannel: (IptvChannelInfo) -> Unit,
+    onPlayFullscreen: (channelId: String) -> Unit,
+    onToggleFavorite: (IptvChannelInfo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
     var selectedPrefix by remember { mutableStateOf<String?>(null) }
+    var contextMenuChannel by remember { mutableStateOf<IptvChannelInfo?>(null) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         when {
@@ -175,6 +189,11 @@ private fun LiveTvBrowseContent(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
             selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
+                ListItem(
+                    headlineContent = { Text("Favourites") },
+                    leadingContent = { Icon(Icons.Filled.Star, contentDescription = null) },
+                    modifier = Modifier.clickable { onSelectCategory(LiveTvViewModel.FAVORITES_CATEGORY) },
+                )
                 CategoryPrefixFilterRow(
                     categories = uiState.categories,
                     selectedPrefix = selectedPrefix,
@@ -221,13 +240,51 @@ private fun LiveTvBrowseContent(
                     )
                     else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         items(uiState.channels, key = { it.id }) { channel ->
-                            ListItem(
-                                headlineContent = { Text(channel.name) },
-                                leadingContent = channel.logoUrl?.let { url ->
-                                    { AsyncImage(model = url, contentDescription = null, modifier = Modifier.size(40.dp)) }
-                                },
-                                modifier = Modifier.clickable { onFocusChannel(channel) },
-                            )
+                            val isFavorite = channel.id in uiState.favoriteChannelIds
+                            Box {
+                                ListItem(
+                                    headlineContent = { Text(channel.name) },
+                                    leadingContent = channel.logoUrl?.let { url ->
+                                        { AsyncImage(model = url, contentDescription = null, modifier = Modifier.size(40.dp)) }
+                                    },
+                                    trailingContent = if (isFavorite) {
+                                        { Icon(Icons.Filled.Favorite, contentDescription = "Favourite", tint = Color(0xFFE0245E)) }
+                                    } else {
+                                        null
+                                    },
+                                    modifier = Modifier.combinedClickable(
+                                        onClick = { onFocusChannel(channel) },
+                                        onLongClick = { contextMenuChannel = channel },
+                                    ),
+                                )
+                                DropdownMenu(
+                                    expanded = contextMenuChannel?.id == channel.id,
+                                    onDismissRequest = { contextMenuChannel = null },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Play") },
+                                        leadingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+                                        onClick = {
+                                            onFocusChannel(channel)
+                                            onPlayFullscreen(channel.id)
+                                            contextMenuChannel = null
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (isFavorite) "Remove from Favourites" else "Add to Favourites") },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                                contentDescription = null,
+                                            )
+                                        },
+                                        onClick = {
+                                            onToggleFavorite(channel)
+                                            contextMenuChannel = null
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
