@@ -40,6 +40,11 @@ dependencies {
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))
 
+    // NotificationCompat/NotificationManagerCompat/ContextCompat for the EPG reminder feature.
+    implementation(libs.androidx.core.ktx)
+    // rememberLauncherForActivityResult for the POST_NOTIFICATIONS runtime permission request.
+    implementation(libs.androidx.activity.compose)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)

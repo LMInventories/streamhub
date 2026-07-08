@@ -6,9 +6,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +30,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -63,6 +68,15 @@ private val hourFormatter = DateTimeFormatter.ofPattern("EEE HH:mm")
  * this is shared by both the phone (landscape-only) and TV (always) Live TV screens, and TV's
  * ambient theme is tv-material3's, not this one, so relying on it here would render wrong.
  */
+private sealed class ProgramMenuState {
+    abstract val channel: IptvChannelInfo
+    abstract val program: EpgProgram
+
+    data class ContextMenu(override val channel: IptvChannelInfo, override val program: EpgProgram) : ProgramMenuState()
+    data class RecordDialog(override val channel: IptvChannelInfo, override val program: EpgProgram) : ProgramMenuState()
+    data class ReminderDialog(override val channel: IptvChannelInfo, override val program: EpgProgram) : ProgramMenuState()
+}
+
 @Composable
 fun EpgGridPanel(
     channels: List<IptvChannelInfo>,
@@ -72,9 +86,15 @@ fun EpgGridPanel(
     isLoading: Boolean,
     loadProgress: Float?,
     onFocusChannel: (IptvChannelInfo) -> Unit,
+    onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
+    onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val sharedScrollState = rememberScrollState()
+    var menuState by remember { mutableStateOf<ProgramMenuState?>(null) }
+    var startAdjustMinutes by remember { mutableIntStateOf(0) }
+    var endAdjustMinutes by remember { mutableIntStateOf(0) }
+    var leadMinutes by remember { mutableIntStateOf(10) }
 
     Column(modifier = modifier) {
         // isLoading alone (no real progress yet) covers the gap loadProgress leaves - a Room
@@ -121,10 +141,51 @@ fun EpgGridPanel(
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
                     onClick = { onFocusChannel(channel) },
+                    onLongPressProgram = { program -> menuState = ProgramMenuState.ContextMenu(channel, program) },
                 )
                 HorizontalDivider(color = Palette.Border)
             }
         }
+    }
+
+    when (val state = menuState) {
+        is ProgramMenuState.ContextMenu -> ProgramContextMenu(
+            onDismiss = { menuState = null },
+            onRecord = {
+                startAdjustMinutes = 0
+                endAdjustMinutes = 0
+                menuState = ProgramMenuState.RecordDialog(state.channel, state.program)
+            },
+            onReminder = {
+                leadMinutes = 10
+                menuState = ProgramMenuState.ReminderDialog(state.channel, state.program)
+            },
+        )
+        is ProgramMenuState.RecordDialog -> RecordProgramDialog(
+            channel = state.channel,
+            program = state.program,
+            startAdjustMinutes = startAdjustMinutes,
+            endAdjustMinutes = endAdjustMinutes,
+            onStartAdjustChange = { startAdjustMinutes = it },
+            onEndAdjustChange = { endAdjustMinutes = it },
+            onDismiss = { menuState = null },
+            onConfirm = {
+                onScheduleRecording(state.channel, state.program, startAdjustMinutes, endAdjustMinutes)
+                menuState = null
+            },
+        )
+        is ProgramMenuState.ReminderDialog -> ReminderProgramDialog(
+            channel = state.channel,
+            program = state.program,
+            leadMinutes = leadMinutes,
+            onLeadMinutesChange = { leadMinutes = it },
+            onDismiss = { menuState = null },
+            onConfirm = {
+                onScheduleReminder(state.channel, state.program, leadMinutes)
+                menuState = null
+            },
+        )
+        null -> Unit
     }
 }
 
@@ -170,6 +231,7 @@ private fun GridChannelRow(
     windowEnd: Instant,
     sharedScrollState: ScrollState,
     onClick: () -> Unit,
+    onLongPressProgram: (EpgProgram) -> Unit,
 ) {
     Row(modifier = Modifier.height(ROW_HEIGHT)) {
         Box(
@@ -192,7 +254,13 @@ private fun GridChannelRow(
                 .horizontalScroll(sharedScrollState)
                 .fillMaxHeight(),
         ) {
-            ChannelTimeline(programmes = programmes, windowStart = windowStart, windowEnd = windowEnd, sharedScrollState = sharedScrollState)
+            ChannelTimeline(
+                programmes = programmes,
+                windowStart = windowStart,
+                windowEnd = windowEnd,
+                sharedScrollState = sharedScrollState,
+                onLongPressProgram = onLongPressProgram,
+            )
         }
     }
 }
@@ -205,12 +273,14 @@ private fun GridChannelRow(
 // rendering a fraction of the full week at once.
 private const val RENDER_WINDOW_BUFFER_HOURS = 12L
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelTimeline(
     programmes: List<EpgProgram>,
     windowStart: Instant,
     windowEnd: Instant,
     sharedScrollState: ScrollState,
+    onLongPressProgram: (EpgProgram) -> Unit,
 ) {
     val totalMinutes = ChronoUnit.MINUTES.between(windowStart, windowEnd).toInt()
     val density = LocalDensity.current
@@ -250,6 +320,7 @@ private fun ChannelTimeline(
                     .fillMaxHeight()
                     .padding(vertical = 4.dp)
                     .background(Palette.SurfaceElevated, AppShapes.small)
+                    .combinedClickable(onClick = {}, onLongClick = { onLongPressProgram(program) })
                     .padding(6.dp),
             ) {
                 BasicText(

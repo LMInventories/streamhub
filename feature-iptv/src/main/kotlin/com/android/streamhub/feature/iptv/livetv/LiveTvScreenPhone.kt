@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 
@@ -139,6 +140,8 @@ fun LiveTvScreenPhone(
                 onFocusChannel = viewModel::focusChannel,
                 onPlayFullscreen = onFullscreen,
                 onToggleFavorite = viewModel::toggleFavorite,
+                onScheduleRecording = viewModel::scheduleRecording,
+                onScheduleReminder = viewModel::scheduleReminder,
                 // Without this, this content competes for height with the fixed-size mini-player
                 // row/header above it under Column's default (unbounded) child measurement,
                 // which is what made the grid/list silently fail to render in landscape - there's
@@ -177,6 +180,8 @@ private fun LiveTvBrowseContent(
     onFocusChannel: (IptvChannelInfo) -> Unit,
     onPlayFullscreen: (channelId: String) -> Unit,
     onToggleFavorite: (IptvChannelInfo) -> Unit,
+    onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
+    onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
@@ -236,6 +241,8 @@ private fun LiveTvBrowseContent(
                         isLoading = uiState.isLoadingEpgGrid,
                         loadProgress = uiState.epgGridLoadProgress,
                         onFocusChannel = onFocusChannel,
+                        onScheduleRecording = onScheduleRecording,
+                        onScheduleReminder = onScheduleReminder,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
                     else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {

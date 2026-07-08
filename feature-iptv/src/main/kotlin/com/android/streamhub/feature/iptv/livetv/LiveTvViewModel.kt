@@ -14,6 +14,7 @@ import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgRefreshResult
 import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
+import com.android.streamhub.feature.iptv.data.scheduled.ScheduledEventsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +70,7 @@ class LiveTvViewModel @Inject constructor(
     private val epgGridRepository: EpgGridRepository,
     private val configRepository: IptvSourceConfigRepository,
     private val favoritesRepository: IptvFavoritesRepository,
+    private val scheduledEventsRepository: ScheduledEventsRepository,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -213,6 +215,14 @@ class LiveTvViewModel @Inject constructor(
                 favoritesRepository.addFavorite(channel)
             }
         }
+    }
+
+    fun scheduleRecording(channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) {
+        viewModelScope.launch { scheduledEventsRepository.addRecording(channel, program, startAdjustMinutes, endAdjustMinutes) }
+    }
+
+    fun scheduleReminder(channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) {
+        viewModelScope.launch { scheduledEventsRepository.addReminder(channel, program, leadMinutes) }
     }
 
     private fun loadEpgGrid(channels: List<IptvChannelInfo>, forceRefresh: Boolean = false) {

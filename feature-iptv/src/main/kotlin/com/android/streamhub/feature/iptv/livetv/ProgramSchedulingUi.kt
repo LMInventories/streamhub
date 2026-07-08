@@ -1,0 +1,206 @@
+package com.android.streamhub.feature.iptv.livetv
+
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.foundation.text.BasicText
+import com.android.streamhub.core.design.AppShapes
+import com.android.streamhub.core.design.Palette
+import com.android.streamhub.feature.iptv.data.EpgProgram
+import com.android.streamhub.feature.iptv.data.IptvChannelInfo
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.max
+import kotlin.math.min
+
+// Custom Popup + BasicText/Palette throughout this file rather than Material3's DropdownMenu/
+// AlertDialog - EpgGridPanel (which hosts the long-press this triggers from) is shared by phone
+// and TV, which have no common ambient MaterialTheme, so a Material3 component here would render
+// wrong on TV, same reasoning as the rest of this file's styling.
+private val timeFormatter = DateTimeFormatter.ofPattern("EEE HH:mm")
+
+@Composable
+fun ProgramContextMenu(
+    onDismiss: () -> Unit,
+    onRecord: () -> Unit,
+    onReminder: () -> Unit,
+) {
+    Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 180.dp)
+                .background(Palette.SurfaceElevated, AppShapes.small)
+                .padding(vertical = 4.dp),
+        ) {
+            MenuRow("Record", onClick = onRecord)
+            MenuRow("Set Reminder", onClick = onReminder)
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(label: String, onClick: () -> Unit) {
+    BasicText(
+        text = label,
+        style = TextStyle(color = Palette.TextPrimary, fontSize = 14.sp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
+}
+
+@Composable
+private fun DialogCard(onDismiss: () -> Unit, content: @Composable Column.() -> Unit) {
+    Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 260.dp, max = 340.dp)
+                .background(Palette.SurfaceElevated, AppShapes.medium)
+                .padding(16.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun DialogTitle(program: EpgProgram, channel: IptvChannelInfo) {
+    BasicText(text = program.title, style = TextStyle(color = Palette.TextPrimary, fontSize = 16.sp))
+    BasicText(
+        text = "${channel.name} · ${timeFormatter.format(program.startAt.atZone(ZoneId.systemDefault()))}",
+        style = TextStyle(color = Palette.TextMuted, fontSize = 12.sp),
+        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+    )
+}
+
+@Composable
+private fun DialogActions(onCancel: () -> Unit, confirmLabel: String, onConfirm: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
+        BasicText(
+            text = "Cancel",
+            style = TextStyle(color = Palette.TextMuted, fontSize = 14.sp),
+            modifier = Modifier.clickable(onClick = onCancel).padding(12.dp),
+        )
+        BasicText(
+            text = confirmLabel,
+            style = TextStyle(color = Palette.Accent, fontSize = 14.sp),
+            modifier = Modifier.clickable(onClick = onConfirm).padding(12.dp),
+        )
+    }
+}
+
+@Composable
+private fun Stepper(label: String, value: Int, onValueChange: (Int) -> Unit, min: Int = -30, max: Int = 30) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        BasicText(text = label, style = TextStyle(color = Palette.TextPrimary, fontSize = 13.sp), modifier = Modifier.weight(1f))
+        StepperButton("−") { onValueChange(max(min, value - 1)) }
+        BasicText(
+            text = "$value min",
+            style = TextStyle(color = Palette.TextPrimary, fontSize = 13.sp, textAlign = TextAlign.Center),
+            modifier = Modifier.width(56.dp).padding(horizontal = 4.dp),
+        )
+        StepperButton("+") { onValueChange(min(max, value + 1)) }
+    }
+}
+
+@Composable
+private fun StepperButton(symbol: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .background(Palette.Surface, AppShapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        BasicText(text = symbol, style = TextStyle(color = Palette.TextPrimary, fontSize = 14.sp))
+    }
+}
+
+@Composable
+fun RecordProgramDialog(
+    channel: IptvChannelInfo,
+    program: EpgProgram,
+    startAdjustMinutes: Int,
+    endAdjustMinutes: Int,
+    onStartAdjustChange: (Int) -> Unit,
+    onEndAdjustChange: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    DialogCard(onDismiss = onDismiss) {
+        DialogTitle(program, channel)
+        Stepper("Start earlier by", startAdjustMinutes, onStartAdjustChange)
+        Stepper("End later by", endAdjustMinutes, onEndAdjustChange)
+        DialogActions(onCancel = onDismiss, confirmLabel = "Schedule Recording", onConfirm = onConfirm)
+    }
+}
+
+private val REMINDER_LEAD_OPTIONS = listOf(5, 10, 15, 30)
+
+@Composable
+fun ReminderProgramDialog(
+    channel: IptvChannelInfo,
+    program: EpgProgram,
+    leadMinutes: Int,
+    onLeadMinutesChange: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    // Fired once when the dialog appears - notification scheduling itself doesn't depend on this
+    // permission (the alarm is set regardless), only whether the notification actually shows
+    // when it fires does, so this doesn't block anything on the user's answer.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+        LaunchedEffect(Unit) { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+    }
+
+    DialogCard(onDismiss = onDismiss) {
+        DialogTitle(program, channel)
+        BasicText(
+            text = "Notify me before it starts:",
+            style = TextStyle(color = Palette.TextPrimary, fontSize = 13.sp),
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        Row {
+            REMINDER_LEAD_OPTIONS.forEach { minutes ->
+                LeadChip(minutes = minutes, selected = leadMinutes == minutes, onClick = { onLeadMinutesChange(minutes) })
+            }
+        }
+        DialogActions(onCancel = onDismiss, confirmLabel = "Set Reminder", onConfirm = onConfirm)
+    }
+}
+
+@Composable
+private fun LeadChip(minutes: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .padding(end = 6.dp)
+            .background(if (selected) Palette.Accent else Palette.Surface, AppShapes.pill)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        BasicText(
+            text = "${minutes}m",
+            style = TextStyle(color = if (selected) Palette.Background else Palette.TextMuted, fontSize = 12.sp),
+        )
+    }
+}

@@ -133,6 +133,8 @@ fun LiveTvScreenTv(
                             isLoading = uiState.isLoadingEpgGrid,
                             loadProgress = uiState.epgGridLoadProgress,
                             onFocusChannel = viewModel::focusChannel,
+                            onScheduleRecording = viewModel::scheduleRecording,
+                            onScheduleReminder = viewModel::scheduleReminder,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }
