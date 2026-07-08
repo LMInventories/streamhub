@@ -43,6 +43,14 @@ dependencies {
     // Handles its own HTTP client (Ktor/OkHttp engine) internally - no separate Retrofit/OkHttp
     // stack needed here the way feature-iptv needs one for its own hand-rolled Xtream/M3U clients.
     implementation(libs.jellyfin.sdk.core)
+    // jellyfin-core references org.slf4j.LoggerFactory at runtime (via Ktor/one of its own
+    // dependencies) but only depends on slf4j-api at compile time, not runtime - without these,
+    // sign-in crashes with NoClassDefFoundError: Failed resolution of: Lorg/slf4j/LoggerFactory
+    // the moment the SDK's HTTP client is used. slf4j-android is a maintained Android-compatible
+    // binding (routes to android.util.Log) - confirmed as the fix by Findroid, a real production
+    // Jellyfin Android app using the same SDK, which needs the identical pair for the same reason.
+    implementation(libs.slf4j.api)
+    implementation(libs.slf4j.android)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
