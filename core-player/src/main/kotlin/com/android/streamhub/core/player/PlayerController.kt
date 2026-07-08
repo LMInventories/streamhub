@@ -7,6 +7,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -70,6 +71,17 @@ class PlayerController @Inject constructor(
                     audioTracks = tracks.toTrackOptions(C.TRACK_TYPE_AUDIO),
                     subtitleTracks = tracks.toTrackOptions(C.TRACK_TYPE_TEXT),
                     subtitlesOff = subtitlesOff,
+                    audioChannelCount = exoPlayer.audioFormat?.channelCount ?: 0,
+                )
+            }
+        }
+
+        override fun onVideoSizeChanged(videoSize: VideoSize) {
+            _uiState.update {
+                it.copy(
+                    videoWidth = videoSize.width,
+                    videoHeight = videoSize.height,
+                    videoFrameRate = exoPlayer.videoFormat?.frameRate?.takeIf { fps -> fps > 0f } ?: 0f,
                 )
             }
         }
@@ -89,6 +101,12 @@ class PlayerController @Inject constructor(
     }
 
     fun prepare(item: PlaybackItem) {
+        // Cleared up front, not left to whenever the next onVideoSizeChanged/onTracksChanged
+        // callback happens to fire - otherwise switching to a new channel would keep showing the
+        // previous one's stats badges for a moment.
+        _uiState.update {
+            it.copy(videoWidth = 0, videoHeight = 0, videoFrameRate = 0f, audioChannelCount = 0, errorMessage = null)
+        }
         val mediaItem = MediaItem.Builder()
             .setUri(item.streamUri)
             .apply { item.mimeTypeHint?.let { setMimeType(it) } }

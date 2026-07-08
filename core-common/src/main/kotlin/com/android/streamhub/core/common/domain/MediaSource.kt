@@ -1,5 +1,8 @@
 package com.android.streamhub.core.common.domain
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+
 /**
  * One backend (IPTV provider, Jellyfin server, Emby server, ...) that can list and resolve
  * playable items. Every feature module implements this and registers itself into the
@@ -18,4 +21,14 @@ interface MediaSource {
      * those backends slot in without changing the player/nav call sites.
      */
     suspend fun resolvePlayback(itemId: String): PlaybackItem
+
+    /**
+     * Called by the player screen when a live item starts playing. Default no-op - only sources
+     * with a meaningful "recently viewed" concept (live TV channels) need to track this, so the
+     * player screen can call it unconditionally without knowing which sources care.
+     */
+    suspend fun recordViewed(itemId: String) {}
+
+    /** Default empty - see [recordViewed]. Drives the fullscreen player's channel-switcher strip for sources that support it. */
+    fun observeRecentlyViewed(): Flow<List<PlaybackItem>> = flowOf(emptyList())
 }

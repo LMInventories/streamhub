@@ -14,10 +14,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -43,21 +47,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.LiveProgramInfo
+import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.SignalBar
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
@@ -71,6 +85,8 @@ fun PlayerScreenPhone(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val currentItem by viewModel.currentItem.collectAsStateWithLifecycle()
+    val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
@@ -107,6 +123,8 @@ fun PlayerScreenPhone(
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
             PhonePlayerControls(
                 uiState = uiState,
+                currentItem = currentItem,
+                recentChannels = recentChannels,
                 onBack = onBack,
                 onPlayPause = viewModel::togglePlayPause,
                 onSeek = viewModel::seekTo,
@@ -114,6 +132,7 @@ fun PlayerScreenPhone(
                 onSubtitleTrackClick = { showSubtitlePicker = true },
                 onAspectModeSelected = viewModel::setAspectMode,
                 onOpenExternally = { viewModel.openExternally(context) },
+                onSwitchChannel = viewModel::switchChannel,
             )
         }
     }
@@ -175,6 +194,8 @@ private fun HideSystemBarsWhilePlaying() {
 @Composable
 private fun PhonePlayerControls(
     uiState: PlayerUiState,
+    currentItem: PlaybackItem?,
+    recentChannels: List<PlaybackItem>,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
@@ -182,8 +203,10 @@ private fun PhonePlayerControls(
     onSubtitleTrackClick: () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
     onOpenExternally: () -> Unit,
+    onSwitchChannel: (String) -> Unit,
 ) {
     var showAspectMenu by remember { mutableStateOf(false) }
+    val liveInfo = currentItem?.liveProgramInfo
 
     Column(
         modifier = Modifier
@@ -206,25 +229,34 @@ private fun PhonePlayerControls(
         Spacer(modifier = Modifier.weight(1f))
 
         Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
-            Slider(
-                value = uiState.positionMs.toFloat(),
-                onValueChange = { onSeek(it.toLong()) },
-                valueRange = 0f..uiState.durationMs.coerceAtLeast(1L).toFloat(),
-                colors = SliderDefaults.colors(
-                    thumbColor = Palette.Accent,
-                    activeTrackColor = Palette.Accent,
-                    inactiveTrackColor = Palette.Border,
-                ),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            if (liveInfo != null) {
+                LiveProgramHeader(liveInfo = liveInfo, uiState = uiState)
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            if (liveInfo?.nowStartAtEpochMs != null && liveInfo.nowEndAtEpochMs != null) {
+                LiveProgressBar(nowStartAtEpochMs = liveInfo.nowStartAtEpochMs, nowEndAtEpochMs = liveInfo.nowEndAtEpochMs)
+            } else {
+                Slider(
+                    value = uiState.positionMs.toFloat(),
+                    onValueChange = { onSeek(it.toLong()) },
+                    valueRange = 0f..uiState.durationMs.coerceAtLeast(1L).toFloat(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Palette.Accent,
+                        activeTrackColor = Palette.Accent,
+                        inactiveTrackColor = Palette.Border,
+                    ),
+                )
                 Text(
                     text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
                     color = Color.White,
                 )
-                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 IconButton(onClick = onPlayPause) {
                     Icon(
                         imageVector = if (uiState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -232,6 +264,7 @@ private fun PhonePlayerControls(
                         tint = Color.White,
                     )
                 }
+                Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty()) {
                     Icon(Icons.Filled.Audiotrack, contentDescription = "Audio track", tint = Color.White)
                 }
@@ -253,7 +286,138 @@ private fun PhonePlayerControls(
                     Icon(Icons.Filled.OpenInNew, contentDescription = "Open externally", tint = Color.White)
                 }
             }
+
+            if (currentItem?.isLive == true && recentChannels.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Channels",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+                LazyRow {
+                    items(recentChannels, key = { it.id }) { channel ->
+                        RecentChannelTile(
+                            channel = channel,
+                            isCurrent = channel.id == currentItem.id,
+                            onClick = { onSwitchChannel(channel.id) },
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun LiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiState) {
+    Row(verticalAlignment = Alignment.Top) {
+        liveInfo.channelLogoUrl?.let { url ->
+            AsyncImage(
+                model = url,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(56.dp).clip(AppShapes.small).background(Color.White.copy(alpha = 0.08f)).padding(6.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+        Column {
+            Text(text = liveInfo.nowTitle ?: liveInfo.channelName, color = Color.White, fontSize = 20.sp)
+            val timeRange = if (liveInfo.nowStartAtEpochMs != null && liveInfo.nowEndAtEpochMs != null) {
+                ", ${formatClockTime(liveInfo.nowStartAtEpochMs)} – ${formatClockTime(liveInfo.nowEndAtEpochMs)}"
+            } else {
+                ""
+            }
+            Text(
+                text = "${liveInfo.channelName}$timeRange",
+                color = Color.White.copy(alpha = 0.75f),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Row(modifier = Modifier.padding(top = 4.dp)) {
+                StatBadge(aspectRatioLabel(uiState.videoWidth, uiState.videoHeight))
+                StatBadge(resolutionLabel(uiState.videoHeight))
+                StatBadge(frameRateLabel(uiState.videoFrameRate))
+                StatBadge(audioChannelsLabel(uiState.audioChannelCount))
+            }
+            liveInfo.nextTitle?.let { nextTitle ->
+                val nextTime = liveInfo.nextStartAtEpochMs?.let { " at ${formatClockTime(it)}" }.orEmpty()
+                Text(
+                    text = "Next: $nextTitle$nextTime",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatBadge(text: String) {
+    if (text.isBlank()) return
+    Box(
+        modifier = Modifier
+            .padding(end = 6.dp)
+            .background(Color.White.copy(alpha = 0.15f), AppShapes.extraSmall)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(text = text, color = Color.White, fontSize = 11.sp)
+    }
+}
+
+/** Elapsed/total against the EPG-scheduled programme slot (wall-clock time), not the stream's own playback position - a live broadcast isn't seekable, so this is read-only, unlike the VOD slider above it. */
+@Composable
+private fun LiveProgressBar(nowStartAtEpochMs: Long, nowEndAtEpochMs: Long) {
+    var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(nowStartAtEpochMs, nowEndAtEpochMs) {
+        while (true) {
+            currentTimeMs = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val (elapsed, total) = liveProgramProgress(nowStartAtEpochMs, nowEndAtEpochMs, currentTimeMs)
+    SignalBar(
+        progress = elapsed.toFloat() / total.toFloat(),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    )
+    Text(text = "${formatPositionMs(elapsed)} / ${formatPositionMs(total)}", color = Color.White)
+}
+
+@Composable
+private fun RecentChannelTile(channel: PlaybackItem, isCurrent: Boolean, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.padding(end = 10.dp).width(72.dp).clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(AppShapes.small)
+                .background(if (isCurrent) Palette.Accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (channel.posterUrl != null) {
+                AsyncImage(
+                    model = channel.posterUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(6.dp),
+                )
+            } else {
+                Text(text = channel.title.take(2).uppercase(), color = Color.White, fontSize = 14.sp)
+            }
+        }
+        Text(
+            text = channel.title,
+            color = Color.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
     }
 }
 

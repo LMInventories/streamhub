@@ -1,9 +1,15 @@
 package com.android.streamhub.feature.iptv.data
 
+import com.android.streamhub.core.common.domain.LiveProgramInfo
 import com.android.streamhub.core.common.domain.MediaSource
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
+import com.android.streamhub.feature.iptv.data.recent.RecentChannelDao
+import com.android.streamhub.feature.iptv.data.recent.RecentChannelEntity
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,6 +18,8 @@ class IptvMediaSource @Inject constructor(
     private val configRepository: IptvSourceConfigRepository,
     private val xtreamRemoteDataSource: XtreamRemoteDataSource,
     private val m3uRemoteDataSource: M3uRemoteDataSource,
+    private val browseRepository: IptvBrowseRepository,
+    private val recentChannelDao: RecentChannelDao,
 ) : MediaSource {
 
     override val sourceType: SourceType = SourceType.IPTV
@@ -57,8 +65,55 @@ class IptvMediaSource @Inject constructor(
             val episode = response.episodes.values.flatten().first { it.id == rawEpisodeId }
             return episode.toPlaybackItem(config, itemId)
         }
-        return browse().first { it.id == itemId }
+        val item = browse().first { it.id == itemId }
+        if (!item.isLive) return item
+
+        // Enriched here rather than in browse()'s flat list - fetching now/next EPG for every
+        // channel just to populate a list the user might not even open would mean an EPG call
+        // per channel on every app launch. This runs exactly once, for the specific channel
+        // actually being played.
+        val (now, next) = runCatching { browseRepository.getNowNext(itemId) }.getOrDefault(null to null)
+        return item.copy(
+            liveProgramInfo = LiveProgramInfo(
+                channelName = item.title,
+                channelLogoUrl = item.posterUrl,
+                nowTitle = now?.title,
+                nowStartAtEpochMs = now?.startAt?.toEpochMilli(),
+                nowEndAtEpochMs = now?.endAt?.toEpochMilli(),
+                nextTitle = next?.title,
+                nextStartAtEpochMs = next?.startAt?.toEpochMilli(),
+            ),
+        )
     }
+
+    override suspend fun recordViewed(itemId: String) {
+        val item = runCatching { browse().first { it.id == itemId } }.getOrNull() ?: return
+        if (!item.isLive) return
+        recentChannelDao.upsert(
+            RecentChannelEntity(
+                channelId = item.id,
+                name = item.title,
+                logoUrl = item.posterUrl,
+                streamUrl = item.streamUri,
+                lastViewedAtEpochSeconds = Instant.now().epochSecond,
+            ),
+        )
+        recentChannelDao.trimToLimit()
+    }
+
+    override fun observeRecentlyViewed(): Flow<List<PlaybackItem>> =
+        recentChannelDao.observeRecent().map { entities ->
+            entities.map {
+                PlaybackItem(
+                    id = it.channelId,
+                    sourceType = SourceType.IPTV,
+                    title = it.name,
+                    posterUrl = it.logoUrl,
+                    streamUri = it.streamUrl,
+                    isLive = true,
+                )
+            }
+        }
 
     /** Forces the next browse() to refetch instead of returning the cached list - used by "Update Playlist" in Settings. */
     fun invalidateCache() {

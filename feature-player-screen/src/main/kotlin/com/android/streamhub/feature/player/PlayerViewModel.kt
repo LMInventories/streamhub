@@ -14,7 +14,11 @@ import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.VideoAspectMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,31 +41,55 @@ class PlayerViewModel @Inject constructor(
         checkNotNull(savedStateHandle["sourceType"]) { "sourceType is required" },
     )
 
-    private var resolvedItem: PlaybackItem? = null
+    // Route/savedStateHandle still name the item this screen was originally navigated to - a
+    // channel switch (see switchChannel) re-prepares playback in place rather than re-navigating,
+    // so this can go stale after a switch. Only matters for process-death restoration, which just
+    // lands back on the originally-navigated channel rather than whichever was last switched to -
+    // an accepted tradeoff against the complexity of keeping the nav route itself in sync.
+    private val mediaSource: MediaSource? = mediaSources.firstOrNull { it.sourceType == sourceType }
+
+    private val _currentItem = MutableStateFlow<PlaybackItem?>(null)
+    val currentItem: StateFlow<PlaybackItem?> = _currentItem
+
+    /** Empty for non-live sources (MediaSource.observeRecentlyViewed() defaults to an empty Flow) - the overlay only shows this strip when currentItem.isLive anyway. */
+    val recentChannels: StateFlow<List<PlaybackItem>> =
+        (mediaSource?.observeRecentlyViewed() ?: flowOf(emptyList()))
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
-        viewModelScope.launch {
-            runCatching {
-                val source = mediaSources.firstOrNull { it.sourceType == sourceType }
-                    ?: error("No MediaSource registered for $sourceType")
-                val item = source.resolvePlayback(itemId)
-                // Resume point is a cross-source concern applied once here, rather than by every
-                // MediaSource implementation - resolvePlayback only needs to answer "what to
-                // play", not "where the user left off".
-                if (item.isLive) return@runCatching item
-                val progress = watchProgressRepository.getProgress(sourceType, itemId)
-                if (progress != null && !progress.isNearlyComplete) {
-                    item.copy(startPositionMs = progress.positionMs)
-                } else {
-                    item
-                }
-            }.onSuccess { item ->
-                resolvedItem = item
-                playerController.prepare(item)
-                if (!item.isLive) startProgressReporting()
-            }.onFailure { throwable ->
-                playerController.reportError(throwable.message ?: "Failed to resolve playback item")
+        viewModelScope.launch { loadAndPrepare(itemId, applyResumePoint = true) }
+    }
+
+    /** Switches playback to a different live channel without leaving this screen - used by the overlay's recently-viewed strip. */
+    fun switchChannel(newItemId: String) {
+        if (newItemId == _currentItem.value?.id) return
+        viewModelScope.launch { loadAndPrepare(newItemId, applyResumePoint = false) }
+    }
+
+    private suspend fun loadAndPrepare(id: String, applyResumePoint: Boolean) {
+        runCatching {
+            val source = mediaSource ?: error("No MediaSource registered for $sourceType")
+            val item = source.resolvePlayback(id)
+            // Resume point is a cross-source concern applied once here, rather than by every
+            // MediaSource implementation - resolvePlayback only needs to answer "what to
+            // play", not "where the user left off".
+            if (item.isLive || !applyResumePoint) return@runCatching item
+            val progress = watchProgressRepository.getProgress(sourceType, id)
+            if (progress != null && !progress.isNearlyComplete) {
+                item.copy(startPositionMs = progress.positionMs)
+            } else {
+                item
             }
+        }.onSuccess { item ->
+            _currentItem.value = item
+            playerController.prepare(item)
+            if (item.isLive) {
+                mediaSource?.let { source -> viewModelScope.launch { source.recordViewed(item.id) } }
+            } else {
+                startProgressReporting()
+            }
+        }.onFailure { throwable ->
+            playerController.reportError(throwable.message ?: "Failed to resolve playback item")
         }
     }
 
@@ -88,7 +116,7 @@ class PlayerViewModel @Inject constructor(
 
     /** Returns true if handoff to an external player actually launched. */
     fun openExternally(context: Context): Boolean {
-        val item = resolvedItem ?: return false
+        val item = _currentItem.value ?: return false
         return externalPlayerLauncher.launch(context, item)
     }
 
@@ -102,12 +130,12 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun saveProgressNow() {
-        val item = resolvedItem ?: return
+        val item = _currentItem.value ?: return
         if (item.isLive) return
         val state = uiState.value
         if (state.durationMs <= 0) return
         viewModelScope.launch {
-            watchProgressRepository.saveProgress(sourceType, itemId, state.positionMs, state.durationMs)
+            watchProgressRepository.saveProgress(sourceType, item.id, state.positionMs, state.durationMs)
         }
     }
 

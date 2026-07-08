@@ -48,6 +48,10 @@ dependencies {
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
+    // Channel logos in the live-TV overlay (program header, recently-viewed strip).
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)

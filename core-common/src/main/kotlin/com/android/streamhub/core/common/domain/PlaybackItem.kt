@@ -26,4 +26,19 @@ data class PlaybackItem(
     val subtitleTracks: List<SubtitleTrackRef> = emptyList(),
     val startPositionMs: Long = 0L,
     val isLive: Boolean = false,
+    // Only populated for live-TV channel items - null for VOD/Jellyfin/Emby. Kept on PlaybackItem
+    // rather than a separate lookup so the player screen (source-agnostic, doesn't depend on
+    // feature-iptv) can render the EPG overlay from whatever MediaSource.resolvePlayback()
+    // already handed it, without needing an IPTV-specific call of its own.
+    val liveProgramInfo: LiveProgramInfo? = null,
+)
+
+data class LiveProgramInfo(
+    val channelName: String,
+    val channelLogoUrl: String?,
+    val nowTitle: String?,
+    val nowStartAtEpochMs: Long?,
+    val nowEndAtEpochMs: Long?,
+    val nextTitle: String?,
+    val nextStartAtEpochMs: Long?,
 )
