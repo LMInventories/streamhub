@@ -53,6 +53,15 @@ private fun Modifier.menuSurface(shape: Shape) = this
     .background(Palette.SurfaceElevated, shape)
     .border(BorderStroke(1.dp, Palette.Border), shape)
 
+// The long-press context menu specifically (not the Record/Reminder dialogs that follow it) uses
+// a deliberately different, light off-white/dark-text look, sized to wrap its text rather than a
+// fixed minimum - a small "always this size" menu read as unintentionally screen-wide relative to
+// its two short options, so this drops the min-width constraint and lets Column's own natural
+// wrap-to-widest-child sizing take over instead.
+private fun Modifier.contextMenuSurface(shape: Shape) = this
+    .shadow(elevation = 10.dp, shape = shape)
+    .background(Palette.ContextMenuSurface, shape)
+
 @Composable
 fun ProgramContextMenu(
     onDismiss: () -> Unit,
@@ -62,9 +71,8 @@ fun ProgramContextMenu(
     Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
-                .widthIn(min = 200.dp)
-                .menuSurface(AppShapes.small)
-                .padding(vertical = 6.dp),
+                .contextMenuSurface(AppShapes.small)
+                .padding(vertical = 4.dp),
         ) {
             MenuRow("Record", onClick = onRecord)
             MenuRow("Set Reminder", onClick = onReminder)
@@ -76,11 +84,11 @@ fun ProgramContextMenu(
 private fun MenuRow(label: String, onClick: () -> Unit) {
     BasicText(
         text = label,
-        style = TextStyle(color = Palette.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+        style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     )
 }
 

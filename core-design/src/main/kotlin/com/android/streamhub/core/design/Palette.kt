@@ -16,6 +16,12 @@ object Palette {
     val TextPrimary = Color(0xFFF2F3F5)
     val TextMuted = Color(0xFF9CA3AF)
 
+    // Deliberate one-off light exception (not a light-theme variant of the tokens above) for
+    // long-press context menus specifically - off-white surface with dark text so the menu reads
+    // as a distinct floating control rather than just another dark panel on the dark app chrome.
+    val ContextMenuSurface = Color(0xFFF5F2EC)
+    val ContextMenuText = Color(0xFF1C1B1A)
+
     /** Primary accent - deliberately outside the IPTV/Jellyfin/Emby badge hues below, so it never reads as "which source". */
     val Accent = Color(0xFF7C5CFC)
     val AccentMuted = Color(0xFF5B44B8)

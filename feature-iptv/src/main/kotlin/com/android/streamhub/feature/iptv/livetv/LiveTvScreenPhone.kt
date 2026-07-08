@@ -1,7 +1,6 @@
 package com.android.streamhub.feature.iptv.livetv
 
 import android.content.res.Configuration
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -292,16 +291,18 @@ private fun LiveTvBrowseContent(
                                 DropdownMenu(
                                     expanded = contextMenuChannel?.id == channel.id,
                                     onDismissRequest = { contextMenuChannel = null },
-                                    // Explicit container/border/shadow rather than the theme's
-                                    // derived defaults - makes sure this reads clearly as a
-                                    // floating menu instead of blending into the row behind it.
-                                    containerColor = Palette.SurfaceElevated,
-                                    shadowElevation = 12.dp,
-                                    border = BorderStroke(1.dp, Palette.Border),
+                                    // Off-white surface + dark text, sized to wrap its own items -
+                                    // reads as a distinct floating menu against the dark app chrome
+                                    // without forcing a wide fixed minimum the way a plain M3
+                                    // surfaceContainer color would invite.
+                                    containerColor = Palette.ContextMenuSurface,
+                                    shadowElevation = 10.dp,
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Play", fontSize = 16.sp) },
-                                        leadingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
+                                        text = { Text("Play", fontSize = 16.sp, color = Palette.ContextMenuText) },
+                                        leadingIcon = {
+                                            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Palette.ContextMenuText)
+                                        },
                                         onClick = {
                                             onFocusChannel(channel)
                                             onPlayFullscreen(channel.id)
@@ -310,12 +311,17 @@ private fun LiveTvBrowseContent(
                                     )
                                     DropdownMenuItem(
                                         text = {
-                                            Text(if (isFavorite) "Remove from Favourites" else "Add to Favourites", fontSize = 16.sp)
+                                            Text(
+                                                if (isFavorite) "Remove from Favourites" else "Add to Favourites",
+                                                fontSize = 16.sp,
+                                                color = Palette.ContextMenuText,
+                                            )
                                         },
                                         leadingIcon = {
                                             Icon(
                                                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                                 contentDescription = null,
+                                                tint = Palette.ContextMenuText,
                                             )
                                         },
                                         onClick = {
