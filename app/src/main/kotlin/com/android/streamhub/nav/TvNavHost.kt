@@ -23,6 +23,7 @@ import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenTv
+import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.home.HomeScreenTv
 import com.android.streamhub.placeholder.ComingSoonScreen
@@ -119,10 +120,14 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 SettingsScreen(
                     paddingValues = PaddingValues(24.dp),
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
+                    onJellyfinClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
                 IptvSettingsScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.JELLYFIN_SETTINGS_PATTERN) {
+                JellyfinSettingsScreen(onDone = { navController.popBackStack() })
             }
             composable(
                 route = Route.PLAYER_PATTERN,

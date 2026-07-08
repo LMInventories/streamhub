@@ -21,6 +21,8 @@ sealed class Route {
 
     data object IptvSettings : Route()
 
+    data object JellyfinSettings : Route()
+
     data class VodItemDetail(val itemId: String) : Route()
 
     data class VodSeriesDetail(val seriesId: String) : Route()
@@ -35,6 +37,7 @@ sealed class Route {
         const val JELLYFIN_HOME_PATTERN = "jellyfin_home"
         const val SETTINGS_PATTERN = "settings"
         const val IPTV_SETTINGS_PATTERN = "iptv_settings"
+        const val JELLYFIN_SETTINGS_PATTERN = "jellyfin_settings"
         const val VOD_ITEM_DETAIL_PATTERN = "vod_item_detail/{itemId}"
         const val VOD_SERIES_DETAIL_PATTERN = "vod_series_detail/{seriesId}"
         const val PLAYER_PATTERN = "player/{sourceType}/{itemId}"

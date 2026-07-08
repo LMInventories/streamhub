@@ -24,13 +24,14 @@ data class SettingsEntry(
 
 /**
  * One shared hub for every source's sign-in config, reachable from Home. Live TV/VOD both read
- * the same Xtream/M3U config, so they share a single entry here rather than two - Jellyfin/Emby
- * are listed but disabled until those integrations actually land (Milestone 3/4).
+ * the same Xtream/M3U config, so they share a single entry here rather than two - Emby is listed
+ * but disabled until that integration lands (Milestone 4).
  */
 @Composable
 fun SettingsScreen(
     paddingValues: PaddingValues,
     onIptvClick: () -> Unit,
+    onJellyfinClick: () -> Unit,
 ) {
     val entries = listOf(
         SettingsEntry(
@@ -41,9 +42,9 @@ fun SettingsScreen(
         ),
         SettingsEntry(
             title = "Jellyfin",
-            subtitle = "Not set up yet",
-            enabled = false,
-            onClick = {},
+            subtitle = "Server sign-in",
+            enabled = true,
+            onClick = onJellyfinClick,
         ),
         SettingsEntry(
             title = "Emby",

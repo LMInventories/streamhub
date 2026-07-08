@@ -65,6 +65,7 @@ dependencies {
     implementation(project(":core-ui-tv"))
     implementation(project(":feature-player-screen"))
     implementation(project(":feature-iptv"))
+    implementation(project(":feature-jellyfin"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
