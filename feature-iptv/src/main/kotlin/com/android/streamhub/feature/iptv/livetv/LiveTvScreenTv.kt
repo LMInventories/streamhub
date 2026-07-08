@@ -41,6 +41,7 @@ fun LiveTvScreenTv(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
+    val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
     // returning from another tab) and pauses it whenever it leaves - there's no reason to keep a
@@ -65,6 +66,8 @@ fun LiveTvScreenTv(
             channel = focusedChannel,
             nowProgram = uiState.nowProgram,
             nextProgram = uiState.nextProgram,
+            recentChannels = recentChannels,
+            onSwitchChannel = viewModel::switchFullscreenChannel,
             onPlayPause = viewModel::toggleMiniPlayerPlayback,
             onToggleMute = viewModel::toggleMiniPlayerMute,
             onCollapse = viewModel::exitFullscreen,

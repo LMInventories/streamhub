@@ -3,14 +3,18 @@ package com.android.streamhub.feature.iptv.livetv
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
@@ -23,12 +27,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.exoplayer.ExoPlayer
+import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.player.PlayerUiState
@@ -56,6 +64,8 @@ fun LiveFullscreenOverlay(
     channel: IptvChannelInfo,
     nowProgram: EpgProgram?,
     nextProgram: EpgProgram?,
+    recentChannels: List<IptvChannelInfo>,
+    onSwitchChannel: (IptvChannelInfo) -> Unit,
     onPlayPause: () -> Unit,
     onToggleMute: () -> Unit,
     onCollapse: () -> Unit,
@@ -105,9 +115,60 @@ fun LiveFullscreenOverlay(
                         Spacer(modifier = Modifier.width(12.dp))
                         OverlayTextButton(if (playerUiState.isMuted) "Unmute" else "Mute", onClick = onToggleMute)
                     }
+
+                    if (recentChannels.isNotEmpty()) {
+                        BasicText(
+                            text = "Channels",
+                            style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp),
+                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+                        )
+                        LazyRow {
+                            items(recentChannels, key = { it.id }) { recentChannel ->
+                                RecentChannelTile(
+                                    channel = recentChannel,
+                                    isCurrent = recentChannel.id == channel.id,
+                                    onClick = { onSwitchChannel(recentChannel) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RecentChannelTile(channel: IptvChannelInfo, isCurrent: Boolean, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.padding(end = 10.dp).width(72.dp).clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(AppShapes.small)
+                .background(if (isCurrent) Palette.Accent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (channel.logoUrl != null) {
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(6.dp),
+                )
+            } else {
+                BasicText(text = channel.name.take(2).uppercase(), style = TextStyle(color = Color.White, fontSize = 14.sp))
+            }
+        }
+        BasicText(
+            text = channel.name,
+            style = TextStyle(color = Color.White, fontSize = 10.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
     }
 }
 

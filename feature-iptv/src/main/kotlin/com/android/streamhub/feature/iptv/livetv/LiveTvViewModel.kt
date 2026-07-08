@@ -15,11 +15,14 @@ import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgRefreshResult
 import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
+import com.android.streamhub.feature.iptv.data.recent.RecentChannelsRepository
 import com.android.streamhub.feature.iptv.data.scheduled.ScheduledEventsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -76,6 +79,7 @@ class LiveTvViewModel @Inject constructor(
     private val configRepository: IptvSourceConfigRepository,
     private val favoritesRepository: IptvFavoritesRepository,
     private val scheduledEventsRepository: ScheduledEventsRepository,
+    private val recentChannelsRepository: RecentChannelsRepository,
     private val fullscreenOverlayState: FullscreenOverlayState,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
@@ -91,6 +95,11 @@ class LiveTvViewModel @Inject constructor(
     val uiState: StateFlow<LiveTvUiState> = _uiState
 
     val miniPlayerUiState: StateFlow<PlayerUiState> = miniPlayerController.uiState
+
+    // Drives the fullscreen overlay's channel-switcher strip - reactive, so a channel added by
+    // watching it just now shows up there immediately, not just next time the app opens.
+    val recentChannels: StateFlow<List<IptvChannelInfo>> =
+        recentChannelsRepository.observeRecent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // Only non-null while the Favourites category is selected - a live Flow collector (not a
     // one-shot fetch like every other category) so removing a favourite while looking at this
@@ -283,15 +292,25 @@ class LiveTvViewModel @Inject constructor(
      * to know about this screen's internal state otherwise.
      */
     fun enterFullscreen() {
-        if (_uiState.value.focusedChannel == null) return
+        val channel = _uiState.value.focusedChannel ?: return
         _uiState.update { it.copy(isFullscreen = true) }
         fullscreenOverlayState.setActive(true)
         miniPlayerController.setMuted(false)
+        // Recorded here, not in focusChannel() - focusChannel() fires for every row tapped while
+        // just browsing/scrolling a category, which would pollute "recently viewed" with channels
+        // never actually watched. Entering fullscreen is a much closer match for "viewed".
+        viewModelScope.launch { recentChannelsRepository.recordViewed(channel) }
     }
 
     fun exitFullscreen() {
         _uiState.update { it.copy(isFullscreen = false) }
         fullscreenOverlayState.setActive(false)
+    }
+
+    /** Switches to a different channel from the fullscreen overlay's recently-viewed strip - same in-place player, and re-records viewed so recency ordering reflects what's actually being watched now. */
+    fun switchFullscreenChannel(channel: IptvChannelInfo) {
+        focusChannel(channel)
+        viewModelScope.launch { recentChannelsRepository.recordViewed(channel) }
     }
 
     /** Called when the Live TV screen re-enters composition (including the first time) - resumes whatever channel was already focused. */

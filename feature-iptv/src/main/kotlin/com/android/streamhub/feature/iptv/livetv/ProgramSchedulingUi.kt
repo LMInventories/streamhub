@@ -4,7 +4,9 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +45,14 @@ import kotlin.math.min
 // wrong on TV, same reasoning as the rest of this file's styling.
 private val timeFormatter = DateTimeFormatter.ofPattern("EEE HH:mm")
 
+// A plain Popup + background has no built-in shadow/elevation the way Material3's DropdownMenu
+// does, so over busy content (EPG grid rows, video) it could visually blend in rather than read
+// as a floating menu. shadow() + an explicit border fixes that regardless of what's behind it.
+private fun Modifier.menuSurface(shape: Shape) = this
+    .shadow(elevation = 12.dp, shape = shape)
+    .background(Palette.SurfaceElevated, shape)
+    .border(BorderStroke(1.dp, Palette.Border), shape)
+
 @Composable
 fun ProgramContextMenu(
     onDismiss: () -> Unit,
@@ -49,9 +62,9 @@ fun ProgramContextMenu(
     Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
-                .widthIn(min = 180.dp)
-                .background(Palette.SurfaceElevated, AppShapes.small)
-                .padding(vertical = 4.dp),
+                .widthIn(min = 200.dp)
+                .menuSurface(AppShapes.small)
+                .padding(vertical = 6.dp),
         ) {
             MenuRow("Record", onClick = onRecord)
             MenuRow("Set Reminder", onClick = onReminder)
@@ -63,11 +76,11 @@ fun ProgramContextMenu(
 private fun MenuRow(label: String, onClick: () -> Unit) {
     BasicText(
         text = label,
-        style = TextStyle(color = Palette.TextPrimary, fontSize = 14.sp),
+        style = TextStyle(color = Palette.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
     )
 }
 
@@ -77,7 +90,7 @@ private fun DialogCard(onDismiss: () -> Unit, content: @Composable ColumnScope.(
         Column(
             modifier = Modifier
                 .widthIn(min = 260.dp, max = 340.dp)
-                .background(Palette.SurfaceElevated, AppShapes.medium)
+                .menuSurface(AppShapes.medium)
                 .padding(16.dp),
             content = content,
         )

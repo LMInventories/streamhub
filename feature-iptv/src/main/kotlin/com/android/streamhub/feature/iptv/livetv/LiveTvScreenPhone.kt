@@ -1,6 +1,7 @@
 package com.android.streamhub.feature.iptv.livetv
 
 import android.content.res.Configuration
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -47,9 +48,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.design.Palette
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
@@ -64,6 +67,7 @@ fun LiveTvScreenPhone(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
+    val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
@@ -89,6 +93,8 @@ fun LiveTvScreenPhone(
             channel = focusedChannel,
             nowProgram = uiState.nowProgram,
             nextProgram = uiState.nextProgram,
+            recentChannels = recentChannels,
+            onSwitchChannel = viewModel::switchFullscreenChannel,
             onPlayPause = viewModel::toggleMiniPlayerPlayback,
             onToggleMute = viewModel::toggleMiniPlayerMute,
             onCollapse = viewModel::exitFullscreen,
@@ -286,9 +292,15 @@ private fun LiveTvBrowseContent(
                                 DropdownMenu(
                                     expanded = contextMenuChannel?.id == channel.id,
                                     onDismissRequest = { contextMenuChannel = null },
+                                    // Explicit container/border/shadow rather than the theme's
+                                    // derived defaults - makes sure this reads clearly as a
+                                    // floating menu instead of blending into the row behind it.
+                                    containerColor = Palette.SurfaceElevated,
+                                    shadowElevation = 12.dp,
+                                    border = BorderStroke(1.dp, Palette.Border),
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Play") },
+                                        text = { Text("Play", fontSize = 16.sp) },
                                         leadingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
                                         onClick = {
                                             onFocusChannel(channel)
@@ -297,7 +309,9 @@ private fun LiveTvBrowseContent(
                                         },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(if (isFavorite) "Remove from Favourites" else "Add to Favourites") },
+                                        text = {
+                                            Text(if (isFavorite) "Remove from Favourites" else "Add to Favourites", fontSize = 16.sp)
+                                        },
                                         leadingIcon = {
                                             Icon(
                                                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,

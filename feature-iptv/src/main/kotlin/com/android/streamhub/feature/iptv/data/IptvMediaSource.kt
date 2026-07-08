@@ -4,12 +4,10 @@ import com.android.streamhub.core.common.domain.LiveProgramInfo
 import com.android.streamhub.core.common.domain.MediaSource
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
-import com.android.streamhub.feature.iptv.data.recent.RecentChannelDao
-import com.android.streamhub.feature.iptv.data.recent.RecentChannelEntity
+import com.android.streamhub.feature.iptv.data.recent.RecentChannelsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,7 +17,7 @@ class IptvMediaSource @Inject constructor(
     private val xtreamRemoteDataSource: XtreamRemoteDataSource,
     private val m3uRemoteDataSource: M3uRemoteDataSource,
     private val browseRepository: IptvBrowseRepository,
-    private val recentChannelDao: RecentChannelDao,
+    private val recentChannelsRepository: RecentChannelsRepository,
 ) : MediaSource {
 
     override val sourceType: SourceType = SourceType.IPTV
@@ -89,23 +87,16 @@ class IptvMediaSource @Inject constructor(
     override suspend fun recordViewed(itemId: String) {
         val item = runCatching { browse().first { it.id == itemId } }.getOrNull() ?: return
         if (!item.isLive) return
-        recentChannelDao.upsert(
-            RecentChannelEntity(
-                channelId = item.id,
-                name = item.title,
-                logoUrl = item.posterUrl,
-                streamUrl = item.streamUri,
-                lastViewedAtEpochSeconds = Instant.now().epochSecond,
-            ),
+        recentChannelsRepository.recordViewed(
+            IptvChannelInfo(id = item.id, name = item.title, logoUrl = item.posterUrl, streamUrl = item.streamUri),
         )
-        recentChannelDao.trimToLimit()
     }
 
     override fun observeRecentlyViewed(): Flow<List<PlaybackItem>> =
-        recentChannelDao.observeRecent().map { entities ->
-            entities.map {
+        recentChannelsRepository.observeRecent().map { channels ->
+            channels.map {
                 PlaybackItem(
-                    id = it.channelId,
+                    id = it.id,
                     sourceType = SourceType.IPTV,
                     title = it.name,
                     posterUrl = it.logoUrl,
