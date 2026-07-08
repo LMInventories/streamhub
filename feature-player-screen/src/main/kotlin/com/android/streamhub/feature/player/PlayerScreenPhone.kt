@@ -234,8 +234,10 @@ private fun PhonePlayerControls(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            if (liveInfo?.nowStartAtEpochMs != null && liveInfo.nowEndAtEpochMs != null) {
-                LiveProgressBar(nowStartAtEpochMs = liveInfo.nowStartAtEpochMs, nowEndAtEpochMs = liveInfo.nowEndAtEpochMs)
+            val nowStart = liveInfo?.nowStartAtEpochMs
+            val nowEnd = liveInfo?.nowEndAtEpochMs
+            if (nowStart != null && nowEnd != null) {
+                LiveProgressBar(nowStartAtEpochMs = nowStart, nowEndAtEpochMs = nowEnd)
             } else {
                 Slider(
                     value = uiState.positionMs.toFloat(),
@@ -323,8 +325,10 @@ private fun LiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiState)
         }
         Column {
             Text(text = liveInfo.nowTitle ?: liveInfo.channelName, color = Color.White, fontSize = 20.sp)
-            val timeRange = if (liveInfo.nowStartAtEpochMs != null && liveInfo.nowEndAtEpochMs != null) {
-                ", ${formatClockTime(liveInfo.nowStartAtEpochMs)} – ${formatClockTime(liveInfo.nowEndAtEpochMs)}"
+            val nowStart = liveInfo.nowStartAtEpochMs
+            val nowEnd = liveInfo.nowEndAtEpochMs
+            val timeRange = if (nowStart != null && nowEnd != null) {
+                ", ${formatClockTime(nowStart)} – ${formatClockTime(nowEnd)}"
             } else {
                 ""
             }

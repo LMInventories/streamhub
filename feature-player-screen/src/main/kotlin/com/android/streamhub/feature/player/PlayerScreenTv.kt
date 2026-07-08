@@ -177,8 +177,10 @@ private fun TvPlayerControls(
             Spacer(modifier = Modifier.padding(top = 8.dp))
         }
 
-        if (liveInfo?.nowStartAtEpochMs != null && liveInfo.nowEndAtEpochMs != null) {
-            TvLiveProgressBar(nowStartAtEpochMs = liveInfo.nowStartAtEpochMs, nowEndAtEpochMs = liveInfo.nowEndAtEpochMs)
+        val nowStart = liveInfo?.nowStartAtEpochMs
+        val nowEnd = liveInfo?.nowEndAtEpochMs
+        if (nowStart != null && nowEnd != null) {
+            TvLiveProgressBar(nowStartAtEpochMs = nowStart, nowEndAtEpochMs = nowEnd)
         } else {
             Text(
                 text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
@@ -236,8 +238,10 @@ private fun TvLiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiStat
         }
         Column {
             Text(text = liveInfo.nowTitle ?: liveInfo.channelName, color = Color.White)
-            val timeRange = if (liveInfo.nowStartAtEpochMs != null && liveInfo.nowEndAtEpochMs != null) {
-                ", ${formatClockTime(liveInfo.nowStartAtEpochMs)} – ${formatClockTime(liveInfo.nowEndAtEpochMs)}"
+            val headerNowStart = liveInfo.nowStartAtEpochMs
+            val headerNowEnd = liveInfo.nowEndAtEpochMs
+            val timeRange = if (headerNowStart != null && headerNowEnd != null) {
+                ", ${formatClockTime(headerNowStart)} – ${formatClockTime(headerNowEnd)}"
             } else {
                 ""
             }
