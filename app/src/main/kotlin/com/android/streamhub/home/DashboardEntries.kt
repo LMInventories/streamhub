@@ -29,21 +29,24 @@ val dashboardEntries = listOf(
     ),
     DashboardEntry(
         title = "VOD",
-        subtitle = "Movies",
+        subtitle = "Movies/TV Shows",
         route = Route.VOD_PATTERN,
         icon = Icons.Filled.Movie,
         accent = Palette.Accent,
     ),
     DashboardEntry(
+        // Reserved for the connected server's name once Jellyfin is actually wired up
+        // (Milestone 3) - "Not connected" is the honest current state, not a placeholder label.
         title = "Jellyfin",
-        subtitle = "Your Jellyfin library",
+        subtitle = "Not connected",
         route = Route.JELLYFIN_HOME_PATTERN,
         icon = Icons.Filled.PlayCircleFilled,
         accent = Palette.SourceJellyfin,
     ),
     DashboardEntry(
+        // Same as Jellyfin above - reserved for the connected server's name once Emby lands (M4).
         title = "Emby",
-        subtitle = "Your Emby library",
+        subtitle = "Not connected",
         route = Route.EMBY_HOME_PATTERN,
         icon = Icons.Filled.VideoLibrary,
         accent = Palette.SourceEmby,

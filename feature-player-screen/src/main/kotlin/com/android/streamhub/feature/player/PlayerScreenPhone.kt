@@ -52,6 +52,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
@@ -74,6 +77,7 @@ fun PlayerScreenPhone(
     var showSubtitlePicker by remember { mutableStateOf(false) }
 
     LockLandscapeWhilePlaying()
+    HideSystemBarsWhilePlaying()
 
     LaunchedEffect(controlsVisible, uiState.isPlaying) {
         if (controlsVisible && uiState.isPlaying) {
@@ -144,6 +148,27 @@ private fun LockLandscapeWhilePlaying() {
         val previousOrientation = activity.requestedOrientation
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         onDispose { activity.requestedOrientation = previousOrientation }
+    }
+}
+
+/** True fullscreen: hides the status bar and nav bar while playing, restores both on exit. Swiping from an edge still temporarily reveals them (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE) rather than requiring a settings dive to get them back. */
+@Composable
+private fun HideSystemBarsWhilePlaying() {
+    val activity = LocalContext.current as? Activity ?: return
+    DisposableEffect(Unit) {
+        val window = activity.window
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        val previousSystemBarsBehavior = controller.systemBarsBehavior
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+
+        onDispose {
+            WindowCompat.setDecorFitsSystemWindows(window, true)
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = previousSystemBarsBehavior
+        }
     }
 }
 

@@ -17,6 +17,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,6 +79,7 @@ fun LiveTvScreenTv(
         }
 
         val selectedCategory = uiState.selectedCategory
+        var selectedPrefix by remember { mutableStateOf<String?>(null) }
 
         // weight(1f) here is load-bearing, not decorative - without it this competed for height
         // with the fixed-size header Row above under Column's default (unbounded) child
@@ -85,10 +89,22 @@ fun LiveTvScreenTv(
                 selectedCategory == null && uiState.isLoadingCategories ->
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
-                selectedCategory == null -> CategoryGrid(
-                    categories = uiState.categories,
-                    onSelectCategory = viewModel::selectCategory,
-                )
+                selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
+                    CategoryPrefixFilterRow(
+                        categories = uiState.categories,
+                        selectedPrefix = selectedPrefix,
+                        onSelectPrefix = { selectedPrefix = it },
+                    )
+                    val visibleCategories = selectedPrefix?.let { prefix ->
+                        uiState.categories.filter { categoryPrefix(it.name) == prefix }
+                    } ?: uiState.categories
+                    CategoryGrid(
+                        categories = visibleCategories,
+                        onSelectCategory = viewModel::selectCategory,
+                        // Load-bearing, not decorative - see the comment on the outer Box above.
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    )
+                }
 
                 else -> Column(modifier = Modifier.fillMaxSize()) {
                     Button(onClick = viewModel::clearCategorySelection) {
@@ -133,10 +149,14 @@ private fun AddSourcePromptTv(onSetupClick: () -> Unit, modifier: Modifier = Mod
 }
 
 @Composable
-private fun CategoryGrid(categories: List<IptvCategoryInfo>, onSelectCategory: (IptvCategoryInfo) -> Unit) {
+private fun CategoryGrid(
+    categories: List<IptvCategoryInfo>,
+    onSelectCategory: (IptvCategoryInfo) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 220.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
     ) {
         items(categories, key = { it.id }) { category ->
             Card(onClick = { onSelectCategory(category) }, modifier = Modifier.padding(8.dp)) {

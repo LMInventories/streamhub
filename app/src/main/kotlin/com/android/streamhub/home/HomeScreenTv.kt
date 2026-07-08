@@ -38,9 +38,10 @@ fun HomeScreenTv(
         ) {
             items(dashboardEntries, key = { it.route }) { entry ->
                 Card(onClick = { onNavigate(entry.route) }) {
+                    // ~75% of the previous height at the same width (1.6f -> 1.6f/0.75f).
                     Column(
                         modifier = Modifier
-                            .aspectRatio(1.6f)
+                            .aspectRatio(1.6f / 0.75f)
                             .background(entry.accent.copy(alpha = 0.16f), AppShapes.large)
                             .padding(20.dp),
                         verticalArrangement = Arrangement.SpaceBetween,

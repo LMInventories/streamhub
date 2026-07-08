@@ -31,8 +31,11 @@ data class VodUiState(
     val movies: List<VodMovieInfo> = emptyList(),
     val shows: List<VodShowInfo> = emptyList(),
     val isLoadingContent: Boolean = false,
+    val gridColumns: Int = 4,
     val errorMessage: String? = null,
 )
+
+val VOD_GRID_COLUMN_OPTIONS = listOf(3, 4, 5, 6)
 
 @HiltViewModel
 class VodViewModel @Inject constructor(
@@ -104,5 +107,10 @@ class VodViewModel @Inject constructor(
 
     fun clearCategorySelection() {
         _uiState.update { it.copy(selectedCategory = null, movies = emptyList(), shows = emptyList()) }
+    }
+
+    fun setGridColumns(count: Int) {
+        if (count !in VOD_GRID_COLUMN_OPTIONS) return
+        _uiState.update { it.copy(gridColumns = count) }
     }
 }

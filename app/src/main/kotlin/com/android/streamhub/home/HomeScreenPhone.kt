@@ -64,9 +64,10 @@ fun HomeScreenPhone(
 
 @Composable
 private fun DashboardCard(entry: DashboardEntry, onClick: () -> Unit) {
+    // ~75% of the previous square height at the same width (1f -> 1/0.75).
     Box(
         modifier = Modifier
-            .aspectRatio(1f)
+            .aspectRatio(4f / 3f)
             .fillMaxWidth()
             .background(entry.accent.copy(alpha = 0.16f), AppShapes.large)
             .clickable(onClick = onClick)

@@ -31,6 +31,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -164,18 +167,31 @@ private fun LiveTvBrowseContent(
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
+    var selectedPrefix by remember { mutableStateOf<String?>(null) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         when {
             selectedCategory == null && uiState.isLoadingCategories ->
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
-            selectedCategory == null -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(uiState.categories, key = { it.id }) { category ->
-                    ListItem(
-                        headlineContent = { Text(category.name) },
-                        modifier = Modifier.clickable { onSelectCategory(category) },
-                    )
+            selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
+                CategoryPrefixFilterRow(
+                    categories = uiState.categories,
+                    selectedPrefix = selectedPrefix,
+                    onSelectPrefix = { selectedPrefix = it },
+                )
+                val visibleCategories = selectedPrefix?.let { prefix ->
+                    uiState.categories.filter { categoryPrefix(it.name) == prefix }
+                } ?: uiState.categories
+                // weight(1f) is load-bearing here, not decorative - see the comment on the
+                // caller's modifier param above.
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    items(visibleCategories, key = { it.id }) { category ->
+                        ListItem(
+                            headlineContent = { Text(category.name) },
+                            modifier = Modifier.clickable { onSelectCategory(category) },
+                        )
+                    }
                 }
             }
 

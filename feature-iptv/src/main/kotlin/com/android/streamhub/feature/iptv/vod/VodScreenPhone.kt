@@ -17,8 +17,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,6 +31,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +63,9 @@ fun VodScreenPhone(
             TopAppBar(
                 title = { Text("VOD") },
                 actions = {
+                    if (selectedCategory != null) {
+                        GridDensityButton(gridColumns = uiState.gridColumns, onSelect = viewModel::setGridColumns)
+                    }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
                     }
@@ -129,7 +138,7 @@ fun VodScreenPhone(
                         }
                     } else {
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
+                            columns = GridCells.Fixed(uiState.gridColumns),
                             modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
                         ) {
                             if (uiState.mode == VodMode.MOVIES) {
@@ -144,6 +153,24 @@ fun VodScreenPhone(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GridDensityButton(gridColumns: Int, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.Filled.GridView, contentDescription = "Grid size ($gridColumns columns)")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            VOD_GRID_COLUMN_OPTIONS.forEach { count ->
+                DropdownMenuItem(
+                    text = { Text("$count columns") },
+                    onClick = { onSelect(count); expanded = false },
+                )
             }
         }
     }

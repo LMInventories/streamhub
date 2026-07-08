@@ -35,6 +35,9 @@ dependencies {
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))
 
+    // WindowCompat/WindowInsetsControllerCompat for hiding system bars in fullscreen playback.
+    implementation(libs.androidx.core.ktx)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
