@@ -24,6 +24,7 @@ kotlinxCoroutines = "1.11.0"
 coil = "3.5.0"
 room = "2.8.4"
 javaxInject = "1"
+jellyfinSdk = "1.9.0-beta.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -79,6 +80,8 @@ coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp"
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+jellyfin-sdk-core = { group = "org.jellyfin.sdk", name = "jellyfin-core", version.ref = "jellyfinSdk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

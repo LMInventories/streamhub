@@ -25,4 +25,5 @@ include(
     ":core-ui-tv",
     ":feature-player-screen",
     ":feature-iptv",
+    ":feature-jellyfin",
 )
