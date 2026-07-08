@@ -1,6 +1,9 @@
 package com.android.streamhub.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -34,12 +37,17 @@ private val TAB_ROUTES = setOf(
 @Composable
 fun PhoneApp(navController: NavHostController = rememberNavController()) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    // Live TV's mini-preview can expand to fill the screen in place (same player instance, no
+    // navigation - see LiveTvScreenPhone) - PhoneScaffold's normal bottomBarVisible is route-based
+    // and has no way to know about that, so this is the extra signal that actually gets the bar
+    // out of the way for it.
+    val isFullscreenOverlayActive by hiltViewModel<FullscreenOverlayViewModel>().isActive.collectAsStateWithLifecycle()
 
     IptvAutoUpdateEffect()
 
     PhoneScaffold(
         currentRoute = currentRoute,
-        bottomBarVisible = currentRoute in TAB_ROUTES,
+        bottomBarVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
         onNavigate = { route ->
             // Standard bottom-nav "switch tabs, keep each tab's state" pattern - without
             // saveState/restoreState, hopping between tabs would push a fresh backstack entry

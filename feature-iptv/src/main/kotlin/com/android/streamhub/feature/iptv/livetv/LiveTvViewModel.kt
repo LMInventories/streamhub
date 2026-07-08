@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
+import com.android.streamhub.core.common.ui.FullscreenOverlayState
 import com.android.streamhub.core.player.PlayerController
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.feature.iptv.data.EpgProgram
@@ -57,6 +58,10 @@ data class LiveTvUiState(
     val gridWindowStart: Instant = Instant.now().truncatedTo(ChronoUnit.HOURS),
     val gridWindowEnd: Instant = Instant.now().truncatedTo(ChronoUnit.HOURS).plus(GRID_DAYS, ChronoUnit.DAYS),
     val errorMessage: String? = null,
+    // The mini-preview expanded in place (same PlayerController/ExoPlayer instance, just resized)
+    // rather than navigating to a separate full-screen route with a second player that would
+    // need to rebuffer the same stream from scratch.
+    val isFullscreen: Boolean = false,
 )
 
 /**
@@ -71,6 +76,7 @@ class LiveTvViewModel @Inject constructor(
     private val configRepository: IptvSourceConfigRepository,
     private val favoritesRepository: IptvFavoritesRepository,
     private val scheduledEventsRepository: ScheduledEventsRepository,
+    private val fullscreenOverlayState: FullscreenOverlayState,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -264,17 +270,46 @@ class LiveTvViewModel @Inject constructor(
 
     fun toggleMiniPlayerMute() = miniPlayerController.toggleMuted()
 
+    fun toggleMiniPlayerPlayback() {
+        if (miniPlayerUiState.value.isPlaying) miniPlayerController.pause() else miniPlayerController.play()
+    }
+
+    /**
+     * Expands the mini-preview to fill the screen, in place - same PlayerController/ExoPlayer
+     * instance, just resized, so nothing needs to rebuffer. Auto-unmutes since the preview no
+     * longer has its own mute button to reach first (that lives in the fullscreen overlay now).
+     * Also signals FullscreenOverlayState so the app's own bottom nav bar/tab row actually gets
+     * out of the way - PhoneScaffold/TvScaffold's normal visibility is route-based and has no way
+     * to know about this screen's internal state otherwise.
+     */
+    fun enterFullscreen() {
+        if (_uiState.value.focusedChannel == null) return
+        _uiState.update { it.copy(isFullscreen = true) }
+        fullscreenOverlayState.setActive(true)
+        miniPlayerController.setMuted(false)
+    }
+
+    fun exitFullscreen() {
+        _uiState.update { it.copy(isFullscreen = false) }
+        fullscreenOverlayState.setActive(false)
+    }
+
     /** Called when the Live TV screen re-enters composition (including the first time) - resumes whatever channel was already focused. */
     fun resumeMiniPlayer() {
         if (_uiState.value.focusedChannel != null) miniPlayerController.play()
     }
 
-    /** Called when the Live TV screen leaves composition for a different section of the app (or fullscreen) - no point decoding/buffering a channel the user can no longer see. */
+    /** Called when the Live TV screen leaves composition for a different section of the app - no point decoding/buffering a channel the user can no longer see. */
     fun pauseMiniPlayer() {
         miniPlayerController.pause()
     }
 
     override fun onCleared() {
+        // Safety net - if this ViewModel is torn down while still fullscreen (shouldn't normally
+        // happen since the screen composable's onDispose already calls exitFullscreen(), but a
+        // process-level teardown could race with that), don't leave the bottom bar/tab row
+        // permanently hidden for whatever screen the user lands on next.
+        fullscreenOverlayState.setActive(false)
         miniPlayerController.release()
     }
 }

@@ -2,7 +2,10 @@ package com.android.streamhub.nav
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -36,12 +39,17 @@ private val TAB_ROUTES = setOf(
 @Composable
 fun TvApp(navController: NavHostController = rememberNavController()) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    // Live TV's mini-preview can expand to fill the screen in place (same player instance, no
+    // navigation - see LiveTvScreenTv) - TvScaffold's normal tabRowVisible is route-based and has
+    // no way to know about that, so this is the extra signal that actually gets the tab row out
+    // of the way for it.
+    val isFullscreenOverlayActive by hiltViewModel<FullscreenOverlayViewModel>().isActive.collectAsStateWithLifecycle()
 
     IptvAutoUpdateEffect()
 
     TvScaffold(
         currentRoute = currentRoute,
-        tabRowVisible = currentRoute in TAB_ROUTES,
+        tabRowVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
         onNavigate = { route ->
             // Same "switch tabs, keep each tab's state" pattern as the phone nav host - without
             // this, hopping between tabs would restart the mini-player every time instead of
@@ -63,9 +71,6 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             composable(Route.LIVE_TV_PATTERN) {
                 LiveTvScreenTv(
                     onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
-                    onFullscreen = { channelId ->
-                        navController.navigate(Route.playerRoute(channelId, SourceType.IPTV))
-                    },
                 )
             }
             composable(Route.VOD_PATTERN) {

@@ -37,20 +37,40 @@ import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 @Composable
 fun LiveTvScreenTv(
     onSettingsClick: () -> Unit,
-    onFullscreen: (channelId: String) -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
-    // returning from another tab/fullscreen) and pauses it whenever it leaves - there's no
-    // reason to keep a channel the user can't see decoding/buffering in the background.
-    // Category/channel browsing happens entirely within this same composable, so it never
-    // triggers this - only genuinely navigating away from Live TV does.
+    // returning from another tab) and pauses it whenever it leaves - there's no reason to keep a
+    // channel the user can't see decoding/buffering in the background. Category/channel browsing
+    // (including expanding/collapsing the in-place fullscreen overlay below) happens entirely
+    // within this same composable, so it never triggers this - only genuinely navigating away
+    // from Live TV does. exitFullscreen() here is a safety net so switching tabs while fullscreen
+    // doesn't leave the app's own tab row permanently hidden.
     DisposableEffect(Unit) {
         viewModel.resumeMiniPlayer()
-        onDispose { viewModel.pauseMiniPlayer() }
+        onDispose {
+            viewModel.pauseMiniPlayer()
+            viewModel.exitFullscreen()
+        }
+    }
+
+    val focusedChannel = uiState.focusedChannel
+    if (uiState.isFullscreen && focusedChannel != null) {
+        LiveFullscreenOverlay(
+            exoPlayer = viewModel.miniPlayerController.exoPlayer,
+            playerUiState = miniPlayerState,
+            channel = focusedChannel,
+            nowProgram = uiState.nowProgram,
+            nextProgram = uiState.nextProgram,
+            onPlayPause = viewModel::toggleMiniPlayerPlayback,
+            onToggleMute = viewModel::toggleMiniPlayerMute,
+            onCollapse = viewModel::exitFullscreen,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -63,8 +83,7 @@ fun LiveTvScreenTv(
             MiniPlayerPreview(
                 exoPlayer = viewModel.miniPlayerController.exoPlayer,
                 uiState = miniPlayerState,
-                onToggleMute = viewModel::toggleMiniPlayerMute,
-                onFullscreen = { uiState.focusedChannel?.let { onFullscreen(it.id) } },
+                onTap = viewModel::enterFullscreen,
                 modifier = Modifier.width(280.dp).fillMaxHeight(),
             )
             EpgInfoPanel(

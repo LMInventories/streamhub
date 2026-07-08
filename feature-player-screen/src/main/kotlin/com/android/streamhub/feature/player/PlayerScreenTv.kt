@@ -47,6 +47,11 @@ import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.VideoSurface
+import com.android.streamhub.core.player.audioChannelsLabel
+import com.android.streamhub.core.player.aspectRatioLabel
+import com.android.streamhub.core.player.formatPositionMs
+import com.android.streamhub.core.player.frameRateLabel
+import com.android.streamhub.core.player.resolutionLabel
 import kotlinx.coroutines.delay
 
 private const val SEEK_STEP_MS = 10_000L
