@@ -38,4 +38,10 @@ class XtreamRemoteDataSource @Inject constructor(
             .getShortEpg(config.username, config.password, streamId)
             .epgListings
             .mapNotNull { it.toEpgProgram() }
+
+    suspend fun getVodCategories(config: IptvSourceConfig.Xtream): List<XtreamVodCategory> =
+        apiFor(config.baseUrl).getVodCategories(config.username, config.password)
+
+    suspend fun getVodStreams(config: IptvSourceConfig.Xtream, categoryId: String? = null): List<XtreamVodStream> =
+        apiFor(config.baseUrl).getVodStreams(config.username, config.password, categoryId = categoryId)
 }

@@ -14,9 +14,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -25,6 +27,24 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.streamhub.core.design.Palette
+
+// This screen uses mobile Material3 components but is reachable from the TV nav host too, which
+// only wraps content in tv-material3's MaterialTheme, not this one - without a local wrapper the
+// text fields/buttons would fall back to M3's default light scheme when opened from TV. Same
+// reasoning as EpgGridPanel/PlayerScreenTv's dialogs wrapping themselves rather than relying on
+// an ambient theme they can't count on.
+private val IptvSettingsColorScheme = darkColorScheme(
+    primary = Palette.Accent,
+    background = Palette.Background,
+    onBackground = Palette.TextPrimary,
+    surface = Palette.Surface,
+    onSurface = Palette.TextPrimary,
+    surfaceVariant = Palette.SurfaceElevated,
+    onSurfaceVariant = Palette.TextMuted,
+    outline = Palette.Border,
+    error = Palette.Error,
+)
 
 /**
  * Shared across phone and TV - it's a form, and standard Material3 text fields are already
@@ -39,6 +59,7 @@ fun IptvSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    MaterialTheme(colorScheme = IptvSettingsColorScheme) {
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("IPTV source") }, modifier = Modifier.statusBarsPadding())
 
@@ -109,5 +130,6 @@ fun IptvSettingsScreen(
                 Text("Saved.")
             }
         }
+    }
     }
 }

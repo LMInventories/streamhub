@@ -10,12 +10,17 @@ import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
+import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
+
+private const val GRID_DAYS = 7L
 
 data class LiveTvUiState(
     val categories: List<IptvCategoryInfo> = emptyList(),
@@ -26,6 +31,13 @@ data class LiveTvUiState(
     val focusedChannel: IptvChannelInfo? = null,
     val nowProgram: EpgProgram? = null,
     val nextProgram: EpgProgram? = null,
+    // Landscape-only 7-day grid data - loaded alongside the channel list but only rendered by
+    // the landscape layout (portrait/TV-card layouts ignore it), per "EPG should only appear
+    // when landscape, not as a separate screen".
+    val epgGridLoadProgress: Float? = null,
+    val programmesByChannel: Map<String, List<EpgProgram>> = emptyMap(),
+    val gridWindowStart: Instant = Instant.now().truncatedTo(ChronoUnit.HOURS),
+    val gridWindowEnd: Instant = Instant.now().truncatedTo(ChronoUnit.HOURS).plus(GRID_DAYS, ChronoUnit.DAYS),
     val errorMessage: String? = null,
 )
 
@@ -37,6 +49,7 @@ data class LiveTvUiState(
 @HiltViewModel
 class LiveTvViewModel @Inject constructor(
     private val browseRepository: IptvBrowseRepository,
+    private val epgGridRepository: EpgGridRepository,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -70,6 +83,7 @@ class LiveTvViewModel @Inject constructor(
                     if (_uiState.value.focusedChannel == null) {
                         channels.firstOrNull()?.let(::focusChannel)
                     }
+                    loadEpgGrid(channels.map { it.id })
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoadingChannels = false, errorMessage = e.message ?: "Failed to load channels") } }
         }
@@ -100,6 +114,28 @@ class LiveTvViewModel @Inject constructor(
             runCatching { browseRepository.getNowNext(channel.id) }
                 .onSuccess { (now, next) -> _uiState.update { it.copy(nowProgram = now, nextProgram = next) } }
             // EPG being unavailable/failing shouldn't disrupt the live preview itself.
+        }
+    }
+
+    private fun loadEpgGrid(channelIds: List<String>) {
+        viewModelScope.launch {
+            // ensureFresh only calls this while an actual download is in flight - if the cache
+            // is already fresh, it never fires, so no progress bar flashes for a cache hit.
+            val hasEpg = runCatching {
+                epgGridRepository.ensureFresh { progress ->
+                    _uiState.update { it.copy(epgGridLoadProgress = progress) }
+                }
+            }.getOrDefault(false)
+            _uiState.update { it.copy(epgGridLoadProgress = null) }
+
+            if (hasEpg) {
+                val windowStart = Instant.now().truncatedTo(ChronoUnit.HOURS)
+                val windowEnd = windowStart.plus(GRID_DAYS, ChronoUnit.DAYS)
+                val grid = runCatching { epgGridRepository.getGrid(channelIds, windowStart, windowEnd) }.getOrDefault(emptyMap())
+                _uiState.update {
+                    it.copy(programmesByChannel = grid, gridWindowStart = windowStart, gridWindowEnd = windowEnd)
+                }
+            }
         }
     }
 

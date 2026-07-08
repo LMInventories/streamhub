@@ -5,6 +5,37 @@ mini-player-continuity nav fix). Design system landed too (`51bca74`) - dark-fir
 Space Grotesk/Inter/JetBrains Mono type, per-source badge colors, the Signal Bar progress motif,
 all in a new `:core-design` module shared by both themes.
 
+## Nav restructure (post item-2) - DONE
+
+Per user request, on top of the 7-day grid below:
+- Bottom nav / TV tab row is now 5 tabs: Home, Live TV, VOD, Emby, Jellyfin.
+- Home is a dashboard of 4 entry cards (Live TV/VOD/Jellyfin/Emby) rather than a flat aggregated
+  item list - `HomeViewModel`/`MediaSource` aggregation is kept (unused by Home now) since it's
+  still the intended seam for the future Master Search milestone, not dead code to remove.
+- New VOD tab: Xtream Codes movies only (`get_vod_categories`/`get_vod_streams`) - category list
+  -> poster grid -> plays through the existing Player screen. M3U sources show a "needs Xtream"
+  message since M3U has no standardized way to separate VOD from live channels. Series
+  (`get_series`/`get_series_info`) not implemented - movies only for now.
+- Emby/Jellyfin tabs show a shared `ComingSoonScreen` placeholder until M3/M4 land for real.
+- New Settings hub (`Route.Settings`) lists Live TV & VOD (-> existing IptvSettingsScreen),
+  Jellyfin, Emby (both disabled/"not set up yet") - reached from Home's gear icon. Live TV/VOD's
+  own gear icons stay a direct shortcut to IptvSettingsScreen (most relevant, no extra hop).
+- The 7-day EPG grid (see item 2) is no longer a separate screen - it's now `EpgGridPanel`,
+  inlined directly into the Live TV screen: phone shows it only in landscape (portrait keeps the
+  plain channel list + the existing now/next panel), TV shows it unconditionally since TV is
+  always landscape-shaped. Also added a real download-percentage progress bar (`SignalBar`,
+  streamed via okio byte-counting against the response's Content-Length) shown while the guide is
+  actually being fetched - not shown at all on a cache hit.
+- Fixed a pre-existing bug found while touching this area: `IptvSettingsScreen` uses mobile
+  Material3 components but is reachable from the TV nav host, which only provides tv-material3's
+  MaterialTheme - added a local M3 dark color scheme wrapper (same pattern as EpgGridPanel/
+  PlayerScreenTv's dialogs) so it renders correctly on TV instead of falling back to M3's default
+  light scheme.
+- Fixed a real correctness bug introduced by merging VOD into `IptvMediaSource.browse()`: Xtream
+  live and VOD stream ids are separate numbering spaces and can collide, so a naive merge could
+  resolve playback to the wrong (same-numbered) item. VOD ids are now namespaced (`vod:<id>`) via
+  `vodPlaybackId()`, used consistently by both `IptvMediaSource` and `IptvVodRepository`.
+
 ## 1. Keep the mini-player playing while browsing menus - DONE (narrow interpretation)
 
 Two real bugs fixed:
@@ -29,31 +60,25 @@ to the Live TV tab" - a real docked overlay visible from every screen is a bigge
 feature (hoist the PlayerController out of `LiveTvViewModel` into something above the NavHost)
 worth its own design pass if still wanted.
 
-## 2. Full 7-day EPG grid (traditional multi-channel x time guide) - NOT STARTED, biggest remaining item
+## 2. Full 7-day EPG grid (traditional multi-channel x time guide) - DONE
 
-Currently EPG is "now/next" only, fetched on-demand per focused channel
-(`IptvBrowseRepository.getNowNext`). A real grid view needs:
+Built as planned: bulk `xmltv.php` fetch for Xtream (same endpoint/parser M3U's optional EPG URL
+already used), Room-backed cache (`EpgDatabase`/`EpgDao`/`ProgrammeEntity` in `feature-iptv`,
+refetched roughly once a day via a DataStore timestamp), grid UI with channel labels fixed in a
+left column and program blocks positioned by absolute offset inside a horizontally-scrolling
+timeline (robust to real-world gaps/overlaps in provider data), one shared `ScrollState` keeping
+every row's timeline and the time header in sync.
 
-- **Xtream**: `get_short_epg`'s `limit` param only returns a handful of upcoming programs: for a
-  7-day guide, either raise `limit` substantially per channel (many small calls - N+1 across
-  every visible channel, likely too slow/rate-limit-prone) or fetch `xmltv.php` in bulk instead
-  (Xtream panels serve a full XMLTV dump at `http://host:port/xmltv.php?username=...&password=...`,
-  same format already parsed via `XmlTvParser` for M3U sources - and now includes `<desc>` too,
-  per item 4 below). Prefer the bulk XMLTV route for both source types for consistency - one
-  parser, one caching strategy.
-- **Storage**: a week of EPG for a large channel list is a lot of data to hold in memory
-  (`IptvBrowseRepository`'s current `cachedEpgByChannelId` in-memory map won't scale well) -
-  this is where Room (already in the version catalog dependencies, unused so far per the
-  original architecture plan) should finally get wired in: a `programmes` table keyed by
-  (channelId, startAt), queried by channel + time range for the grid's visible window, refreshed
-  periodically (e.g. once per day) rather than re-parsed every app launch.
-- **UI**: a genuine EPG grid widget (channels down the side, horizontal scrolling timeline,
-  "now" indicator line, tap a program to see details / jump to live) is a substantial new
-  Compose component - horizontally-scrolling `LazyRow` per channel row synchronized against a
-  shared scroll state, or a custom layout. Worth a fresh design pass (reuse `core-design`'s
-  Signal Bar for the "now" indicator?) rather than bolting onto `EpgInfoPanel`. Likely its own
-  screen/route (`Route.EpgGrid`?) reachable from Live TV rather than replacing the mini-player's
-  now/next panel.
+**Revised after initial ship**: originally a separate screen/route reachable via a "7-day guide"
+button. Per user feedback, it's no longer a separate screen - it's inlined directly into the Live
+TV screen (`EpgGridPanel`), landscape-only on phone (portrait keeps the plain channel list), and
+shown unconditionally on TV (always landscape-shaped). A live download-percentage progress bar
+(`SignalBar`, real byte-count progress via okio against the response's Content-Length) shows
+while the guide is actually downloading - see "Nav restructure" above for the full list of
+related changes.
+
+**Not done**: no "now" indicator line on the timeline, and tapping a program block just focuses
+that channel rather than showing a program detail popup - both reasonable follow-ups if wanted.
 
 ## 3. Missing audio on some streams - DONE
 

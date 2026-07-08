@@ -32,4 +32,19 @@ interface XtreamApi {
         @Query("limit") limit: Int = 4,
         @Query("action") action: String = "get_short_epg",
     ): XtreamShortEpgResponse
+
+    @GET("player_api.php")
+    suspend fun getVodCategories(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_vod_categories",
+    ): List<XtreamVodCategory>
+
+    @GET("player_api.php")
+    suspend fun getVodStreams(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("action") action: String = "get_vod_streams",
+        @Query("category_id") categoryId: String? = null,
+    ): List<XtreamVodStream>
 }

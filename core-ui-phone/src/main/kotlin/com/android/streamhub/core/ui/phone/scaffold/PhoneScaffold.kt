@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PlayCircleFilled
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -21,6 +24,9 @@ data class PhoneNavItem(
 val phoneNavItems = listOf(
     PhoneNavItem(route = "home", label = "Home", icon = Icons.Filled.Home),
     PhoneNavItem(route = "live_tv", label = "Live TV", icon = Icons.Filled.LiveTv),
+    PhoneNavItem(route = "vod", label = "VOD", icon = Icons.Filled.Movie),
+    PhoneNavItem(route = "emby_home", label = "Emby", icon = Icons.Filled.VideoLibrary),
+    PhoneNavItem(route = "jellyfin_home", label = "Jellyfin", icon = Icons.Filled.PlayCircleFilled),
     // Search/Favorites tabs join this list in later milestones - the bottom bar already
     // renders a list, so adding an entry is the only change needed there.
 )

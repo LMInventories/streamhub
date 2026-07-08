@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okio.Buffer
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -39,8 +41,13 @@ class EpgGridRepository @Inject constructor(
     // A bit under 24h so a daily refresh doesn't creep later and later each day.
     private val refreshIntervalSeconds = TimeUnit.HOURS.toSeconds(20)
 
-    /** Fetches and stores the full guide if the cache is missing or stale. Returns false if there's nothing to fetch (no EPG configured) or the fetch failed. */
-    suspend fun ensureFresh(): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * Fetches and stores the full guide if the cache is missing or stale. Returns false if
+     * there's nothing to fetch (no EPG configured) or the fetch failed. [onProgress] is only
+     * invoked while an actual download is happening - if the cache is still fresh, it's never
+     * called, so callers can use "did I get any progress calls" to decide whether to show a bar.
+     */
+    suspend fun ensureFresh(onProgress: (Float) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
         val config = configRepository.configFlow.first() ?: return@withContext false
         val xmltvUrl = xmltvUrlFor(config) ?: return@withContext false
 
@@ -48,7 +55,7 @@ class EpgGridRepository @Inject constructor(
         val now = Instant.now().epochSecond
         if (now - lastRefreshed < refreshIntervalSeconds && dao.count() > 0) return@withContext true
 
-        val xml = fetchText(xmltvUrl) ?: return@withContext dao.count() > 0
+        val xml = fetchText(xmltvUrl, onProgress) ?: return@withContext dao.count() > 0
         val programmes = XmlTvParser.parse(xml)
         if (programmes.isEmpty()) return@withContext dao.count() > 0
 
@@ -85,11 +92,27 @@ class EpgGridRepository @Inject constructor(
         is IptvSourceConfig.M3u -> config.epgUrl
     }
 
-    private fun fetchText(url: String): String? = runCatching {
+    /** Streams the response so we can report real download percentage instead of blocking silently on .string(). */
+    private fun fetchText(url: String, onProgress: (Float) -> Unit): String? = runCatching {
         val request = Request.Builder().url(url).build()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return@use null
-            response.body?.string()
+            val body = response.body ?: return@use null
+            val contentLength = body.contentLength()
+            val source = body.source()
+            val buffer = Buffer()
+            var totalRead = 0L
+            val chunkSize = 32L * 1024L
+
+            while (true) {
+                val read = source.read(buffer, chunkSize)
+                if (read == -1L) break
+                totalRead += read
+                if (contentLength > 0) {
+                    onProgress((totalRead.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                }
+            }
+            buffer.readString(StandardCharsets.UTF_8)
         }
     }.getOrNull()
 }

@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,7 +47,6 @@ fun LiveTvScreenPhone(
     paddingValues: PaddingValues,
     onSettingsClick: () -> Unit,
     onFullscreen: (channelId: String) -> Unit,
-    onOpenGuide: (categoryId: String) -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -108,10 +106,10 @@ fun LiveTvScreenPhone(
 
             LiveTvBrowseContent(
                 uiState = uiState,
+                isLandscape = isLandscape,
                 onSelectCategory = viewModel::selectCategory,
                 onBackToCategories = viewModel::clearCategorySelection,
                 onFocusChannel = viewModel::focusChannel,
-                onOpenGuide = onOpenGuide,
             )
         }
     }
@@ -120,10 +118,10 @@ fun LiveTvScreenPhone(
 @Composable
 private fun LiveTvBrowseContent(
     uiState: LiveTvUiState,
+    isLandscape: Boolean,
     onSelectCategory: (IptvCategoryInfo) -> Unit,
     onBackToCategories: () -> Unit,
     onFocusChannel: (IptvChannelInfo) -> Unit,
-    onOpenGuide: (categoryId: String) -> Unit,
 ) {
     val selectedCategory = uiState.selectedCategory
 
@@ -149,18 +147,22 @@ private fun LiveTvBrowseContent(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to categories")
                         }
                     },
-                    trailingContent = {
-                        IconButton(onClick = { onOpenGuide(selectedCategory.id) }) {
-                            Icon(Icons.Filled.CalendarViewWeek, contentDescription = "7-day guide")
-                        }
-                    },
                 )
-                if (uiState.isLoadingChannels) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                when {
+                    uiState.isLoadingChannels -> Box(modifier = Modifier.fillMaxSize()) {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     }
-                } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    // EPG only appears in landscape, inline - not as a separate screen.
+                    isLandscape -> EpgGridPanel(
+                        channels = uiState.channels,
+                        programmesByChannel = uiState.programmesByChannel,
+                        windowStart = uiState.gridWindowStart,
+                        windowEnd = uiState.gridWindowEnd,
+                        loadProgress = uiState.epgGridLoadProgress,
+                        onFocusChannel = onFocusChannel,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
                         items(uiState.channels, key = { it.id }) { channel ->
                             ListItem(
                                 headlineContent = { Text(channel.name) },

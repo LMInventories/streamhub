@@ -26,8 +26,15 @@ class IptvMediaSource @Inject constructor(
         val config = configRepository.configFlow.first()
         if (config == cachedConfig) return cachedItems
 
+        // Live channels and VOD movies are merged into one flat list here even though they're
+        // browsed separately in the UI (LiveTv vs Vod screens) - this is the contract every
+        // MediaSource.browse() caller (Master Search, resolvePlayback below) relies on to find
+        // *any* playable item by id, not just live ones.
         val items = when (config) {
-            is IptvSourceConfig.Xtream -> xtreamRemoteDataSource.getLiveStreams(config).map { it.toPlaybackItem(config) }
+            is IptvSourceConfig.Xtream ->
+                xtreamRemoteDataSource.getLiveStreams(config).map { it.toPlaybackItem(config) } +
+                    runCatching { xtreamRemoteDataSource.getVodStreams(config) }.getOrDefault(emptyList())
+                        .map { it.toPlaybackItem(config) }
             is IptvSourceConfig.M3u -> m3uRemoteDataSource.fetchChannels(config.playlistUrl).map { it.toPlaybackItem() }
             null -> emptyList()
         }
@@ -40,6 +47,13 @@ class IptvMediaSource @Inject constructor(
         browse().first { it.id == itemId }
 }
 
+// Xtream live and VOD stream ids are separate numbering spaces on the provider side and can
+// collide (e.g. both having a stream_id of "1") - browse() merges them into one flat list keyed
+// by PlaybackItem.id, so VOD ids get this prefix to stay unambiguous. IptvVodRepository's
+// VodMovieInfo.id must use the same prefix so Route.playerRoute(...) -> resolvePlayback(...)
+// resolves the intended item rather than a same-numbered live channel.
+internal fun vodPlaybackId(streamId: String): String = "vod:$streamId"
+
 private fun XtreamLiveStream.toPlaybackItem(config: IptvSourceConfig.Xtream): PlaybackItem = PlaybackItem(
     id = streamId,
     sourceType = SourceType.IPTV,
@@ -47,6 +61,15 @@ private fun XtreamLiveStream.toPlaybackItem(config: IptvSourceConfig.Xtream): Pl
     posterUrl = streamIcon,
     streamUri = config.liveStreamUrl(streamId),
     isLive = true,
+)
+
+private fun XtreamVodStream.toPlaybackItem(config: IptvSourceConfig.Xtream): PlaybackItem = PlaybackItem(
+    id = vodPlaybackId(streamId),
+    sourceType = SourceType.IPTV,
+    title = name,
+    posterUrl = streamIcon,
+    streamUri = config.vodStreamUrl(streamId, containerExtension ?: "mp4"),
+    isLive = false,
 )
 
 private fun M3uChannel.toPlaybackItem(): PlaybackItem = PlaybackItem(

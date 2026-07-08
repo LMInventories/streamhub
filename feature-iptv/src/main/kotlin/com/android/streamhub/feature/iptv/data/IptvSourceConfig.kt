@@ -28,3 +28,6 @@ sealed class IptvSourceConfig {
 
 fun IptvSourceConfig.Xtream.liveStreamUrl(streamId: String, extension: String = "ts"): String =
     "${baseUrl.trimEnd('/')}/live/$username/$password/$streamId.$extension"
+
+fun IptvSourceConfig.Xtream.vodStreamUrl(streamId: String, extension: String = "mp4"): String =
+    "${baseUrl.trimEnd('/')}/movie/$username/$password/$streamId.$extension"

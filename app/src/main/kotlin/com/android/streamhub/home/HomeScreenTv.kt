@@ -1,76 +1,54 @@
 package com.android.streamhub.home
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.layout.Row
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
-import com.android.streamhub.core.common.domain.PlaybackItem
-import com.android.streamhub.core.design.Palette
-import com.android.streamhub.core.design.SourceBadge
+import com.android.streamhub.core.design.AppShapes
 
 @Composable
 fun HomeScreenTv(
-    onItemClick: (PlaybackItem) -> Unit,
+    onNavigate: (String) -> Unit,
     onSettingsClick: () -> Unit,
-    viewModel: HomeViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(Unit) { viewModel.refresh() }
-
     Column(modifier = Modifier.fillMaxSize()) {
         Button(onClick = onSettingsClick, modifier = Modifier.padding(24.dp, 24.dp, 24.dp, 0.dp)) {
-            Text("IPTV settings")
+            Text("Settings")
         }
 
-        uiState.sourceErrors.forEach { error ->
-            Text(text = error, color = Palette.Error, modifier = Modifier.padding(24.dp, 4.dp))
-        }
-
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (uiState.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 220.dp),
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                ) {
-                    items(uiState.items, key = { it.id }) { item ->
-                        Card(
-                            onClick = { onItemClick(item) },
-                            modifier = Modifier.padding(8.dp),
-                        ) {
-                            Column {
-                                item.posterUrl?.let { url ->
-                                    AsyncImage(
-                                        model = url,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(64.dp).padding(top = 8.dp),
-                                    )
-                                }
-                                Text(text = item.title, modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp))
-                                Row(modifier = Modifier.padding(16.dp, 0.dp, 16.dp, 12.dp)) {
-                                    SourceBadge(item.sourceType)
-                                }
-                            }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 260.dp),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            items(dashboardEntries, key = { it.route }) { entry ->
+                Card(onClick = { onNavigate(entry.route) }) {
+                    Column(
+                        modifier = Modifier
+                            .aspectRatio(1.6f)
+                            .background(entry.accent.copy(alpha = 0.16f), AppShapes.large)
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Icon(entry.icon, contentDescription = null, tint = entry.accent, modifier = Modifier.size(36.dp))
+                        Column {
+                            Text(text = entry.title, color = Color.White)
+                            Text(text = entry.subtitle, color = entry.accent)
                         }
                     }
                 }

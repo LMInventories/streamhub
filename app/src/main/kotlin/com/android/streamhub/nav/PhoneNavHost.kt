@@ -3,20 +3,30 @@ package com.android.streamhub.nav
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.phone.scaffold.PhoneScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenPhone
-import com.android.streamhub.feature.iptv.livetv.epggrid.EpgGridScreen
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
+import com.android.streamhub.feature.iptv.vod.VodScreenPhone
 import com.android.streamhub.feature.player.PlayerScreenPhone
 import com.android.streamhub.home.HomeScreenPhone
+import com.android.streamhub.placeholder.ComingSoonScreen
+import com.android.streamhub.settings.SettingsScreen
+
+private val TAB_ROUTES = setOf(
+    Route.HOME_PATTERN,
+    Route.LIVE_TV_PATTERN,
+    Route.VOD_PATTERN,
+    Route.EMBY_HOME_PATTERN,
+    Route.JELLYFIN_HOME_PATTERN,
+)
 
 @Composable
 fun PhoneApp(navController: NavHostController = rememberNavController()) {
@@ -24,12 +34,12 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
 
     PhoneScaffold(
         currentRoute = currentRoute,
-        bottomBarVisible = currentRoute == Route.HOME_PATTERN || currentRoute == Route.LIVE_TV_PATTERN,
+        bottomBarVisible = currentRoute in TAB_ROUTES,
         onNavigate = { route ->
             // Standard bottom-nav "switch tabs, keep each tab's state" pattern - without
-            // saveState/restoreState, hopping Home <-> Live TV would push a fresh backstack
-            // entry (and a fresh LiveTvViewModel/mini-player) every time instead of resuming
-            // the one already running.
+            // saveState/restoreState, hopping between tabs would push a fresh backstack entry
+            // (and a fresh ViewModel/mini-player) every time instead of resuming the one already
+            // running.
             navController.navigate(route) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
@@ -41,10 +51,8 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
             composable(Route.HOME_PATTERN) {
                 HomeScreenPhone(
                     paddingValues = paddingValues,
-                    onItemClick = { item ->
-                        navController.navigate(Route.playerRoute(item.id, item.sourceType))
-                    },
-                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
+                    onNavigate = { route -> navController.navigate(route) },
+                    onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
@@ -54,16 +62,38 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     onFullscreen = { channelId ->
                         navController.navigate(Route.playerRoute(channelId, SourceType.IPTV))
                     },
-                    onOpenGuide = { categoryId ->
-                        navController.navigate(Route.epgGridRoute(categoryId))
+                )
+            }
+            composable(Route.VOD_PATTERN) {
+                VodScreenPhone(
+                    paddingValues = paddingValues,
+                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
+                    onFullscreen = { itemId ->
+                        navController.navigate(Route.playerRoute(itemId, SourceType.IPTV))
                     },
                 )
             }
-            composable(
-                route = Route.EPG_GRID_PATTERN,
-                arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
-            ) {
-                EpgGridScreen(onBack = { navController.popBackStack() })
+            composable(Route.EMBY_HOME_PATTERN) {
+                ComingSoonScreen(
+                    title = "Emby",
+                    message = "Emby integration isn't wired up yet.",
+                    paddingValues = paddingValues,
+                    onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
+                )
+            }
+            composable(Route.JELLYFIN_HOME_PATTERN) {
+                ComingSoonScreen(
+                    title = "Jellyfin",
+                    message = "Jellyfin integration isn't wired up yet.",
+                    paddingValues = paddingValues,
+                    onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
+                )
+            }
+            composable(Route.SETTINGS_PATTERN) {
+                SettingsScreen(
+                    paddingValues = paddingValues,
+                    onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
+                )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
                 IptvSettingsScreen(onDone = { navController.popBackStack() })
