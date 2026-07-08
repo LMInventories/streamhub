@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -77,6 +79,17 @@ fun JellyfinItemDetailScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        uiState.item?.let { item ->
+                            IconButton(onClick = viewModel::toggleFavorite) {
+                                Icon(
+                                    if (item.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = if (item.isFavorite) "Remove from favourites" else "Add to favourites",
+                                    tint = if (item.isFavorite) Palette.Accent else Palette.TextPrimary,
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.statusBarsPadding(),

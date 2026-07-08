@@ -36,4 +36,20 @@ class JellyfinItemDetailViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = false, item = item, errorMessage = if (item == null) "Item not found" else null) }
         }
     }
+
+    fun toggleFavorite() {
+        val item = _uiState.value.item ?: return
+        // Optimistic - flips immediately so the button feels responsive, then reconciles with
+        // whatever the server actually confirms (or reverts silently on failure).
+        val optimistic = !item.isFavorite
+        _uiState.update { it.copy(item = it.item?.copy(isFavorite = optimistic)) }
+        viewModelScope.launch {
+            val confirmed = browseRepository.toggleFavorite(item.id, item.isFavorite)
+            if (confirmed != null) {
+                _uiState.update { it.copy(item = it.item?.copy(isFavorite = confirmed)) }
+            } else {
+                _uiState.update { it.copy(item = it.item?.copy(isFavorite = item.isFavorite)) }
+            }
+        }
+    }
 }

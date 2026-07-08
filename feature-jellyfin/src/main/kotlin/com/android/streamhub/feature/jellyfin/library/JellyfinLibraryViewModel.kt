@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
+import com.android.streamhub.feature.jellyfin.data.JellyfinSortOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,9 @@ data class JellyfinLibraryUiState(
     val items: List<JellyfinItemInfo> = emptyList(),
     val isLoading: Boolean = false,
     val canLoadMore: Boolean = true,
+    val sortOption: JellyfinSortOption = JellyfinSortOption.NAME_ASC,
+    val favoritesOnly: Boolean = false,
+    val unwatchedOnly: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -50,8 +54,19 @@ class JellyfinLibraryViewModel @Inject constructor(
         if (_uiState.value.isLoading || !_uiState.value.canLoadMore) return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            val startIndex = _uiState.value.items.size
-            runCatching { browseRepository.getItems(libraryId, itemType, startIndex, PAGE_SIZE) }
+            val state = _uiState.value
+            val startIndex = state.items.size
+            runCatching {
+                browseRepository.getItems(
+                    libraryId = libraryId,
+                    itemType = itemType,
+                    startIndex = startIndex,
+                    limit = PAGE_SIZE,
+                    sortOption = state.sortOption,
+                    favoritesOnly = state.favoritesOnly,
+                    unwatchedOnly = state.unwatchedOnly,
+                )
+            }
                 .onSuccess { newItems ->
                     _uiState.update {
                         it.copy(items = it.items + newItems, isLoading = false, canLoadMore = newItems.size == PAGE_SIZE)
@@ -59,5 +74,15 @@ class JellyfinLibraryViewModel @Inject constructor(
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load library") } }
         }
+    }
+
+    fun setSortOption(option: JellyfinSortOption) = reloadWith { it.copy(sortOption = option) }
+    fun setFavoritesOnly(enabled: Boolean) = reloadWith { it.copy(favoritesOnly = enabled) }
+    fun setUnwatchedOnly(enabled: Boolean) = reloadWith { it.copy(unwatchedOnly = enabled) }
+
+    /** Changing sort/filter invalidates the whole loaded page set (the server, not this list, owns ordering/filtering) - reset and reload from the start rather than trying to reconcile the existing pages. */
+    private fun reloadWith(transform: (JellyfinLibraryUiState) -> JellyfinLibraryUiState) {
+        _uiState.update { transform(it).copy(items = emptyList(), canLoadMore = true) }
+        loadMore()
     }
 }

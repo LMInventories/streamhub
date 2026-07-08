@@ -26,6 +26,7 @@ import com.android.streamhub.feature.iptv.vod.VodScreenTv
 import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreen
 import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
 import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreen
+import com.android.streamhub.feature.jellyfin.library.JellyfinFavoritesScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenTv
@@ -120,6 +121,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                         navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
                     },
                     onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
+                    onOpenFavorites = { navController.navigate(Route.JELLYFIN_FAVORITES_PATTERN) },
                 )
             }
             composable(
@@ -130,6 +132,12 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 ),
             ) {
                 JellyfinLibraryScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
+                )
+            }
+            composable(Route.JELLYFIN_FAVORITES_PATTERN) {
+                JellyfinFavoritesScreen(
                     onBack = { navController.popBackStack() },
                     onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
                 )

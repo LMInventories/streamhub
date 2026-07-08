@@ -21,8 +21,17 @@ data class JellyfinHomeUiState(
     val libraries: List<JellyfinLibraryInfo> = emptyList(),
     val continueWatching: List<JellyfinItemInfo> = emptyList(),
     val nextUp: List<JellyfinItemInfo> = emptyList(),
+    val favorites: List<JellyfinItemInfo> = emptyList(),
     val latestByLibrary: Map<String, List<JellyfinItemInfo>> = emptyMap(),
     val errorMessage: String? = null,
+)
+
+private data class HomeLoadResult(
+    val libraries: List<JellyfinLibraryInfo>,
+    val continueWatching: List<JellyfinItemInfo>,
+    val nextUp: List<JellyfinItemInfo>,
+    val favorites: List<JellyfinItemInfo>,
+    val latestByLibrary: Map<String, List<JellyfinItemInfo>>,
 )
 
 @HiltViewModel
@@ -49,18 +58,22 @@ class JellyfinHomeViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 val libraries = browseRepository.getLibraries()
-                val continueWatching = browseRepository.getResumeItems()
-                val nextUp = browseRepository.getNextUp()
-                val latestByLibrary = libraries.associate { library -> library.id to browseRepository.getLatestMedia(library.id) }
-                Triple(libraries, continueWatching, nextUp to latestByLibrary)
-            }.onSuccess { (libraries, continueWatching, nextUpAndLatest) ->
+                HomeLoadResult(
+                    libraries = libraries,
+                    continueWatching = browseRepository.getResumeItems(),
+                    nextUp = browseRepository.getNextUp(),
+                    favorites = browseRepository.getFavorites(startIndex = 0, limit = 20),
+                    latestByLibrary = libraries.associate { library -> library.id to browseRepository.getLatestMedia(library.id) },
+                )
+            }.onSuccess { result ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        libraries = libraries,
-                        continueWatching = continueWatching,
-                        nextUp = nextUpAndLatest.first,
-                        latestByLibrary = nextUpAndLatest.second,
+                        libraries = result.libraries,
+                        continueWatching = result.continueWatching,
+                        nextUp = result.nextUp,
+                        favorites = result.favorites,
+                        latestByLibrary = result.latestByLibrary,
                     )
                 }
             }.onFailure { e ->

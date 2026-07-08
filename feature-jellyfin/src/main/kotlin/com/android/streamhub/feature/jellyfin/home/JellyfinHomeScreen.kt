@@ -66,6 +66,7 @@ fun JellyfinHomeScreen(
     onSettingsClick: () -> Unit,
     onOpenLibrary: (JellyfinLibraryInfo) -> Unit,
     onOpenItem: (JellyfinItemInfo) -> Unit,
+    onOpenFavorites: () -> Unit,
     viewModel: JellyfinHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -88,7 +89,12 @@ fun JellyfinHomeScreen(
                     uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
-                    else -> JellyfinHomeContent(uiState = uiState, onOpenLibrary = onOpenLibrary, onOpenItem = onOpenItem)
+                    else -> JellyfinHomeContent(
+                        uiState = uiState,
+                        onOpenLibrary = onOpenLibrary,
+                        onOpenItem = onOpenItem,
+                        onOpenFavorites = onOpenFavorites,
+                    )
                 }
             }
         }
@@ -117,6 +123,7 @@ private fun JellyfinHomeContent(
     uiState: JellyfinHomeUiState,
     onOpenLibrary: (JellyfinLibraryInfo) -> Unit,
     onOpenItem: (JellyfinItemInfo) -> Unit,
+    onOpenFavorites: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -138,6 +145,17 @@ private fun JellyfinHomeContent(
         if (uiState.nextUp.isNotEmpty()) {
             item(key = "nextup") {
                 JellyfinItemRow(title = "Next Up", items = uiState.nextUp, onOpenItem = onOpenItem)
+            }
+        }
+
+        if (uiState.favorites.isNotEmpty()) {
+            item(key = "favorites") {
+                JellyfinItemRow(
+                    title = "Favourites",
+                    items = uiState.favorites,
+                    onOpenItem = onOpenItem,
+                    onSeeAll = onOpenFavorites,
+                )
             }
         }
 

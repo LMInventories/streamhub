@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -74,6 +76,17 @@ fun JellyfinSeriesDetailScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                        uiState.series?.let { series ->
+                            IconButton(onClick = viewModel::toggleFavorite) {
+                                Icon(
+                                    if (series.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = if (series.isFavorite) "Remove from favourites" else "Add to favourites",
+                                    tint = if (series.isFavorite) Palette.Accent else Palette.TextPrimary,
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.statusBarsPadding(),

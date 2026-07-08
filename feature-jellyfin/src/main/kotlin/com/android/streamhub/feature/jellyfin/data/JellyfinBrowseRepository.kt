@@ -6,6 +6,7 @@ import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.showApi
+import org.jellyfin.sdk.api.client.extensions.userDataApi
 import org.jellyfin.sdk.api.client.extensions.userViewApi
 import org.jellyfin.sdk.api.client.extensions.videoApi
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -70,14 +71,27 @@ class JellyfinBrowseRepository @Inject constructor(
         return api.showApi.getNextUp(userId = currentUserId(), limit = limit).content.items.map { it.toItemInfo(api) }
     }
 
-    /** Paginated library browse - libraryId identifies which library (Movies/TV Shows), itemType picks which BaseItemKind to filter to since a "TV Shows" library's items() call needs SERIES, not EPISODE. */
-    suspend fun getItems(libraryId: String, itemType: JellyfinItemType, startIndex: Int, limit: Int): List<JellyfinItemInfo> {
+    /**
+     * Paginated library browse - libraryId identifies which library (Movies/TV Shows), itemType
+     * picks which BaseItemKind to filter to since a "TV Shows" library's items() call needs
+     * SERIES, not EPISODE.
+     */
+    suspend fun getItems(
+        libraryId: String,
+        itemType: JellyfinItemType,
+        startIndex: Int,
+        limit: Int,
+        sortOption: JellyfinSortOption = JellyfinSortOption.NAME_ASC,
+        favoritesOnly: Boolean = false,
+        unwatchedOnly: Boolean = false,
+    ): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
         val kind = when (itemType) {
             JellyfinItemType.MOVIE -> BaseItemKind.MOVIE
             JellyfinItemType.SERIES -> BaseItemKind.SERIES
             else -> return emptyList()
         }
+        val (sortBy, sortOrder) = sortOption.toSortByAndOrder()
         return api.libraryApi.getItems(
             userId = currentUserId(),
             parentId = UUID.fromString(libraryId),
@@ -85,9 +99,48 @@ class JellyfinBrowseRepository @Inject constructor(
             recursive = true,
             startIndex = startIndex,
             limit = limit,
+            sortBy = listOf(sortBy),
+            sortOrder = listOf(sortOrder),
+            isFavorite = if (favoritesOnly) true else null,
+            isPlayed = if (unwatchedOnly) false else null,
+        ).content.items.map { it.toItemInfo(api) }
+    }
+
+    /** Favorites can be a mix of movies and series (unlike getItems, which is scoped to one library/kind), and span every library rather than one - so this is its own call rather than getItems with an extra flag. */
+    suspend fun getFavorites(startIndex: Int, limit: Int): List<JellyfinItemInfo> {
+        val api = apiOrNull() ?: return emptyList()
+        return api.libraryApi.getItems(
+            userId = currentUserId(),
+            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+            recursive = true,
+            isFavorite = true,
+            startIndex = startIndex,
+            limit = limit,
             sortBy = listOf(ItemSortBy.SORT_NAME),
             sortOrder = listOf(SortOrder.ASCENDING),
         ).content.items.map { it.toItemInfo(api) }
+    }
+
+    /** Returns the new favorite state on success, null if the call failed (caller should leave the UI state unchanged). */
+    suspend fun toggleFavorite(itemId: String, currentlyFavorite: Boolean): Boolean? {
+        val api = apiOrNull() ?: return null
+        val uuid = UUID.fromString(itemId)
+        return runCatching {
+            val result = if (currentlyFavorite) {
+                api.userDataApi.unmarkFavoriteItem(itemId = uuid, userId = currentUserId())
+            } else {
+                api.userDataApi.markFavoriteItem(itemId = uuid, userId = currentUserId())
+            }
+            result.content.isFavorite
+        }.getOrNull()
+    }
+
+    private fun JellyfinSortOption.toSortByAndOrder(): Pair<ItemSortBy, SortOrder> = when (this) {
+        JellyfinSortOption.NAME_ASC -> ItemSortBy.SORT_NAME to SortOrder.ASCENDING
+        JellyfinSortOption.NAME_DESC -> ItemSortBy.SORT_NAME to SortOrder.DESCENDING
+        JellyfinSortOption.DATE_ADDED_NEWEST -> ItemSortBy.DATE_CREATED to SortOrder.DESCENDING
+        JellyfinSortOption.RATING_HIGHEST -> ItemSortBy.COMMUNITY_RATING to SortOrder.DESCENDING
+        JellyfinSortOption.RELEASE_DATE_NEWEST -> ItemSortBy.PREMIERE_DATE to SortOrder.DESCENDING
     }
 
     suspend fun getItem(itemId: String): JellyfinItemInfo? {

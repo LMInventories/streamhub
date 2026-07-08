@@ -10,6 +10,14 @@ data class JellyfinLibraryInfo(
 
 enum class JellyfinItemType { MOVIE, SERIES, SEASON, EPISODE, OTHER }
 
+enum class JellyfinSortOption(val label: String) {
+    NAME_ASC("Name (A-Z)"),
+    NAME_DESC("Name (Z-A)"),
+    DATE_ADDED_NEWEST("Recently Added"),
+    RATING_HIGHEST("Highest Rated"),
+    RELEASE_DATE_NEWEST("Newest Release"),
+}
+
 data class JellyfinCastMember(
     val id: String,
     val name: String,

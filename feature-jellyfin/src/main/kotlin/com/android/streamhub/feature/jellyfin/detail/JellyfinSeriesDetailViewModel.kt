@@ -52,4 +52,14 @@ class JellyfinSeriesDetailViewModel @Inject constructor(
             }
         }
     }
+
+    fun toggleFavorite() {
+        val series = _uiState.value.series ?: return
+        val optimistic = !series.isFavorite
+        _uiState.update { it.copy(series = it.series?.copy(isFavorite = optimistic)) }
+        viewModelScope.launch {
+            val confirmed = browseRepository.toggleFavorite(series.id, series.isFavorite)
+            _uiState.update { it.copy(series = it.series?.copy(isFavorite = confirmed ?: series.isFavorite)) }
+        }
+    }
 }

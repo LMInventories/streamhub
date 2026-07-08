@@ -1,24 +1,22 @@
 package com.android.streamhub.feature.jellyfin.library
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,22 +25,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
-import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinSortOption
 
 // Same "shared, wraps own theme" reasoning as JellyfinHomeScreen.
 private val JellyfinLibraryColorScheme = darkColorScheme(
@@ -65,20 +58,6 @@ fun JellyfinLibraryScreen(
     viewModel: JellyfinLibraryViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val gridState = rememberLazyGridState()
-
-    // Loads the next page once the user has scrolled within one row of the end, rather than
-    // waiting until they hit a hard "load more" button - matches the paginated-grid pattern
-    // Findroid's own LibraryScreen uses for the same reason (Jellyfin libraries can be large).
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            lastVisible >= uiState.items.size - 12
-        }
-    }
-    LaunchedEffect(shouldLoadMore, uiState.items.size) {
-        if (shouldLoadMore) viewModel.loadMore()
-    }
 
     MaterialTheme(colorScheme = JellyfinLibraryColorScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -90,60 +69,59 @@ fun JellyfinLibraryScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     },
+                    actions = {
+                        SortMenuButton(selected = uiState.sortOption, onSelect = viewModel::setSortOption)
+                    },
                     modifier = Modifier.statusBarsPadding(),
                 )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    FilterChip(
+                        selected = uiState.favoritesOnly,
+                        onClick = { viewModel.setFavoritesOnly(!uiState.favoritesOnly) },
+                        label = { Text("Favourites") },
+                    )
+                    FilterChip(
+                        selected = uiState.unwatchedOnly,
+                        onClick = { viewModel.setUnwatchedOnly(!uiState.unwatchedOnly) },
+                        label = { Text("Unwatched") },
+                    )
+                }
 
                 uiState.errorMessage?.let { error ->
                     Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
                 }
 
-                Box(modifier = Modifier.fillMaxSize()) {
-                    LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Adaptive(minSize = 120.dp),
-                        contentPadding = PaddingValues(12.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        items(uiState.items, key = { it.id }) { item ->
-                            JellyfinLibraryPoster(item = item, onClick = { onOpenItem(item) })
-                        }
-                    }
-
-                    if (uiState.isLoading && uiState.items.isEmpty()) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
-                }
+                JellyfinItemGrid(
+                    items = uiState.items,
+                    isLoading = uiState.isLoading,
+                    onLoadMore = viewModel::loadMore,
+                    onOpenItem = onOpenItem,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun JellyfinLibraryPoster(item: JellyfinItemInfo, onClick: () -> Unit) {
-    Column(modifier = Modifier.padding(6.dp).clickable(onClick = onClick)) {
-        Box(
-            modifier = Modifier
-                .aspectRatio(2f / 3f)
-                .fillMaxWidth()
-                .clip(AppShapes.small),
-        ) {
-            if (item.primaryImageUrl != null) {
-                AsyncImage(
-                    model = item.primaryImageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+private fun SortMenuButton(selected: JellyfinSortOption, onSelect: (JellyfinSortOption) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.Filled.Sort, contentDescription = "Sort")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            JellyfinSortOption.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label, color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
+                    onClick = { onSelect(option); expanded = false },
                 )
-            } else {
-                Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
             }
         }
-        Text(
-            text = item.name,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = Palette.TextPrimary,
-            modifier = Modifier.padding(top = 4.dp),
-        )
     }
 }
