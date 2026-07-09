@@ -3,6 +3,7 @@ package com.android.streamhub.feature.jellyfin.data
 import com.android.streamhub.core.common.domain.MediaSource
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,6 +19,7 @@ private const val TICKS_PER_MS = 10_000L
 @Singleton
 class JellyfinMediaSource @Inject constructor(
     private val browseRepository: JellyfinBrowseRepository,
+    private val appSettingsRepository: JellyfinAppSettingsRepository,
 ) : MediaSource {
 
     override val sourceType: SourceType = SourceType.JELLYFIN
@@ -33,16 +35,25 @@ class JellyfinMediaSource @Inject constructor(
                 JellyfinLibraryType.TV_SHOWS -> JellyfinItemType.SERIES
             }
             browseRepository.getItems(library.id, itemType, startIndex = 0, limit = 500)
-        }.map { it.toPlaybackItem(streamUri = "") }
+        }.map { it.toPlaybackItem(streamUri = "", preferredAudio = null, preferredSubtitle = null) }
     }
 
     override suspend fun resolvePlayback(itemId: String): PlaybackItem {
         val item = browseRepository.getItem(itemId) ?: error("Jellyfin item not found: $itemId")
         val streamUrl = browseRepository.getStreamUrl(itemId) ?: error("No Jellyfin stream URL for: $itemId")
-        return item.toPlaybackItem(streamUrl)
+        val settings = appSettingsRepository.settingsFlow.first()
+        return item.toPlaybackItem(
+            streamUri = streamUrl,
+            preferredAudio = settings.preferredAudioLanguage,
+            preferredSubtitle = settings.preferredSubtitleLanguage,
+        )
     }
 
-    private fun JellyfinItemInfo.toPlaybackItem(streamUri: String): PlaybackItem = PlaybackItem(
+    private fun JellyfinItemInfo.toPlaybackItem(
+        streamUri: String,
+        preferredAudio: String?,
+        preferredSubtitle: String?,
+    ): PlaybackItem = PlaybackItem(
         id = id,
         sourceType = SourceType.JELLYFIN,
         title = name,
@@ -51,5 +62,7 @@ class JellyfinMediaSource @Inject constructor(
         streamUri = streamUri,
         startPositionMs = resumePositionTicks / TICKS_PER_MS,
         isLive = false,
+        preferredAudioLanguage = preferredAudio,
+        preferredSubtitleLanguage = preferredSubtitle,
     )
 }

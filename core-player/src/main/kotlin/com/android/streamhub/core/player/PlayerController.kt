@@ -121,6 +121,15 @@ class PlayerController @Inject constructor(
             )
             .build()
 
+        // Sets ExoPlayer's own preferred-language track selection parameters rather than manually
+        // scanning onTracksChanged for a matching group - null clears the preference, which is
+        // exactly "use the player's default selection", so this needs no branching for the
+        // no-preference case either.
+        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+            .setPreferredAudioLanguage(item.preferredAudioLanguage)
+            .setPreferredTextLanguage(item.preferredSubtitleLanguage)
+            .build()
+
         exoPlayer.setMediaItem(mediaItem, item.startPositionMs)
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true

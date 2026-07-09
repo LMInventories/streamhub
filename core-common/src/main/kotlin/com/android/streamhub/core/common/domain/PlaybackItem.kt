@@ -31,6 +31,13 @@ data class PlaybackItem(
     // feature-iptv) can render the EPG overlay from whatever MediaSource.resolvePlayback()
     // already handed it, without needing an IPTV-specific call of its own.
     val liveProgramInfo: LiveProgramInfo? = null,
+    // ISO 639-2 language codes (e.g. "eng") - a generic hint any source can populate from its own
+    // per-source settings (only Jellyfin does today) rather than the player needing to know which
+    // source a track preference came from. Null means "no preference, use the player's default
+    // track selection". core-player applies these directly as ExoPlayer's own preferred-language
+    // track selection parameters, so there's no manual track-scanning logic to keep in sync here.
+    val preferredAudioLanguage: String? = null,
+    val preferredSubtitleLanguage: String? = null,
 )
 
 data class LiveProgramInfo(

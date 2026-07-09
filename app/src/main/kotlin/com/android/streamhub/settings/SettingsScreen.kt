@@ -19,47 +19,58 @@ import androidx.compose.ui.unit.sp
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 
+data class SettingsRow(
+    val label: String,
+    val subtitle: String,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit,
+)
+
 data class SettingsSection(
     val title: String,
-    val sourceSubtitle: String,
-    val sourceEnabled: Boolean,
-    val onSourceClick: () -> Unit,
+    val rows: List<SettingsRow>,
 )
 
 /**
  * One shared hub for every source, reachable as its own bottom-nav/tab-row tab now rather than
  * only via settings gear icons scattered across other screens (all removed - this tab is the one
  * place to reach any of this now). Each source is its own card-style section with a non-clickable
- * title and a "Source" row underneath (sign-in/server/playlist config) - deliberately structured
- * as a section containing one row rather than one big tap target, since "Source" is the first of
- * what'll be several settings per section once non-connection options exist. Live TV/VOD both
- * read the same Xtream/M3U config, so they share a single section rather than two - Emby is
- * listed but disabled until that integration lands (Milestone 4).
+ * title and one row per setting underneath - "Source" (sign-in/server/playlist config) is the
+ * first row every section has, with room for more (Jellyfin's Playback/Libraries/Home screen
+ * order rows are the first sections to actually use that room). Live TV/VOD both read the same
+ * Xtream/M3U config, so they share a single section rather than two - Emby is listed but disabled
+ * until that integration lands (Milestone 4).
  */
 @Composable
 fun SettingsScreen(
     paddingValues: PaddingValues,
     onIptvClick: () -> Unit,
     onJellyfinClick: () -> Unit,
+    onJellyfinPlaybackClick: () -> Unit,
+    onJellyfinLibrariesClick: () -> Unit,
+    onJellyfinHomeOrderClick: () -> Unit,
 ) {
     val sections = listOf(
         SettingsSection(
             title = "Live TV & VOD",
-            sourceSubtitle = "Xtream Codes or M3U playlist sign-in",
-            sourceEnabled = true,
-            onSourceClick = onIptvClick,
+            rows = listOf(
+                SettingsRow(label = "Source", subtitle = "Xtream Codes or M3U playlist sign-in", onClick = onIptvClick),
+            ),
         ),
         SettingsSection(
             title = "Jellyfin",
-            sourceSubtitle = "Server sign-in",
-            sourceEnabled = true,
-            onSourceClick = onJellyfinClick,
+            rows = listOf(
+                SettingsRow(label = "Source", subtitle = "Server sign-in", onClick = onJellyfinClick),
+                SettingsRow(label = "Playback", subtitle = "Preferred audio/subtitle language, max bitrate", onClick = onJellyfinPlaybackClick),
+                SettingsRow(label = "Libraries", subtitle = "Choose which libraries show up in the app", onClick = onJellyfinLibrariesClick),
+                SettingsRow(label = "Home screen order", subtitle = "Reorder Continue Watching, Next Up, and the rest", onClick = onJellyfinHomeOrderClick),
+            ),
         ),
         SettingsSection(
             title = "Emby",
-            sourceSubtitle = "Not set up yet",
-            sourceEnabled = false,
-            onSourceClick = {},
+            rows = listOf(
+                SettingsRow(label = "Source", subtitle = "Not set up yet", enabled = false, onClick = {}),
+            ),
         ),
     )
 
@@ -84,27 +95,29 @@ fun SettingsScreen(
                     text = section.title,
                     style = TextStyle(color = Palette.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
                 )
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp)
-                        .clip(AppShapes.small)
-                        .background(Palette.SurfaceElevated)
-                        .clickable(enabled = section.sourceEnabled, onClick = section.onSourceClick)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                ) {
-                    BasicText(
-                        text = "Source",
-                        style = TextStyle(
-                            color = if (section.sourceEnabled) Palette.TextPrimary else Palette.TextMuted,
-                            fontSize = 15.sp,
-                        ),
-                    )
-                    BasicText(
-                        text = section.sourceSubtitle,
-                        style = TextStyle(color = Palette.TextMuted, fontSize = 13.sp),
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
+                section.rows.forEachIndexed { index, row ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = if (index == 0) 10.dp else 8.dp)
+                            .clip(AppShapes.small)
+                            .background(Palette.SurfaceElevated)
+                            .clickable(enabled = row.enabled, onClick = row.onClick)
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                    ) {
+                        BasicText(
+                            text = row.label,
+                            style = TextStyle(
+                                color = if (row.enabled) Palette.TextPrimary else Palette.TextMuted,
+                                fontSize = 15.sp,
+                            ),
+                        )
+                        BasicText(
+                            text = row.subtitle,
+                            style = TextStyle(color = Palette.TextMuted, fontSize = 13.sp),
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
             }
         }

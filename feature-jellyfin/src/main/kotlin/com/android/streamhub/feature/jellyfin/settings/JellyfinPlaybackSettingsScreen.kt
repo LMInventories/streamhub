@@ -1,0 +1,160 @@
+package com.android.streamhub.feature.jellyfin.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.streamhub.core.design.AppShapes
+import com.android.streamhub.core.design.Palette
+
+// ISO 639-2 codes - the fixed subset Jellyfin libraries most commonly carry, not an exhaustive
+// list. "No preference" (null) always leaves the player to fall back on its own default
+// selection, same as never having set anything here.
+private val LANGUAGE_OPTIONS = listOf(
+    null to "No preference",
+    "eng" to "English",
+    "spa" to "Spanish",
+    "fre" to "French",
+    "ger" to "German",
+    "ita" to "Italian",
+    "por" to "Portuguese",
+    "rus" to "Russian",
+    "jpn" to "Japanese",
+    "kor" to "Korean",
+    "chi" to "Chinese",
+    "ara" to "Arabic",
+    "hin" to "Hindi",
+)
+
+private val BITRATE_OPTIONS = listOf(
+    null to "Unlimited (direct play)",
+    40 to "40 Mbps",
+    20 to "20 Mbps",
+    10 to "10 Mbps",
+    5 to "5 Mbps",
+    2 to "2 Mbps",
+)
+
+private val JellyfinPlaybackSettingsColorScheme = darkColorScheme(
+    primary = Palette.Accent,
+    background = Palette.Background,
+    onBackground = Palette.TextPrimary,
+    surface = Palette.Surface,
+    onSurface = Palette.TextPrimary,
+    surfaceVariant = Palette.SurfaceElevated,
+    onSurfaceVariant = Palette.TextMuted,
+    outline = Palette.Border,
+    error = Palette.Error,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun JellyfinPlaybackSettingsScreen(
+    onDone: () -> Unit,
+    viewModel: JellyfinPlaybackSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    MaterialTheme(colorScheme = JellyfinPlaybackSettingsColorScheme) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text("Playback") },
+                navigationIcon = {
+                    IconButton(onClick = onDone) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                modifier = Modifier.statusBarsPadding(),
+            )
+
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                SettingsDropdownRow(
+                    label = "Preferred audio language",
+                    options = LANGUAGE_OPTIONS,
+                    selected = uiState.preferredAudioLanguage,
+                    onSelect = viewModel::setPreferredAudioLanguage,
+                )
+                SettingsDropdownRow(
+                    label = "Preferred subtitle language",
+                    options = LANGUAGE_OPTIONS,
+                    selected = uiState.preferredSubtitleLanguage,
+                    onSelect = viewModel::setPreferredSubtitleLanguage,
+                )
+                SettingsDropdownRow(
+                    label = "Max streaming bitrate",
+                    options = BITRATE_OPTIONS,
+                    selected = uiState.maxStreamingBitrateMbps,
+                    onSelect = viewModel::setMaxStreamingBitrateMbps,
+                )
+                Text(
+                    text = "Applies the next time something starts playing - already-playing streams aren't interrupted.",
+                    color = Palette.TextMuted,
+                    fontSize = 13.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: options.first().second
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(text = label, color = Palette.TextMuted, fontSize = 13.sp)
+        Box(modifier = Modifier.padding(top = 4.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShapes.small)
+                    .background(Palette.Surface)
+                    .clickable { expanded = true }
+                    .padding(16.dp),
+            ) {
+                Text(text = selectedLabel, color = Palette.TextPrimary)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { (value, optionLabel) ->
+                    DropdownMenuItem(
+                        text = { Text(optionLabel) },
+                        onClick = { onSelect(value); expanded = false },
+                    )
+                }
+            }
+        }
+    }
+}

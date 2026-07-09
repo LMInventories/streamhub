@@ -29,6 +29,9 @@ import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
 import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinFavoritesScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
+import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderScreen
+import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibilityScreen
+import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.home.HomeScreenTv
@@ -174,6 +177,9 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     paddingValues = PaddingValues(24.dp),
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onJellyfinClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
+                    onJellyfinPlaybackClick = { navController.navigate(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) },
+                    onJellyfinLibrariesClick = { navController.navigate(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) },
+                    onJellyfinHomeOrderClick = { navController.navigate(Route.JELLYFIN_HOME_SECTION_ORDER_PATTERN) },
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
@@ -181,6 +187,15 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.JELLYFIN_SETTINGS_PATTERN) {
                 JellyfinSettingsScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) {
+                JellyfinPlaybackSettingsScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) {
+                JellyfinLibraryVisibilityScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.JELLYFIN_HOME_SECTION_ORDER_PATTERN) {
+                JellyfinHomeSectionOrderScreen(onDone = { navController.popBackStack() })
             }
             composable(
                 route = Route.PLAYER_PATTERN,

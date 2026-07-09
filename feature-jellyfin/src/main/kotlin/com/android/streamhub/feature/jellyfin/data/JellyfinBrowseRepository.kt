@@ -15,6 +15,7 @@ import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.PersonKind
+import org.jellyfin.sdk.model.api.PlaybackInfoDto
 import org.jellyfin.sdk.model.api.SortOrder
 import kotlinx.coroutines.flow.first
 import java.util.UUID
@@ -28,6 +29,7 @@ private const val TICKS_PER_MINUTE = 600_000_000L
 class JellyfinBrowseRepository @Inject constructor(
     private val jellyfin: Jellyfin,
     private val configRepository: JellyfinSourceConfigRepository,
+    private val appSettingsRepository: JellyfinAppSettingsRepository,
 ) {
     // Cached per-config rather than rebuilt on every call - createApi() builds a fresh ApiClient
     // (own HTTP client/connection pool), so this avoids doing that on every single browse call.
@@ -45,10 +47,20 @@ class JellyfinBrowseRepository @Inject constructor(
 
     private fun currentUserId(): UUID? = cachedConfig?.userId?.let { runCatching { UUID.fromString(it) }.getOrNull() }
 
-    suspend fun getLibraries(): List<JellyfinLibraryInfo> {
+    /**
+     * [includeAppHidden] is for the library-visibility settings screen, which needs to list every
+     * library (including ones the user already hid via that same screen) to let them un-hide it -
+     * every other caller wants the filtered list, which is why that's the default. Distinct from
+     * the SDK call's own includeHidden param below (Jellyfin server-side "hidden from views"),
+     * which this always leaves off - that's a different, server-managed concept.
+     */
+    suspend fun getLibraries(includeAppHidden: Boolean = false): List<JellyfinLibraryInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.userViewsApi.getUserViews(userId = currentUserId(), includeHidden = false)
+        val libraries = api.userViewsApi.getUserViews(userId = currentUserId(), includeHidden = false)
             .content.items.mapNotNull { it.toLibraryInfo() }
+        if (includeAppHidden) return libraries
+        val hiddenIds = appSettingsRepository.settingsFlow.first().hiddenLibraryIds
+        return libraries.filter { it.id !in hiddenIds }
     }
 
     suspend fun getLatestMedia(libraryId: String, limit: Int = 20): List<JellyfinItemInfo> {
@@ -167,12 +179,32 @@ class JellyfinBrowseRepository @Inject constructor(
      * usual Authorization header (a documented, if less secure, alternative Jellyfin's own server
      * supports specifically for this kind of raw-URL playback scenario). Same reasoning applies
      * to every image URL below - Coil requests those separately too.
+     *
+     * maxStreamingBitrateMbps only ever narrows things - passing it as PlaybackInfoDto.maxStreamingBitrate
+     * lets the server decide whether the source is already under the cap (direct play still
+     * happens exactly as before) or needs transcoding to fit it, in which case the response's
+     * MediaSourceInfo carries a ready-to-use TranscodingUrl instead of us building the direct-play
+     * URL ourselves - deliberately not building a DeviceProfile to go with it, so the server falls
+     * back to a conservative default rather than us guessing this device's real decode support.
      */
     suspend fun getStreamUrl(itemId: String): String? {
         val api = apiOrNull() ?: return null
         val uuid = UUID.fromString(itemId)
-        val mediaSource = runCatching { api.mediaInfoApi.getPlaybackInfo(itemId = uuid, userId = currentUserId()).content }
-            .getOrNull()?.mediaSources?.firstOrNull()
+        val maxBitrateBps = appSettingsRepository.settingsFlow.first().maxStreamingBitrateMbps?.let { it * 1_000_000 }
+        val mediaSource = runCatching {
+            api.mediaInfoApi.getPostedPlaybackInfo(
+                itemId = uuid,
+                data = PlaybackInfoDto(userId = currentUserId(), maxStreamingBitrate = maxBitrateBps),
+            ).content
+        }.getOrNull()?.mediaSources?.firstOrNull()
+
+        val transcodingUrl = mediaSource?.transcodingUrl
+        if (mediaSource != null && !mediaSource.supportsDirectPlay && transcodingUrl != null) {
+            val base = cachedConfig?.serverUrl.orEmpty().trimEnd('/')
+            val path = if (transcodingUrl.startsWith('/')) transcodingUrl else "/$transcodingUrl"
+            return "$base$path".withApiKey()
+        }
+
         val url = api.videosApi.getVideoStreamUrl(
             itemId = uuid,
             static = true,

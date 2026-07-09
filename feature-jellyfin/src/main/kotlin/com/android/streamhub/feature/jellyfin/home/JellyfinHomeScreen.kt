@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.feature.jellyfin.data.JellyfinHomeSectionKeys
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinLibraryInfo
 
@@ -111,6 +112,8 @@ private fun JellyfinHomeContent(
     onOpenItem: (JellyfinItemInfo) -> Unit,
     onOpenFavorites: () -> Unit,
 ) {
+    val librariesById = uiState.libraries.associateBy { it.id }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 12.dp),
@@ -122,39 +125,21 @@ private fun JellyfinHomeContent(
             }
         }
 
-        if (uiState.continueWatching.isNotEmpty()) {
-            item(key = "resume") {
-                JellyfinItemRow(title = "Continue Watching", items = uiState.continueWatching, onOpenItem = onOpenItem)
+        items(uiState.sections, key = { it.key }) { section ->
+            // Each section only knows its own key/hasSeeAll (set once in the ViewModel, alongside
+            // every other section's, regardless of user-chosen order) - mapping a key back to the
+            // actual navigation callback stays here, since the ViewModel layer shouldn't carry
+            // UI-bound lambdas.
+            val onSeeAll: (() -> Unit)? = when {
+                !section.hasSeeAll -> null
+                section.key == JellyfinHomeSectionKeys.FAVOURITES -> onOpenFavorites
+                section.key.startsWith("library:") -> {
+                    val libraryId = section.key.removePrefix("library:")
+                    librariesById[libraryId]?.let { library -> { onOpenLibrary(library) } }
+                }
+                else -> null
             }
-        }
-
-        if (uiState.nextUp.isNotEmpty()) {
-            item(key = "nextup") {
-                JellyfinItemRow(title = "Next Up", items = uiState.nextUp, onOpenItem = onOpenItem)
-            }
-        }
-
-        if (uiState.favorites.isNotEmpty()) {
-            item(key = "favorites") {
-                JellyfinItemRow(
-                    title = "Favourites",
-                    items = uiState.favorites,
-                    onOpenItem = onOpenItem,
-                    onSeeAll = onOpenFavorites,
-                )
-            }
-        }
-
-        items(uiState.libraries, key = { it.id }) { library ->
-            val latest = uiState.latestByLibrary[library.id].orEmpty()
-            if (latest.isNotEmpty()) {
-                JellyfinItemRow(
-                    title = "Latest in ${library.name}",
-                    items = latest,
-                    onOpenItem = onOpenItem,
-                    onSeeAll = { onOpenLibrary(library) },
-                )
-            }
+            JellyfinItemRow(title = section.title, items = section.items, onOpenItem = onOpenItem, onSeeAll = onSeeAll)
         }
     }
 }
