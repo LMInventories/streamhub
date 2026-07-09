@@ -39,6 +39,7 @@ private val TAB_ROUTES = setOf(
     Route.VOD_PATTERN,
     Route.EMBY_HOME_PATTERN,
     Route.JELLYFIN_HOME_PATTERN,
+    Route.SETTINGS_PATTERN,
 )
 
 @Composable
@@ -77,7 +78,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 HomeScreenPhone(
                     paddingValues = paddingValues,
                     onNavigate = navigateToTab,
-                    onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
+                    onSettingsClick = { navigateToTab(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
@@ -128,7 +129,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     title = "Emby",
                     message = "Emby integration isn't wired up yet.",
                     paddingValues = paddingValues,
-                    onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
+                    onSettingsClick = { navigateToTab(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {

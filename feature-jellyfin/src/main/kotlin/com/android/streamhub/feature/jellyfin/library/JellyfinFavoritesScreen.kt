@@ -17,12 +17,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.PillToggle
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
 
 private val JellyfinFavoritesColorScheme = darkColorScheme(
     primary = Palette.Accent,
@@ -44,6 +49,13 @@ fun JellyfinFavoritesScreen(
     viewModel: JellyfinFavoritesViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // 0 = Movies, 1 = TV Shows - a favourited season/episode/other item still reads as "part of a
+    // TV show" rather than its own third category, matching how VOD's own Movies/TV Shows split
+    // works.
+    var modeIndex by remember { mutableIntStateOf(0) }
+    val filteredItems = uiState.items.filter { item ->
+        if (modeIndex == 0) item.type == JellyfinItemType.MOVIE else item.type != JellyfinItemType.MOVIE
+    }
 
     MaterialTheme(colorScheme = JellyfinFavoritesColorScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -58,20 +70,28 @@ fun JellyfinFavoritesScreen(
                     modifier = Modifier.statusBarsPadding(),
                 )
 
+                PillToggle(
+                    options = listOf("Movies", "TV Shows"),
+                    selectedIndex = modeIndex,
+                    onSelect = { modeIndex = it },
+                    modifier = Modifier.padding(16.dp, 8.dp),
+                )
+
                 uiState.errorMessage?.let { error ->
                     Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
                 }
 
-                if (uiState.items.isEmpty() && !uiState.isLoading) {
+                if (filteredItems.isEmpty() && !uiState.isLoading) {
+                    val label = if (modeIndex == 0) "movies" else "TV shows"
                     Text(
-                        text = "No favourites yet - tap the heart on anything you like to add it here.",
+                        text = "No favourite $label yet - tap the heart on anything you like to add it here.",
                         color = Palette.TextMuted,
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
                     )
                 }
 
                 JellyfinItemGrid(
-                    items = uiState.items,
+                    items = filteredItems,
                     isLoading = uiState.isLoading,
                     onLoadMore = viewModel::loadMore,
                     onOpenItem = onOpenItem,

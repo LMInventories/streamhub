@@ -37,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.PillToggle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,23 +182,12 @@ private fun GridDensityButton(gridColumns: Int, onSelect: (Int) -> Unit) {
 
 @Composable
 private fun ModePillToggle(mode: VodMode, onModeChange: (VodMode) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier = modifier.background(Palette.Surface, AppShapes.pill).padding(4.dp)) {
-        PillOption(label = "Movies", selected = mode == VodMode.MOVIES, onClick = { onModeChange(VodMode.MOVIES) })
-        PillOption(label = "TV Shows", selected = mode == VodMode.SHOWS, onClick = { onModeChange(VodMode.SHOWS) })
-    }
-}
-
-@Composable
-private fun PillOption(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(AppShapes.pill)
-            .background(if (selected) Palette.Accent else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Text(text = label, color = if (selected) Color.White else Palette.TextMuted)
-    }
+    PillToggle(
+        options = listOf("Movies", "TV Shows"),
+        selectedIndex = if (mode == VodMode.MOVIES) 0 else 1,
+        onSelect = { index -> onModeChange(if (index == 0) VodMode.MOVIES else VodMode.SHOWS) },
+        modifier = modifier,
+    )
 }
 
 @Composable

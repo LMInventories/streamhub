@@ -16,6 +16,7 @@ val tvNavItems = listOf(
     TvNavItem(route = "vod", label = "VOD"),
     TvNavItem(route = "emby_home", label = "Emby"),
     TvNavItem(route = "jellyfin_home", label = "Jellyfin"),
+    TvNavItem(route = "settings", label = "Settings"),
     // Same list-driven shape as the phone bottom bar - Search/Favorites append here later.
 )
 

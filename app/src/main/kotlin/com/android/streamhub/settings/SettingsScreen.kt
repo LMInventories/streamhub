@@ -7,12 +7,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 
 data class SettingsEntry(
@@ -23,9 +26,12 @@ data class SettingsEntry(
 )
 
 /**
- * One shared hub for every source's sign-in config, reachable from Home. Live TV/VOD both read
- * the same Xtream/M3U config, so they share a single entry here rather than two - Emby is listed
- * but disabled until that integration lands (Milestone 4).
+ * One shared hub for every source, reachable as its own bottom-nav/tab-row tab now rather than
+ * only via a settings gear icon elsewhere - each source gets its own card-style section here so
+ * it reads as a distinct area, ready for more than just a sign-in link once per-source settings
+ * (beyond just connecting) actually exist. Live TV/VOD both read the same Xtream/M3U config, so
+ * they share a single section rather than two - Emby is listed but disabled until that
+ * integration lands (Milestone 4).
  */
 @Composable
 fun SettingsScreen(
@@ -59,12 +65,16 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(Palette.Background)
             .padding(paddingValues)
-            .padding(vertical = 8.dp),
+            .statusBarsPadding()
+            .padding(16.dp),
     ) {
         entries.forEach { entry ->
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .clip(AppShapes.medium)
+                    .background(Palette.Surface)
                     .clickable(enabled = entry.enabled, onClick = entry.onClick)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
             ) {
