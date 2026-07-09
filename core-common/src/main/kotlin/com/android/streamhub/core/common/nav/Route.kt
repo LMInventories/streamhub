@@ -51,6 +51,7 @@ sealed class Route {
         const val JELLYFIN_PLAYBACK_SETTINGS_PATTERN = "jellyfin_playback_settings"
         const val JELLYFIN_LIBRARY_VISIBILITY_PATTERN = "jellyfin_library_visibility"
         const val JELLYFIN_HOME_SECTION_ORDER_PATTERN = "jellyfin_home_section_order"
+        const val APP_UI_SETTINGS_PATTERN = "app_ui_settings"
         const val VOD_ITEM_DETAIL_PATTERN = "vod_item_detail/{itemId}"
         const val VOD_SERIES_DETAIL_PATTERN = "vod_series_detail/{seriesId}"
         const val JELLYFIN_LIBRARY_PATTERN = "jellyfin_library/{libraryId}/{itemType}"

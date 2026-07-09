@@ -21,7 +21,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.jellyfin.data.JellyfinHomeSectionKeys
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinLibraryInfo
@@ -44,17 +44,6 @@ import com.android.streamhub.feature.jellyfin.data.JellyfinLibraryInfo
 // orientation or need a D-pad-specific structure, so a single implementation avoids duplicating
 // what would otherwise be near-identical code. Wraps its own MaterialTheme since it's reachable
 // from the TV nav host too, same reasoning as ItemDetailScreen/IptvSettingsScreen.
-private val JellyfinHomeColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    outline = Palette.Border,
-    error = Palette.Error,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +56,7 @@ fun JellyfinHomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    MaterialTheme(colorScheme = JellyfinHomeColorScheme) {
+    MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             // No title text - the bottom nav tab below already says "Jellyfin", so a second,
             // bigger heading right above it was redundant. statusBarsPadding lives here

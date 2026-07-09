@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -100,6 +101,11 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    // Backs AppUiSettingsRepository (theme mode + text size) - same DataStore-as-JSON pattern
+    // feature-jellyfin/feature-iptv already use for their own settings.
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.serialization.json)
 
     // CastOptionsProvider lives here since AndroidManifest.xml's OPTIONS_PROVIDER_CLASS_NAME
     // meta-data needs it on the app module's own classpath - the Cast button/session-driving

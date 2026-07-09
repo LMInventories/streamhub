@@ -22,7 +22,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 // ISO 639-2 codes - the fixed subset Jellyfin libraries most commonly carry, not an exhaustive
 // list. "No preference" (null) always leaves the player to fall back on its own default
@@ -65,18 +65,6 @@ private val BITRATE_OPTIONS = listOf(
     2 to "2 Mbps",
 )
 
-private val JellyfinPlaybackSettingsColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    outline = Palette.Border,
-    error = Palette.Error,
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JellyfinPlaybackSettingsScreen(
@@ -85,7 +73,7 @@ fun JellyfinPlaybackSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    MaterialTheme(colorScheme = JellyfinPlaybackSettingsColorScheme) {
+    MaterialTheme(colorScheme = appColorScheme()) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = { Text("Playback") },

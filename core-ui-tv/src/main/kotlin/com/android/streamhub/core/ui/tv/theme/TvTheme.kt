@@ -4,27 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Shapes
 import androidx.tv.material3.Typography
-import androidx.tv.material3.darkColorScheme
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.AppTextStyles
-import com.android.streamhub.core.design.Palette
-
-// TV screens are always viewed from a distance in a dark room, so - same as phone - there's no
-// light variant, just the one dark identity shared via core-design's Palette.
-private val AppColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    onPrimary = Palette.TextPrimary,
-    secondary = Palette.AccentMuted,
-    onSecondary = Palette.TextPrimary,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    border = Palette.Border,
-    error = Palette.Error,
-)
 
 private val AppTypography = Typography(
     displayLarge = AppTextStyles.displayLarge,
@@ -55,7 +36,7 @@ private val AppShapesTv = Shapes(
 @Composable
 fun StreamHubTvTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = AppColorScheme,
+        colorScheme = appTvColorScheme(),
         typography = AppTypography,
         shapes = AppShapesTv,
         content = content,

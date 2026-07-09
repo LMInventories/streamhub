@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -26,20 +25,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.PillToggle
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
-
-private val JellyfinFavoritesColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    outline = Palette.Border,
-    error = Palette.Error,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +45,7 @@ fun JellyfinFavoritesScreen(
         if (modeIndex == 0) item.type == JellyfinItemType.MOVIE else item.type != JellyfinItemType.MOVIE
     }
 
-    MaterialTheme(colorScheme = JellyfinFavoritesColorScheme) {
+    MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 TopAppBar(

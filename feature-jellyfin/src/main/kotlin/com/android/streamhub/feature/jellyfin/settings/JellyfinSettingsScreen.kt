@@ -25,7 +25,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,20 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 // Same "wrap own MaterialTheme locally" reasoning as IptvSettingsScreen - reachable from the TV
 // nav host too, which only wraps content in tv-material3's MaterialTheme, not this one.
-private val JellyfinSettingsColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    outline = Palette.Border,
-    error = Palette.Error,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +52,7 @@ fun JellyfinSettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
 
-    MaterialTheme(colorScheme = JellyfinSettingsColorScheme) {
+    MaterialTheme(colorScheme = appColorScheme()) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = { Text("Jellyfin server") },

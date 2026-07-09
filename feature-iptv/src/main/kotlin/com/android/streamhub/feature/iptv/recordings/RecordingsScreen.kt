@@ -28,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.scheduled.RecordedItemEntity
 import java.time.Instant
 import java.time.ZoneId
@@ -54,17 +54,6 @@ import java.time.format.DateTimeFormatter
 // Shared across phone and TV rather than split, same reasoning as the Jellyfin screens - a poster
 // grid doesn't need orientation-specific structure, and wraps its own MaterialTheme since it's
 // reachable from the TV nav host too (tv-material3's ambient theme, not this one).
-private val RecordingsColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    outline = Palette.Border,
-    error = Palette.Error,
-)
 
 private val dateFormatter = DateTimeFormatter.ofPattern("d MMM, HH:mm")
 
@@ -78,7 +67,7 @@ fun RecordingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var contextMenuItemId by remember { mutableStateOf<Long?>(null) }
 
-    MaterialTheme(colorScheme = RecordingsColorScheme) {
+    MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 TopAppBar(

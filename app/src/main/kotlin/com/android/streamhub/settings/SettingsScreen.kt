@@ -49,8 +49,15 @@ fun SettingsScreen(
     onJellyfinPlaybackClick: () -> Unit,
     onJellyfinLibrariesClick: () -> Unit,
     onJellyfinHomeOrderClick: () -> Unit,
+    onAppearanceClick: () -> Unit,
 ) {
     val sections = listOf(
+        SettingsSection(
+            title = "App",
+            rows = listOf(
+                SettingsRow(label = "Appearance", subtitle = "Theme, text size", onClick = onAppearanceClick),
+            ),
+        ),
         SettingsSection(
             title = "Live TV & VOD",
             rows = listOf(

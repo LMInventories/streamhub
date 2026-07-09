@@ -36,6 +36,7 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.home.HomeScreenTv
 import com.android.streamhub.placeholder.ComingSoonScreen
+import com.android.streamhub.settings.AppUiSettingsScreen
 import com.android.streamhub.settings.SettingsScreen
 
 private val TAB_ROUTES = setOf(
@@ -180,6 +181,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     onJellyfinPlaybackClick = { navController.navigate(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) },
                     onJellyfinLibrariesClick = { navController.navigate(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) },
                     onJellyfinHomeOrderClick = { navController.navigate(Route.JELLYFIN_HOME_SECTION_ORDER_PATTERN) },
+                    onAppearanceClick = { navController.navigate(Route.APP_UI_SETTINGS_PATTERN) },
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
@@ -196,6 +198,9 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.JELLYFIN_HOME_SECTION_ORDER_PATTERN) {
                 JellyfinHomeSectionOrderScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.APP_UI_SETTINGS_PATTERN) {
+                AppUiSettingsScreen(onDone = { navController.popBackStack() })
             }
             composable(
                 route = Route.PLAYER_PATTERN,

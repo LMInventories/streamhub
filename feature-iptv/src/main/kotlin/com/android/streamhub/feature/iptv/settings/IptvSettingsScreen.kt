@@ -22,7 +22,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -33,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_DAY_OPTIONS
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_HOUR_OPTIONS
 import com.android.streamhub.feature.iptv.data.AutoUpdateMode
@@ -42,17 +42,6 @@ import com.android.streamhub.feature.iptv.data.AutoUpdateMode
 // text fields/buttons would fall back to M3's default light scheme when opened from TV. Same
 // reasoning as EpgGridPanel/PlayerScreenTv's dialogs wrapping themselves rather than relying on
 // an ambient theme they can't count on.
-private val IptvSettingsColorScheme = darkColorScheme(
-    primary = Palette.Accent,
-    background = Palette.Background,
-    onBackground = Palette.TextPrimary,
-    surface = Palette.Surface,
-    onSurface = Palette.TextPrimary,
-    surfaceVariant = Palette.SurfaceElevated,
-    onSurfaceVariant = Palette.TextMuted,
-    outline = Palette.Border,
-    error = Palette.Error,
-)
 
 /**
  * Shared across phone and TV - it's a form, and standard Material3 text fields are already
@@ -67,7 +56,7 @@ fun IptvSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    MaterialTheme(colorScheme = IptvSettingsColorScheme) {
+    MaterialTheme(colorScheme = appColorScheme()) {
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(title = { Text("IPTV source") }, modifier = Modifier.statusBarsPadding())
 
