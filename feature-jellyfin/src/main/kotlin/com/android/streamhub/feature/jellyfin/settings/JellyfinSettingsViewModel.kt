@@ -116,7 +116,8 @@ class JellyfinSettingsViewModel @Inject constructor(
                     pollQuickConnect(api, serverUrl, initial.secret)
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(isQuickConnecting = false, errorMessage = "Quick Connect unavailable: ${e.describeChain()}") }
+                    val exchange = JellyfinDebugInterceptor.lastExchange?.let { "\n\n$it" }.orEmpty()
+                    _uiState.update { it.copy(isQuickConnecting = false, errorMessage = "Quick Connect unavailable: ${e.describeChain()}$exchange") }
                 }
         }
     }
@@ -158,7 +159,8 @@ class JellyfinSettingsViewModel @Inject constructor(
                 }
             }
             .onFailure { e ->
-                _uiState.update { it.copy(isQuickConnecting = false, quickConnectCode = null, errorMessage = e.describeChain()) }
+                val exchange = JellyfinDebugInterceptor.lastExchange?.let { "\n\n$it" }.orEmpty()
+                _uiState.update { it.copy(isQuickConnecting = false, quickConnectCode = null, errorMessage = "${e.describeChain()}$exchange") }
             }
     }
 
