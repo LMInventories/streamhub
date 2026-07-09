@@ -2,6 +2,7 @@ package com.android.streamhub.feature.iptv.vod
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,14 +11,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -28,7 +29,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,17 +61,20 @@ fun VodScreenPhone(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            TopAppBar(
-                title = { Text("VOD") },
-                actions = {
-                    if (selectedCategory != null) {
-                        GridDensityButton(gridColumns = uiState.gridColumns, onSelect = viewModel::setGridColumns)
-                    }
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
-                    }
-                },
-            )
+            // No title text here - the bottom nav tab below is already labeled "VOD", so a
+            // second, bigger "VOD" heading right above it was purely redundant. Just the actions
+            // that actually do something, right-aligned, rather than a full-height empty app bar.
+            Row(
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                if (selectedCategory != null) {
+                    GridDensityButton(gridColumns = uiState.gridColumns, onSelect = viewModel::setGridColumns)
+                }
+                IconButton(onClick = onSettingsClick) {
+                    Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
+                }
+            }
 
             if (selectedCategory == null && uiState.hasSource && uiState.isSupported) {
                 ModePillToggle(
@@ -114,12 +118,12 @@ fun VodScreenPhone(
                         CircularProgressIndicator()
                     }
 
-                selectedCategory == null -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                selectedCategory == null -> LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
+                ) {
                     items(uiState.categories, key = { it.id }) { category ->
-                        ListItem(
-                            headlineContent = { Text(category.name) },
-                            modifier = Modifier.clickable { viewModel.selectCategory(category) },
-                        )
+                        CategoryTile(name = category.name, onClick = { viewModel.selectCategory(category) })
                     }
                 }
 
@@ -221,6 +225,39 @@ private fun Poster(name: String, posterUrl: String?, onClick: () -> Unit) {
             text = name,
             maxLines = 2,
             modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+// A row of plain text rows read as a bare list rather than something meant to be tapped, and
+// didn't leave room for a category thumbnail if that data ever becomes available (Xtream doesn't
+// send one today). A landscape tile - the same shape a category backdrop/thumbnail would actually
+// use - reads as a real destination and is a drop-in spot for AsyncImage later, same as Poster
+// above once that data exists.
+@Composable
+private fun CategoryTile(name: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .padding(4.dp)
+            .aspectRatio(16f / 9f)
+            .fillMaxWidth()
+            .clip(AppShapes.medium)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        Icon(
+            Icons.Filled.Movie,
+            contentDescription = null,
+            tint = Palette.TextMuted.copy(alpha = 0.3f),
+            modifier = Modifier.align(Alignment.Center).aspectRatio(1f).fillMaxWidth(0.4f),
+        )
+        Text(
+            text = name,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = Palette.TextPrimary,
         )
     }
 }

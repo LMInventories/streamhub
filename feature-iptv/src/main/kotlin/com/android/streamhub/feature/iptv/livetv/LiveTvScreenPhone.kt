@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,7 +37,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -106,22 +106,20 @@ fun LiveTvScreenPhone(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // The app bar is dropped entirely once a source exists, in both orientations, rather
-            // than just hidden - its height is space the player/EPG can use instead, and on
-            // landscape phone screens in particular the EPG grid doesn't fit at all without it.
-            // Settings access moves to an icon overlaid on the mini-player section instead of
-            // losing its own dedicated bar. Kept when there's no source yet, since that's the
-            // only way to reach settings before a playlist exists.
+            // No title text - the bottom nav tab below already says "Live TV", so a second,
+            // bigger heading right above it was redundant. The settings action is still needed
+            // (before a playlist exists it's the only way to reach settings), just without a
+            // full app bar around it. Once a source exists this whole row disappears in both
+            // orientations - see the settings icon overlaid on the mini-player section below.
             if (!uiState.hasSource) {
-                TopAppBar(
-                    title = { Text("Live TV") },
-                    actions = {
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
-                        }
-                    },
-                    modifier = Modifier.statusBarsPadding(),
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
+                    }
+                }
             }
 
             uiState.errorMessage?.let { error ->

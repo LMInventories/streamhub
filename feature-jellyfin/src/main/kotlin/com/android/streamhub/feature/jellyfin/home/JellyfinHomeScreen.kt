@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,7 +25,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -74,15 +74,16 @@ fun JellyfinHomeScreen(
     MaterialTheme(colorScheme = JellyfinHomeColorScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                TopAppBar(
-                    title = { Text("Jellyfin") },
-                    actions = {
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Jellyfin settings")
-                        }
-                    },
-                    modifier = Modifier.statusBarsPadding(),
-                )
+                // No title text - the bottom nav tab below already says "Jellyfin", so a second,
+                // bigger heading right above it was redundant. Just the settings action, right-aligned.
+                Row(
+                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Jellyfin settings")
+                    }
+                }
 
                 when {
                     !uiState.hasSource -> JellyfinAddSourcePrompt(onSettingsClick, modifier = Modifier.weight(1f))
