@@ -79,6 +79,10 @@ dependencies {
     // dependency lives at the module level since LiveTvScreenPhone/Tv share this module.
     implementation(libs.play.services.cast.framework)
     implementation(libs.androidx.mediarouter)
+    // MediaRouteButton reads AppCompat-only theme attributes (mediaRouteButtonStyle etc.) that
+    // the app's own platform Theme.Material doesn't define - not used for anything else, only to
+    // give CastButton's ContextThemeWrapper an AppCompat theme to pull those from.
+    implementation(libs.androidx.appcompat)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
