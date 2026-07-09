@@ -75,7 +75,7 @@ class JellyfinSettingsViewModel @Inject constructor(
                     _uiState.update { it.copy(isSigningIn = false, errorMessage = "Server didn't return a valid session") }
                 }
             }.onFailure { e ->
-                _uiState.update { it.copy(isSigningIn = false, errorMessage = e.message ?: "Sign-in failed") }
+                _uiState.update { it.copy(isSigningIn = false, errorMessage = e.describeChain()) }
             }
         }
     }
@@ -85,5 +85,20 @@ class JellyfinSettingsViewModel @Inject constructor(
             repository.clear()
             _uiState.update { JellyfinSettingsUiState() }
         }
+    }
+
+    /**
+     * The SDK's own exceptions (e.g. InvalidStatusException) only carry a generic message like
+     * "Invalid HTTP status in response: 500" - that just confirms the server responded with an
+     * error, not why. The underlying cause chain (often a raw Ktor/OkHttp exception) is where the
+     * actually useful detail lives - surfacing it here rather than swallowing it is the
+     * difference between "sign-in failed" and something a user can actually act on or report.
+     */
+    private fun Throwable.describeChain(): String {
+        val messages = generateSequence(this) { it.cause }
+            .mapNotNull { it.message }
+            .distinct()
+            .toList()
+        return messages.ifEmpty { listOf("Sign-in failed") }.joinToString(" — ")
     }
 }
