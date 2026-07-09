@@ -1,6 +1,12 @@
 package com.android.streamhub.core.ui.phone.scaffold
 
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
@@ -10,10 +16,15 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 
 data class PhoneNavItem(
     val route: String,
@@ -27,13 +38,15 @@ val phoneNavItems = listOf(
     PhoneNavItem(route = "vod", label = "VOD", icon = Icons.Filled.Movie),
     PhoneNavItem(route = "emby_home", label = "Emby", icon = Icons.Filled.VideoLibrary),
     PhoneNavItem(route = "jellyfin_home", label = "Jellyfin", icon = Icons.Filled.PlayCircleFilled),
-    // Search/Favorites tabs join this list in later milestones - the bottom bar already
-    // renders a list, so adding an entry is the only change needed there.
+    // Search/Favorites tabs join this list in later milestones - both the bar and the rail below
+    // already render off this same list, so adding an entry is the only change needed there.
 )
 
 /**
- * Bottom-nav shell for phone. [bottomBarVisible] lets full-screen destinations (the player)
- * hide the bar without needing a second Scaffold.
+ * Bottom-nav shell for phone in portrait; becomes a left-side nav rail in landscape instead,
+ * where horizontal space is comparatively cheap and vertical space is scarce - Live TV's EPG grid
+ * in particular needs every bit of vertical room a phone screen can give it. [bottomBarVisible]
+ * lets full-screen destinations (the player) hide the bar/rail without needing a second Scaffold.
  */
 @Composable
 fun PhoneScaffold(
@@ -42,12 +55,14 @@ fun PhoneScaffold(
     onNavigate: (String) -> Unit,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    Scaffold(
-        bottomBar = {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    if (isLandscape) {
+        Row(modifier = Modifier.fillMaxSize()) {
             if (bottomBarVisible) {
-                NavigationBar {
+                NavigationRail {
                     phoneNavItems.forEach { item ->
-                        NavigationBarItem(
+                        NavigationRailItem(
                             selected = currentRoute == item.route,
                             onClick = { onNavigate(item.route) },
                             icon = { Icon(item.icon, contentDescription = item.label) },
@@ -56,9 +71,33 @@ fun PhoneScaffold(
                     }
                 }
             }
-        },
-        content = { padding ->
-            content(padding)
-        },
-    )
+            // The rail already claims its own width via Row's layout (not an inset content needs
+            // to account for the way a stacked bottomBar would), so there's no bar height left for
+            // content to reserve space for - screens that need status-bar clearance already handle
+            // it themselves via their own TopAppBar/statusBarsPadding, same as in portrait.
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                content(PaddingValues(0.dp))
+            }
+        }
+    } else {
+        Scaffold(
+            bottomBar = {
+                if (bottomBarVisible) {
+                    NavigationBar {
+                        phoneNavItems.forEach { item ->
+                            NavigationBarItem(
+                                selected = currentRoute == item.route,
+                                onClick = { onNavigate(item.route) },
+                                icon = { Icon(item.icon, contentDescription = item.label) },
+                                label = { Text(item.label) },
+                            )
+                        }
+                    }
+                }
+            },
+            content = { padding ->
+                content(padding)
+            },
+        )
+    }
 }
