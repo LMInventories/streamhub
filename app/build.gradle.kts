@@ -71,6 +71,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    // MainActivity extends FragmentActivity, not plain ComponentActivity - the Live TV Cast
+    // button's MediaRouteButton.showDialog() walks up the Context chain looking for a
+    // FragmentActivity to host its device-picker DialogFragment, and crashes when it doesn't
+    // find one.
+    implementation(libs.androidx.fragment.ktx)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -100,6 +105,10 @@ dependencies {
     // meta-data needs it on the app module's own classpath - the Cast button/session-driving
     // logic itself lives in feature-iptv instead, next to what it actually casts.
     implementation(libs.play.services.cast.framework)
+    // Theme.StreamHub (res/values/themes.xml) extends Theme.AppCompat.NoActionBar - the actual
+    // activity theme needs to be AppCompat-derived for the Cast button's device-picker dialog to
+    // inflate without crashing, not just the button itself (see CastButton.kt's own comment).
+    implementation(libs.androidx.appcompat)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

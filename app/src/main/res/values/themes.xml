@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The app is 100% Compose - nothing here is ever visibly used by an XML layout. This theme
+        exists solely because the Cast SDK's UI widgets (MediaRouteButton and the device-picker
+        dialog it shows) are AppCompat-based and crash without an AppCompat-derived activity
+        theme, regardless of what Compose itself renders. AppCompat's own base (non-DayNight)
+        theme is dark, matching this app's own dark-only design (see core-design's Palette).
+    -->
+    <style name="Theme.StreamHub" parent="Theme.AppCompat.NoActionBar" />
+</resources>
