@@ -17,6 +17,33 @@ enum class ThemeMode { DARK, LIGHT }
  * colors, not surface tokens, so they stay fixed across both modes.
  */
 object Palette {
+    private data class Tokens(
+        val background: Color,
+        val surface: Color,
+        val surfaceElevated: Color,
+        val border: Color,
+        val textPrimary: Color,
+        val textMuted: Color,
+    )
+
+    private val Dark = Tokens(
+        background = Color(0xFF0F1115),
+        surface = Color(0xFF1A1D23),
+        surfaceElevated = Color(0xFF242832),
+        border = Color(0xFF2A2E37),
+        textPrimary = Color(0xFFF2F3F5),
+        textMuted = Color(0xFF9CA3AF),
+    )
+
+    private val Light = Tokens(
+        background = Color(0xFFF7F6F3),
+        surface = Color(0xFFFFFFFF),
+        surfaceElevated = Color(0xFFEFEDE8),
+        border = Color(0xFFDDDAD2),
+        textPrimary = Color(0xFF1C1B1A),
+        textMuted = Color(0xFF6B6862),
+    )
+
     var Background by mutableStateOf(Dark.background)
         private set
     var Surface by mutableStateOf(Dark.surface)
@@ -66,22 +93,4 @@ object Palette {
     // from Error above - a classic "record button" red, universally recognizable for its own
     // meaning rather than reusing either of those other reds' semantics.
     val SourceRecording = Color(0xFFDC2626)
-
-    private object Dark {
-        val background = Color(0xFF0F1115)
-        val surface = Color(0xFF1A1D23)
-        val surfaceElevated = Color(0xFF242832)
-        val border = Color(0xFF2A2E37)
-        val textPrimary = Color(0xFFF2F3F5)
-        val textMuted = Color(0xFF9CA3AF)
-    }
-
-    private object Light {
-        val background = Color(0xFFF7F6F3)
-        val surface = Color(0xFFFFFFFF)
-        val surfaceElevated = Color(0xFFEFEDE8)
-        val border = Color(0xFFDDDAD2)
-        val textPrimary = Color(0xFF1C1B1A)
-        val textMuted = Color(0xFF6B6862)
-    }
 }
