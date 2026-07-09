@@ -288,15 +288,6 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
-    /** Long-press-on-channel-label entry point (EPG grid) - unlike the plain-list context menu, there's no dropdown here to show distinct "Add"/"Remove" text, so a single toggle is the simpler fit. */
-    fun toggleMultiview(channel: IptvChannelInfo) {
-        if (_uiState.value.multiviewTiles.any { it.channel.id == channel.id }) {
-            removeFromMultiview(channel.id)
-        } else {
-            addToMultiview(channel)
-        }
-    }
-
     fun scheduleRecording(channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) {
         viewModelScope.launch { scheduledEventsRepository.addRecording(channel, program, startAdjustMinutes, endAdjustMinutes) }
     }

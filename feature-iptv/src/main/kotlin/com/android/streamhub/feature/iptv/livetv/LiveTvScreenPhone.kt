@@ -327,9 +327,9 @@ private fun LiveTvBrowseContent(
                         onFocusChannel = onFocusChannel,
                         onScheduleRecording = onScheduleRecording,
                         onScheduleReminder = onScheduleReminder,
-                        onToggleMultiview = { channel ->
-                            if (channel.id in multiviewChannelIds) onRemoveFromMultiview(channel.id) else onAddToMultiview(channel)
-                        },
+                        multiviewChannelIds = multiviewChannelIds,
+                        onAddToMultiview = onAddToMultiview,
+                        onRemoveFromMultiview = onRemoveFromMultiview,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
                     else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {

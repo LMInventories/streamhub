@@ -85,12 +85,15 @@ fun EpgGridPanel(
     onFocusChannel: (IptvChannelInfo) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
-    onToggleMultiview: (IptvChannelInfo) -> Unit = {},
+    multiviewChannelIds: Set<String> = emptySet(),
+    onAddToMultiview: (IptvChannelInfo) -> Unit = {},
+    onRemoveFromMultiview: (channelId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val use24Hour = rememberUse24HourTime()
     val sharedScrollState = rememberScrollState()
     var menuState by remember { mutableStateOf<ProgramMenuState?>(null) }
+    var multiviewMenuChannel by remember { mutableStateOf<IptvChannelInfo?>(null) }
     var startAdjustMinutes by remember { mutableIntStateOf(0) }
     var endAdjustMinutes by remember { mutableIntStateOf(0) }
     var leadMinutes by remember { mutableIntStateOf(10) }
@@ -140,7 +143,7 @@ fun EpgGridPanel(
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
                     onClick = { onFocusChannel(channel) },
-                    onLongClickLabel = { onToggleMultiview(channel) },
+                    onLongClickLabel = { multiviewMenuChannel = channel },
                     onLongPressProgram = { program -> menuState = ProgramMenuState.ContextMenu(channel, program) },
                 )
                 HorizontalDivider(color = Palette.Border)
@@ -186,6 +189,18 @@ fun EpgGridPanel(
             },
         )
         null -> Unit
+    }
+
+    multiviewMenuChannel?.let { channel ->
+        val isStaged = channel.id in multiviewChannelIds
+        ChannelMultiviewMenu(
+            isStaged = isStaged,
+            onDismiss = { multiviewMenuChannel = null },
+            onToggle = {
+                if (isStaged) onRemoveFromMultiview(channel.id) else onAddToMultiview(channel)
+                multiviewMenuChannel = null
+            },
+        )
     }
 }
 

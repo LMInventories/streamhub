@@ -185,7 +185,9 @@ fun LiveTvScreenTv(
                             onFocusChannel = viewModel::focusChannel,
                             onScheduleRecording = viewModel::scheduleRecording,
                             onScheduleReminder = viewModel::scheduleReminder,
-                            onToggleMultiview = viewModel::toggleMultiview,
+                            multiviewChannelIds = uiState.multiviewTiles.map { it.channel.id }.toSet(),
+                            onAddToMultiview = viewModel::addToMultiview,
+                            onRemoveFromMultiview = viewModel::removeFromMultiview,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }
