@@ -18,8 +18,13 @@ data class DashboardEntry(
     val accent: Color,
 )
 
-/** Shared by both HomeScreenPhone and HomeScreenTv so the dashboard's content never drifts between form factors. */
-val dashboardEntries = listOf(
+/**
+ * Shared by both HomeScreenPhone and HomeScreenTv so the dashboard's content never drifts between
+ * form factors. jellyfinServerName is the only dynamic piece today - non-null once signed in,
+ * showing the server's own friendly name (e.g. "My Media Server") in place of "Not connected".
+ * Emby stays a static "Not connected" until that source is actually wired up (M4).
+ */
+fun buildDashboardEntries(jellyfinServerName: String?) = listOf(
     DashboardEntry(
         title = "Live TV",
         subtitle = "Channels & EPG",
@@ -35,16 +40,14 @@ val dashboardEntries = listOf(
         accent = Palette.Accent,
     ),
     DashboardEntry(
-        // Reserved for the connected server's name once Jellyfin is actually wired up
-        // (Milestone 3) - "Not connected" is the honest current state, not a placeholder label.
         title = "Jellyfin",
-        subtitle = "Not connected",
+        subtitle = jellyfinServerName ?: "Not connected",
         route = Route.JELLYFIN_HOME_PATTERN,
         icon = Icons.Filled.PlayCircleFilled,
         accent = Palette.SourceJellyfin,
     ),
     DashboardEntry(
-        // Same as Jellyfin above - reserved for the connected server's name once Emby lands (M4).
+        // Reserved for the connected server's name once Emby lands (M4).
         title = "Emby",
         subtitle = "Not connected",
         route = Route.EMBY_HOME_PATTERN,

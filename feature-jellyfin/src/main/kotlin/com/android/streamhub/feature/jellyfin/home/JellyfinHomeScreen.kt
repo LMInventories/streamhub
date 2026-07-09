@@ -182,13 +182,21 @@ private fun JellyfinItemRow(
     onSeeAll: (() -> Unit)? = null,
 ) {
     Column {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .let { if (onSeeAll != null) it.clickable(onClick = onSeeAll) else it },
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = title, color = Palette.TextPrimary, modifier = Modifier.padding(bottom = 8.dp))
+            Text(text = title, color = Palette.TextPrimary)
+            // Titles used to be tappable with no visible sign of it - a "See All" button reads
+            // as an actual affordance instead of something you'd only discover by poking at text.
+            if (onSeeAll != null) {
+                Text(
+                    text = "See All",
+                    color = Palette.Accent,
+                    modifier = Modifier.clickable(onClick = onSeeAll).padding(4.dp),
+                )
+            }
         }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),

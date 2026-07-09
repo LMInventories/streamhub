@@ -14,4 +14,8 @@ data class JellyfinSourceConfig(
     val username: String,
     val userId: String,
     val accessToken: String,
+    // Defaulted, not required - a config saved before this field existed still deserializes
+    // (kotlinx.serialization needs a default for a field missing from old stored JSON), and it
+    // just falls back to serverUrl wherever it's displayed.
+    val serverName: String? = null,
 )

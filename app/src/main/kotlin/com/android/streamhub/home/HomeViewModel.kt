@@ -2,52 +2,27 @@ package com.android.streamhub.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.android.streamhub.core.common.domain.MediaSource
-import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.feature.jellyfin.data.JellyfinSourceConfigRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
-
-data class HomeUiState(
-    val items: List<PlaybackItem> = emptyList(),
-    val isLoading: Boolean = true,
-    val sourceErrors: List<String> = emptyList(),
-)
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val mediaSources: Set<@JvmSuppressWildcards MediaSource>,
+    jellyfinConfigRepository: JellyfinSourceConfigRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState
-
-    /**
-     * Called from a LaunchedEffect(Unit) each time Home enters composition - including when
-     * returning from Settings - rather than only once from init, so saving a new IPTV source
-     * is visible without an app restart (IptvMediaSource itself decides whether that means a
-     * real refetch or a cache hit).
-     *
-     * Each source is fetched independently and failures are collected rather than thrown - a
-     * bad/misconfigured source (wrong credentials, unreachable server, cleartext blocked, ...)
-     * must never take the whole Home screen down.
-     */
-    fun refresh() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-
-            val items = mutableListOf<PlaybackItem>()
-            val errors = mutableListOf<String>()
-            for (source in mediaSources) {
-                runCatching { source.browse() }
-                    .onSuccess { items += it }
-                    .onFailure { errors += "${source.sourceType}: ${it.message ?: it::class.simpleName}" }
-            }
-
-            _uiState.update { it.copy(items = items, isLoading = false, sourceErrors = errors) }
+    val dashboardEntries: StateFlow<List<DashboardEntry>> = jellyfinConfigRepository.configFlow
+        .map { config ->
+            // Falls back to the server URL rather than "Not connected" when signed in but
+            // serverName is unknown (a config saved before that field existed, or the
+            // best-effort fetch failed at sign-in time) - still connected, just without a
+            // friendly name to show for it.
+            val subtitle = config?.let { it.serverName ?: it.serverUrl }
+            buildDashboardEntries(jellyfinServerName = subtitle)
         }
-    }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), buildDashboardEntries(jellyfinServerName = null))
 }

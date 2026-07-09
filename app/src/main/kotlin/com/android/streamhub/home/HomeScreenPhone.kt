@@ -24,9 +24,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.AppShapes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +38,10 @@ fun HomeScreenPhone(
     paddingValues: PaddingValues,
     onNavigate: (String) -> Unit,
     onSettingsClick: () -> Unit,
+    viewModel: HomeViewModel = hiltViewModel(),
 ) {
+    val dashboardEntries by viewModel.dashboardEntries.collectAsStateWithLifecycle()
+
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             TopAppBar(

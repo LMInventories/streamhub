@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -50,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,6 +86,10 @@ import com.android.streamhub.core.player.frameRateLabel
 import com.android.streamhub.core.player.resolutionLabel
 import kotlinx.coroutines.delay
 
+// Hardcoded for now, not read from anywhere - this becomes a real setting once general player
+// settings exist, but there's nowhere for that to live yet.
+private const val DOUBLE_TAP_SEEK_MS = 10_000L
+
 @Composable
 fun PlayerScreenPhone(
     onBack: () -> Unit,
@@ -96,6 +103,8 @@ fun PlayerScreenPhone(
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showSubtitlePicker by remember { mutableStateOf(false) }
+    // null = no feedback showing; true/false = seeking forward/backward, just tapped.
+    var seekFeedback by remember { mutableStateOf<Boolean?>(null) }
 
     LockLandscapeWhilePlaying()
     HideSystemBarsWhilePlaying()
@@ -107,12 +116,46 @@ fun PlayerScreenPhone(
         }
     }
 
+    // detectTapGestures(Unit) only starts its gesture-detection coroutine once (the key never
+    // changes) - reading uiState/currentItem directly inside its callbacks would close over
+    // whatever those were on the very first composition. rememberUpdatedState keeps a stable
+    // holder whose .value is always current, so onDoubleTap below always seeks from the real
+    // playback position and respects the real isLive state, not a stale first-frame snapshot.
+    val latestUiState by rememberUpdatedState(uiState)
+    val latestCurrentItem by rememberUpdatedState(currentItem)
+
+    LaunchedEffect(seekFeedback) {
+        if (seekFeedback != null) {
+            delay(500)
+            seekFeedback = null
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
             .pointerInput(Unit) {
-                detectTapGestures { controlsVisible = !controlsVisible }
+                detectTapGestures(
+                    onTap = { controlsVisible = !controlsVisible },
+                    onDoubleTap = { offset ->
+                        // Live TV isn't meaningfully seekable (its slider above is a read-only
+                        // wall-clock progress bar, not a scrubber) - VOD/Jellyfin playback is
+                        // exactly everything that isn't live, so that's the gate rather than
+                        // hardcoding a source-type allowlist that'd need updating for every new
+                        // non-live source.
+                        val item = latestCurrentItem ?: return@detectTapGestures
+                        if (item.isLive) return@detectTapGestures
+                        val forward = offset.x > size.width / 2
+                        val target = if (forward) {
+                            (latestUiState.positionMs + DOUBLE_TAP_SEEK_MS).coerceAtMost(latestUiState.durationMs)
+                        } else {
+                            (latestUiState.positionMs - DOUBLE_TAP_SEEK_MS).coerceAtLeast(0L)
+                        }
+                        viewModel.seekTo(target)
+                        seekFeedback = forward
+                    },
+                )
             },
     ) {
         VideoSurface(
@@ -123,6 +166,14 @@ fun PlayerScreenPhone(
 
         if (uiState.isBuffering) {
             CircularProgressIndicator(color = Palette.Accent, modifier = Modifier.align(Alignment.Center))
+        }
+
+        seekFeedback?.let { forward ->
+            SeekFeedbackIndicator(
+                forward = forward,
+                seekSeconds = (DOUBLE_TAP_SEEK_MS / 1000).toInt(),
+                modifier = Modifier.align(if (forward) Alignment.CenterEnd else Alignment.CenterStart).padding(32.dp),
+            )
         }
 
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
@@ -374,6 +425,25 @@ private fun StatBadge(text: String) {
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(text = text, color = Color.White, fontSize = 11.sp)
+    }
+}
+
+/** Brief confirmation that a double-tap seek registered, since the tap itself has no other visible effect until the slider catches up. */
+@Composable
+private fun SeekFeedbackIndicator(forward: Boolean, seekSeconds: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(AppShapes.large)
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (forward) Icons.Filled.FastForward else Icons.Filled.FastRewind,
+            contentDescription = null,
+            tint = Color.White,
+        )
+        Text(text = "${seekSeconds}s", color = Color.White, modifier = Modifier.padding(start = 4.dp))
     }
 }
 

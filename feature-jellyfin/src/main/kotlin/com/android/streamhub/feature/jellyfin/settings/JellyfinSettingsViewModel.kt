@@ -18,6 +18,7 @@ import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.authenticateUserByName
 import org.jellyfin.sdk.api.client.extensions.authenticateWithQuickConnect
 import org.jellyfin.sdk.api.client.extensions.quickConnectApi
+import org.jellyfin.sdk.api.client.extensions.systemApi
 import org.jellyfin.sdk.api.client.extensions.userApi
 import javax.inject.Inject
 
@@ -80,7 +81,13 @@ class JellyfinSettingsViewModel @Inject constructor(
                 val userId = result.user?.id?.toString()
                 if (accessToken != null && userId != null) {
                     repository.save(
-                        JellyfinSourceConfig(serverUrl = serverUrl, username = state.username, userId = userId, accessToken = accessToken),
+                        JellyfinSourceConfig(
+                            serverUrl = serverUrl,
+                            username = state.username,
+                            userId = userId,
+                            accessToken = accessToken,
+                            serverName = fetchServerName(api),
+                        ),
                     )
                     _uiState.update { it.copy(isSigningIn = false, signedIn = true, password = "") }
                 } else {
@@ -149,7 +156,13 @@ class JellyfinSettingsViewModel @Inject constructor(
                 val username = result.user?.name.orEmpty()
                 if (accessToken != null && userId != null) {
                     repository.save(
-                        JellyfinSourceConfig(serverUrl = serverUrl, username = username, userId = userId, accessToken = accessToken),
+                        JellyfinSourceConfig(
+                            serverUrl = serverUrl,
+                            username = username,
+                            userId = userId,
+                            accessToken = accessToken,
+                            serverName = fetchServerName(api),
+                        ),
                     )
                     _uiState.update {
                         it.copy(isQuickConnecting = false, quickConnectCode = null, signedIn = true, username = username, password = "")
@@ -163,6 +176,12 @@ class JellyfinSettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(isQuickConnecting = false, quickConnectCode = null, errorMessage = "${e.describeChain()}$exchange") }
             }
     }
+
+    // getPublicSystemInfo() is unauthenticated, so this works regardless of which sign-in path
+    // just succeeded. Best-effort, not surfaced as a sign-in error - the friendly server name is
+    // only used for a Home screen label, not worth failing an otherwise-successful sign-in over.
+    private suspend fun fetchServerName(api: ApiClient): String? =
+        runCatching { api.systemApi.getPublicSystemInfo().content.serverName }.getOrNull()
 
     fun signOut() {
         quickConnectJob?.cancel()
