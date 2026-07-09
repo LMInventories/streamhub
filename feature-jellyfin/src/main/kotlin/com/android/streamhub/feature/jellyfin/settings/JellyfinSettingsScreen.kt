@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -112,6 +113,43 @@ fun JellyfinSettingsScreen(
                         Text("Signing in…", modifier = Modifier.padding(start = 8.dp))
                     } else {
                         Text("Sign in")
+                    }
+                }
+
+                if (!uiState.signedIn) {
+                    Text("— or —", color = Palette.TextMuted, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+
+                    val quickConnectCode = uiState.quickConnectCode
+                    if (quickConnectCode != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Enter this code on the server (web UI, or another signed-in app) under your account's Quick Connect settings:",
+                                color = Palette.TextMuted,
+                            )
+                            Text(
+                                text = quickConnectCode,
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Palette.Accent,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                Text("Waiting for approval…", color = Palette.TextMuted)
+                            }
+                            OutlinedButton(onClick = viewModel::cancelQuickConnect) {
+                                Text("Cancel")
+                            }
+                        }
+                    } else {
+                        OutlinedButton(onClick = viewModel::startQuickConnect, enabled = !uiState.isQuickConnecting) {
+                            if (uiState.isQuickConnecting) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                Text("Starting…", modifier = Modifier.padding(start = 8.dp))
+                            } else {
+                                Text("Sign in with Quick Connect")
+                            }
+                        }
                     }
                 }
 
