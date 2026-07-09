@@ -10,6 +10,13 @@ import okio.Buffer
  * code with no response body, and this is someone else's server we have no log access to, so this
  * is the only way to see what's actually different about the app's real request versus a manual
  * curl/browser test that otherwise behaves fine against the same server.
+ *
+ * Headers are enumerated via request.headers/response.headers' own name/value pairs rather than
+ * their toString() - since OkHttp 5, Headers.toString() unconditionally redacts Authorization,
+ * Cookie, Proxy-Authorization and Set-Cookie to "██", which silently hid the one header this was
+ * built to inspect (the pre-token MediaBrowser auth header sent during sign-in, which carries no
+ * secret - the password is already redacted separately from the body - so showing it in full here
+ * is safe and is the entire point).
  */
 object JellyfinDebugInterceptor : Interceptor {
     @Volatile
@@ -29,10 +36,12 @@ object JellyfinDebugInterceptor : Interceptor {
 
         lastExchangeRef = buildString {
             appendLine("${request.method} ${request.url}")
-            appendLine("Request headers: ${request.headers}")
+            appendLine("Request headers:")
+            request.headers.forEach { (name, value) -> appendLine("  $name: $value") }
             if (requestBody.isNotBlank()) appendLine("Request body: $requestBody")
             appendLine("Response: ${response.code} ${response.message}")
-            appendLine("Response headers: ${response.headers}")
+            appendLine("Response headers:")
+            response.headers.forEach { (name, value) -> appendLine("  $name: $value") }
             if (responseBody.isNotBlank()) appendLine("Response body: $responseBody")
         }
 
