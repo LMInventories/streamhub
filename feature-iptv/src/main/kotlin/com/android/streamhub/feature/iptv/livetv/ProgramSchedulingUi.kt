@@ -4,9 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,17 +45,10 @@ private val timeFormatter = DateTimeFormatter.ofPattern("EEE HH:mm")
 
 // A plain Popup + background has no built-in shadow/elevation the way Material3's DropdownMenu
 // does, so over busy content (EPG grid rows, video) it could visually blend in rather than read
-// as a floating menu. shadow() + an explicit border fixes that regardless of what's behind it.
-private fun Modifier.menuSurface(shape: Shape) = this
-    .shadow(elevation = 12.dp, shape = shape)
-    .background(Palette.SurfaceElevated, shape)
-    .border(BorderStroke(1.dp, Palette.Border), shape)
-
-// The long-press context menu specifically (not the Record/Reminder dialogs that follow it) uses
-// a deliberately different, light off-white/dark-text look, sized to wrap its text rather than a
-// fixed minimum - a small "always this size" menu read as unintentionally screen-wide relative to
-// its two short options, so this drops the min-width constraint and lets Column's own natural
-// wrap-to-widest-child sizing take over instead.
+// as a floating menu. shadow() fixes that regardless of what's behind it. Used by both the
+// long-press context menu and the Record/Reminder dialogs that follow it - a deliberately
+// different, light off-white/dark-text look from the rest of the app's dark theme, sized to wrap
+// its content rather than forcing a wide fixed minimum.
 private fun Modifier.contextMenuSurface(shape: Shape) = this
     .shadow(elevation = 10.dp, shape = shape)
     .background(Palette.ContextMenuSurface, shape)
@@ -82,23 +73,36 @@ fun ProgramContextMenu(
 
 @Composable
 private fun MenuRow(label: String, onClick: () -> Unit) {
+    // No fillMaxWidth() here - that was stretching the row (and with it, the Column/Popup that
+    // sizes to its widest child) out to the full available width instead of wrapping to the text,
+    // which is what actually made this read as screen-wide despite contextMenuSurface's own
+    // "wrap, don't fill" intent above.
     BasicText(
         text = label,
         style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         modifier = Modifier
-            .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     )
 }
 
+// Muted variant of the context-menu text color for this off-white surface - there's no shared
+// Palette token for it since it's a one-off exception to the app's otherwise dark-only theme (see
+// Palette.ContextMenuText's own comment), so it's derived here rather than adding one for a single
+// use site.
+private val ContextMenuTextMuted = Palette.ContextMenuText.copy(alpha = 0.6f)
+private val ContextMenuButtonSurface = Palette.ContextMenuText.copy(alpha = 0.08f)
+
 @Composable
 private fun DialogCard(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    // Same off-white contextMenuSurface as ProgramContextMenu (the long-press menu that opens
+    // this) rather than the dark menuSurface these dialogs used before - the two should read as
+    // one continuous flow, not a light menu handing off to an unrelated-looking dark dialog.
     Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .widthIn(min = 260.dp, max = 340.dp)
-                .menuSurface(AppShapes.medium)
+                .contextMenuSurface(AppShapes.medium)
                 .padding(16.dp),
             content = content,
         )
@@ -107,10 +111,10 @@ private fun DialogCard(onDismiss: () -> Unit, content: @Composable ColumnScope.(
 
 @Composable
 private fun DialogTitle(program: EpgProgram, channel: IptvChannelInfo) {
-    BasicText(text = program.title, style = TextStyle(color = Palette.TextPrimary, fontSize = 16.sp))
+    BasicText(text = program.title, style = TextStyle(color = Palette.ContextMenuText, fontSize = 16.sp))
     BasicText(
         text = "${channel.name} · ${timeFormatter.format(program.startAt.atZone(ZoneId.systemDefault()))}",
-        style = TextStyle(color = Palette.TextMuted, fontSize = 12.sp),
+        style = TextStyle(color = ContextMenuTextMuted, fontSize = 12.sp),
         modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
     )
 }
@@ -120,7 +124,7 @@ private fun DialogActions(onCancel: () -> Unit, confirmLabel: String, onConfirm:
     Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
         BasicText(
             text = "Cancel",
-            style = TextStyle(color = Palette.TextMuted, fontSize = 14.sp),
+            style = TextStyle(color = ContextMenuTextMuted, fontSize = 14.sp),
             modifier = Modifier.clickable(onClick = onCancel).padding(12.dp),
         )
         BasicText(
@@ -134,11 +138,11 @@ private fun DialogActions(onCancel: () -> Unit, confirmLabel: String, onConfirm:
 @Composable
 private fun Stepper(label: String, value: Int, onValueChange: (Int) -> Unit, min: Int = -30, max: Int = 30) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        BasicText(text = label, style = TextStyle(color = Palette.TextPrimary, fontSize = 13.sp), modifier = Modifier.weight(1f))
+        BasicText(text = label, style = TextStyle(color = Palette.ContextMenuText, fontSize = 13.sp), modifier = Modifier.weight(1f))
         StepperButton("−") { onValueChange(max(min, value - 1)) }
         BasicText(
             text = "$value min",
-            style = TextStyle(color = Palette.TextPrimary, fontSize = 13.sp, textAlign = TextAlign.Center),
+            style = TextStyle(color = Palette.ContextMenuText, fontSize = 13.sp, textAlign = TextAlign.Center),
             modifier = Modifier.width(56.dp).padding(horizontal = 4.dp),
         )
         StepperButton("+") { onValueChange(min(max, value + 1)) }
@@ -149,11 +153,11 @@ private fun Stepper(label: String, value: Int, onValueChange: (Int) -> Unit, min
 private fun StepperButton(symbol: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .background(Palette.Surface, AppShapes.small)
+            .background(ContextMenuButtonSurface, AppShapes.small)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        BasicText(text = symbol, style = TextStyle(color = Palette.TextPrimary, fontSize = 14.sp))
+        BasicText(text = symbol, style = TextStyle(color = Palette.ContextMenuText, fontSize = 14.sp))
     }
 }
 
@@ -199,7 +203,7 @@ fun ReminderProgramDialog(
         DialogTitle(program, channel)
         BasicText(
             text = "Notify me before it starts:",
-            style = TextStyle(color = Palette.TextPrimary, fontSize = 13.sp),
+            style = TextStyle(color = Palette.ContextMenuText, fontSize = 13.sp),
             modifier = Modifier.padding(bottom = 8.dp),
         )
         Row {
@@ -216,13 +220,13 @@ private fun LeadChip(minutes: Int, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .padding(end = 6.dp)
-            .background(if (selected) Palette.Accent else Palette.Surface, AppShapes.pill)
+            .background(if (selected) Palette.Accent else ContextMenuButtonSurface, AppShapes.pill)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         BasicText(
             text = "${minutes}m",
-            style = TextStyle(color = if (selected) Palette.Background else Palette.TextMuted, fontSize = 12.sp),
+            style = TextStyle(color = if (selected) Palette.Background else ContextMenuTextMuted, fontSize = 12.sp),
         )
     }
 }

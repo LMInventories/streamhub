@@ -104,15 +104,23 @@ fun LiveTvScreenPhone(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            TopAppBar(
-                title = { Text("Live TV") },
-                actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
-                    }
-                },
-                modifier = Modifier.statusBarsPadding(),
-            )
+            // In landscape (once a source exists) the app bar is dropped entirely rather than
+            // just hidden - its height is exactly what the EPG grid below is short on for smaller
+            // phone screens, where it doesn't fit at all otherwise. Settings access moves to an
+            // icon overlaid on the mini-player row instead of losing its own dedicated bar. Kept
+            // when there's no source yet regardless of orientation, since that's the only way to
+            // reach settings before a playlist exists.
+            if (!isLandscape || !uiState.hasSource) {
+                TopAppBar(
+                    title = { Text("Live TV") },
+                    actions = {
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
+                        }
+                    },
+                    modifier = Modifier.statusBarsPadding(),
+                )
+            }
 
             uiState.errorMessage?.let { error ->
                 Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
@@ -124,19 +132,24 @@ fun LiveTvScreenPhone(
             }
 
             if (isLandscape) {
-                Row(modifier = Modifier.fillMaxWidth().height(140.dp)) {
-                    MiniPlayerPreview(
-                        exoPlayer = viewModel.miniPlayerController.exoPlayer,
-                        uiState = miniPlayerState,
-                        onTap = viewModel::enterFullscreen,
-                        modifier = Modifier.width(220.dp).fillMaxHeight(),
-                    )
-                    EpgInfoPanel(
-                        channelName = uiState.focusedChannel?.name,
-                        nowProgram = uiState.nowProgram,
-                        nextProgram = uiState.nextProgram,
-                        modifier = Modifier.padding(12.dp),
-                    )
+                Box(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
+                    Row(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+                        MiniPlayerPreview(
+                            exoPlayer = viewModel.miniPlayerController.exoPlayer,
+                            uiState = miniPlayerState,
+                            onTap = viewModel::enterFullscreen,
+                            modifier = Modifier.width(220.dp).fillMaxHeight(),
+                        )
+                        EpgInfoPanel(
+                            channelName = uiState.focusedChannel?.name,
+                            nowProgram = uiState.nowProgram,
+                            nextProgram = uiState.nextProgram,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                    IconButton(onClick = onSettingsClick, modifier = Modifier.align(Alignment.TopEnd)) {
+                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings", tint = Color.White)
+                    }
                 }
             } else {
                 MiniPlayerPreview(
