@@ -32,8 +32,17 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
+import javax.inject.Provider
 
 private const val GRID_DAYS = 7L
+// Matches the real ceiling, not just a UX choice - Android's MediaCodec framework has been
+// observed failing to allocate a 5th concurrent hardware video decoder on many devices
+// regardless of app design, and every established multiview IPTV app (TiviMate, IPTV Smarters)
+// caps at 4 for the same reason.
+const val MAX_MULTIVIEW_TILES = 4
+
+/** One live tile in the multiview grid - its own independent PlayerController/ExoPlayer instance, same as miniPlayerController but one per staged channel instead of one overall. */
+data class MultiviewTile(val channel: IptvChannelInfo, val controller: PlayerController)
 
 data class LiveTvUiState(
     // Defaults true so the first frame shows the normal loading spinner rather than a flash of
@@ -70,6 +79,12 @@ data class LiveTvUiState(
     // need to rebuffer the same stream from scratch.
     val isFullscreen: Boolean = false,
     val previewPlayerSize: PreviewPlayerSize = PreviewPlayerSize.MEDIUM,
+    // Staged multiview channels persist across opening/closing the grid (their controllers keep
+    // playing muted in the background, same "why stop it" reasoning as the main mini-player) -
+    // only explicitly removing a tile or leaving Live TV entirely releases its controller.
+    val multiviewTiles: List<MultiviewTile> = emptyList(),
+    val isMultiviewActive: Boolean = false,
+    val multiviewAudioFocusChannelId: String? = null,
 )
 
 /**
@@ -88,6 +103,10 @@ class LiveTvViewModel @Inject constructor(
     private val fullscreenOverlayState: FullscreenOverlayState,
     private val castController: LiveTvCastController,
     private val appSettingsRepository: IptvAppSettingsRepository,
+    // A Provider, not a direct injection - PlayerController is unscoped, so calling .get() once
+    // per staged multiview channel hands out a fresh independent ExoPlayer instance each time,
+    // the same way Hilt already hands miniPlayerController its own separate instance below.
+    private val multiviewControllerProvider: Provider<PlayerController>,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -269,6 +288,15 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
+    /** Long-press-on-channel-label entry point (EPG grid) - unlike the plain-list context menu, there's no dropdown here to show distinct "Add"/"Remove" text, so a single toggle is the simpler fit. */
+    fun toggleMultiview(channel: IptvChannelInfo) {
+        if (_uiState.value.multiviewTiles.any { it.channel.id == channel.id }) {
+            removeFromMultiview(channel.id)
+        } else {
+            addToMultiview(channel)
+        }
+    }
+
     fun scheduleRecording(channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) {
         viewModelScope.launch { scheduledEventsRepository.addRecording(channel, program, startAdjustMinutes, endAdjustMinutes) }
     }
@@ -360,6 +388,67 @@ class LiveTvViewModel @Inject constructor(
         miniPlayerController.pause()
     }
 
+    /** No-op past MAX_MULTIVIEW_TILES or if the channel's already staged, rather than erroring - the "Multiview" button/menu item simply won't do anything further, which reads clearly enough on its own. */
+    fun addToMultiview(channel: IptvChannelInfo) {
+        val current = _uiState.value.multiviewTiles
+        if (current.size >= MAX_MULTIVIEW_TILES || current.any { it.channel.id == channel.id }) return
+
+        val controller = multiviewControllerProvider.get()
+        controller.prepare(
+            PlaybackItem(
+                id = channel.id,
+                sourceType = SourceType.IPTV,
+                title = channel.name,
+                posterUrl = channel.logoUrl,
+                streamUri = channel.streamUrl,
+                isLive = true,
+            ),
+        )
+        // Muted until explicitly given audio focus - see setMultiviewAudioFocus. The very first
+        // tile staged is a reasonable default focus, so it's not silent the first time the grid
+        // actually opens.
+        val isFirstTile = current.isEmpty()
+        controller.setMuted(!isFirstTile)
+        _uiState.update {
+            it.copy(
+                multiviewTiles = current + MultiviewTile(channel, controller),
+                multiviewAudioFocusChannelId = if (isFirstTile) channel.id else it.multiviewAudioFocusChannelId,
+            )
+        }
+    }
+
+    fun removeFromMultiview(channelId: String) {
+        val wasFocused = _uiState.value.multiviewAudioFocusChannelId == channelId
+        val tile = _uiState.value.multiviewTiles.firstOrNull { it.channel.id == channelId } ?: return
+        tile.controller.release()
+        val remaining = _uiState.value.multiviewTiles.filterNot { it.channel.id == channelId }
+        _uiState.update { it.copy(multiviewTiles = remaining, isMultiviewActive = it.isMultiviewActive && remaining.size >= 2) }
+        // Falls back to whatever's now first rather than leaving every remaining tile muted if
+        // the removed one happened to be the audio-focused tile.
+        if (wasFocused) {
+            remaining.firstOrNull()?.let { setMultiviewAudioFocus(it.channel.id) }
+                ?: _uiState.update { it.copy(multiviewAudioFocusChannelId = null) }
+        }
+    }
+
+    /** Requires 2+ staged tiles - the entry point (button/menu) is only ever shown once that's true, so this is a safety check, not user-facing validation. */
+    fun openMultiview() {
+        if (_uiState.value.multiviewTiles.size < 2) return
+        _uiState.update { it.copy(isMultiviewActive = true) }
+        fullscreenOverlayState.setActive(true)
+    }
+
+    /** Leaves every tile's controller alive (see multiviewTiles' own doc comment) - only visually collapses the grid. */
+    fun closeMultiview() {
+        _uiState.update { it.copy(isMultiviewActive = false) }
+        fullscreenOverlayState.setActive(false)
+    }
+
+    fun setMultiviewAudioFocus(channelId: String) {
+        _uiState.value.multiviewTiles.forEach { tile -> tile.controller.setMuted(tile.channel.id != channelId) }
+        _uiState.update { it.copy(multiviewAudioFocusChannelId = channelId) }
+    }
+
     override fun onCleared() {
         // Safety net - if this ViewModel is torn down while still fullscreen (shouldn't normally
         // happen since the screen composable's onDispose already calls exitFullscreen(), but a
@@ -367,5 +456,6 @@ class LiveTvViewModel @Inject constructor(
         // permanently hidden for whatever screen the user lands on next.
         fullscreenOverlayState.setActive(false)
         miniPlayerController.release()
+        _uiState.value.multiviewTiles.forEach { it.controller.release() }
     }
 }

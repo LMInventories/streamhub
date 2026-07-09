@@ -55,7 +55,23 @@ fun LiveTvScreenTv(
         onDispose {
             viewModel.pauseMiniPlayer()
             viewModel.exitFullscreen()
+            // Same "safety net" reasoning as exitFullscreen() above - without this, leaving Live
+            // TV entirely (a different tab-row tab) while multiview is open would leave
+            // fullscreenOverlayState stuck active and the tab row permanently hidden.
+            viewModel.closeMultiview()
         }
+    }
+
+    if (uiState.isMultiviewActive) {
+        MultiviewOverlay(
+            tiles = uiState.multiviewTiles,
+            audioFocusChannelId = uiState.multiviewAudioFocusChannelId,
+            onTapTile = viewModel::setMultiviewAudioFocus,
+            onRemoveTile = viewModel::removeFromMultiview,
+            onClose = viewModel::closeMultiview,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
     }
 
     val focusedChannel = uiState.focusedChannel
@@ -96,6 +112,13 @@ fun LiveTvScreenTv(
                 nextProgram = uiState.nextProgram,
                 modifier = Modifier.padding(16.dp),
             )
+            if (uiState.multiviewTiles.size >= 2) {
+                MultiviewButton(
+                    tileCount = uiState.multiviewTiles.size,
+                    onClick = viewModel::openMultiview,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
         }
 
         uiState.errorMessage?.let { error ->
@@ -162,6 +185,7 @@ fun LiveTvScreenTv(
                             onFocusChannel = viewModel::focusChannel,
                             onScheduleRecording = viewModel::scheduleRecording,
                             onScheduleReminder = viewModel::scheduleReminder,
+                            onToggleMultiview = viewModel::toggleMultiview,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }

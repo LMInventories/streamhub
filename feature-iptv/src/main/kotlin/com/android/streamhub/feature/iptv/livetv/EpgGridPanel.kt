@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -86,6 +85,7 @@ fun EpgGridPanel(
     onFocusChannel: (IptvChannelInfo) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
+    onToggleMultiview: (IptvChannelInfo) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val use24Hour = rememberUse24HourTime()
@@ -140,6 +140,7 @@ fun EpgGridPanel(
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
                     onClick = { onFocusChannel(channel) },
+                    onLongClickLabel = { onToggleMultiview(channel) },
                     onLongPressProgram = { program -> menuState = ProgramMenuState.ContextMenu(channel, program) },
                 )
                 HorizontalDivider(color = Palette.Border)
@@ -223,6 +224,7 @@ private fun TimeHeader(windowStart: Instant, windowEnd: Instant, use24Hour: Bool
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GridChannelRow(
     channel: IptvChannelInfo,
@@ -231,13 +233,14 @@ private fun GridChannelRow(
     windowEnd: Instant,
     sharedScrollState: ScrollState,
     onClick: () -> Unit,
+    onLongClickLabel: () -> Unit,
     onLongPressProgram: (EpgProgram) -> Unit,
 ) {
     Row(modifier = Modifier.height(ROW_HEIGHT)) {
         Box(
             modifier = Modifier.width(CHANNEL_LABEL_WIDTH).fillMaxHeight()
                 .background(Palette.Surface)
-                .clickable(onClick = onClick)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClickLabel)
                 .padding(8.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
