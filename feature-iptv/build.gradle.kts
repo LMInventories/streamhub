@@ -74,6 +74,12 @@ dependencies {
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
+    // Cast-to-device button on the Live TV mini-player preview. Phone-only feature (casting
+    // makes sense from a handheld to a TV, not from an Android TV device to itself), but the
+    // dependency lives at the module level since LiveTvScreenPhone/Tv share this module.
+    implementation(libs.play.services.cast.framework)
+    implementation(libs.androidx.mediarouter)
+
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
 }

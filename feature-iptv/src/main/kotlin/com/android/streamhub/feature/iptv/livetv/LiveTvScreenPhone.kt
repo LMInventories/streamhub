@@ -59,6 +59,7 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
+import com.android.streamhub.feature.iptv.livetv.cast.CastButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,8 +170,11 @@ fun LiveTvScreenPhone(
                         )
                     }
                 }
-                IconButton(onClick = onSettingsClick, modifier = Modifier.align(Alignment.TopEnd)) {
-                    Icon(Icons.Filled.Settings, contentDescription = "IPTV settings", tint = Color.White)
+                Row(modifier = Modifier.align(Alignment.TopEnd), verticalAlignment = Alignment.CenterVertically) {
+                    CastButton(isAvailable = viewModel.isCastAvailable)
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings", tint = Color.White)
+                    }
                 }
             }
 

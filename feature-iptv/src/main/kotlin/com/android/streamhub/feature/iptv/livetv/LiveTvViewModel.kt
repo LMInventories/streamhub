@@ -17,6 +17,7 @@ import com.android.streamhub.feature.iptv.data.epg.EpgRefreshResult
 import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
 import com.android.streamhub.feature.iptv.data.recent.RecentChannelsRepository
 import com.android.streamhub.feature.iptv.data.scheduled.ScheduledEventsRepository
+import com.android.streamhub.feature.iptv.livetv.cast.LiveTvCastController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,6 +82,7 @@ class LiveTvViewModel @Inject constructor(
     private val scheduledEventsRepository: ScheduledEventsRepository,
     private val recentChannelsRepository: RecentChannelsRepository,
     private val fullscreenOverlayState: FullscreenOverlayState,
+    private val castController: LiveTvCastController,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -95,6 +97,9 @@ class LiveTvViewModel @Inject constructor(
     val uiState: StateFlow<LiveTvUiState> = _uiState
 
     val miniPlayerUiState: StateFlow<PlayerUiState> = miniPlayerController.uiState
+
+    val isCastAvailable: Boolean = castController.isAvailable
+    val isCasting: StateFlow<Boolean> = castController.isCasting
 
     // Drives the fullscreen overlay's channel-switcher strip - reactive, so a channel added by
     // watching it just now shows up there immediately, not just next time the app opens.
@@ -132,6 +137,17 @@ class LiveTvViewModel @Inject constructor(
                 refreshCurrentSelection()
             }
         }
+        // A session connecting mid-browse (user picks a device from the Cast button while already
+        // watching something) should immediately start casting whatever's currently focused,
+        // rather than requiring a channel switch first to trigger it.
+        viewModelScope.launch {
+            castController.isCasting.collect { casting -> if (casting) castCurrentChannel() }
+        }
+    }
+
+    private fun castCurrentChannel() {
+        val channel = _uiState.value.focusedChannel ?: return
+        castController.loadStream(streamUrl = channel.streamUrl, title = channel.name, subtitle = _uiState.value.nowProgram?.title)
     }
 
     fun loadCategories() {
@@ -214,6 +230,9 @@ class LiveTvViewModel @Inject constructor(
                 isLive = true,
             ),
         )
+        // Casting follows whatever's focused in the app, same as the local mini-player does -
+        // no-ops internally if nothing's actually connected.
+        if (isCasting.value) castCurrentChannel()
 
         viewModelScope.launch {
             runCatching { browseRepository.getNowNext(channel.id) }

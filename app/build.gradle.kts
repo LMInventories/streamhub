@@ -96,6 +96,11 @@ dependencies {
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
+    // CastOptionsProvider lives here since AndroidManifest.xml's OPTIONS_PROVIDER_CLASS_NAME
+    // meta-data needs it on the app module's own classpath - the Cast button/session-driving
+    // logic itself lives in feature-iptv instead, next to what it actually casts.
+    implementation(libs.play.services.cast.framework)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
 }
