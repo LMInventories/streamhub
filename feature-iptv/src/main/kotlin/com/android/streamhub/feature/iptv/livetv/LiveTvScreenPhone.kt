@@ -70,6 +70,7 @@ fun LiveTvScreenPhone(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+    val multiviewPickerCandidates by viewModel.multiviewPickerCandidates.collectAsStateWithLifecycle()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
@@ -95,8 +96,10 @@ fun LiveTvScreenPhone(
         MultiviewOverlay(
             tiles = uiState.multiviewTiles,
             audioFocusChannelId = uiState.multiviewAudioFocusChannelId,
+            pickerCandidates = multiviewPickerCandidates,
             onTapTile = viewModel::setMultiviewAudioFocus,
             onRemoveTile = viewModel::removeFromMultiview,
+            onAddChannel = viewModel::addToMultiview,
             onClose = viewModel::closeMultiview,
             modifier = Modifier.fillMaxSize(),
         )

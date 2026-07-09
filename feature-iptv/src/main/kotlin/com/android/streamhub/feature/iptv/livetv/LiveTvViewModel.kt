@@ -25,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -129,6 +130,15 @@ class LiveTvViewModel @Inject constructor(
     // watching it just now shows up there immediately, not just next time the app opens.
     val recentChannels: StateFlow<List<IptvChannelInfo>> =
         recentChannelsRepository.observeRecent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Candidates for the "Add Channel" picker inside the multiview grid itself - recent +
+    // favourite channels rather than a full category browser, since building that into the
+    // overlay would mean duplicating category/channel-list browsing UI a second time. Covers the
+    // channels someone's actually likely to want in a multiview session without that duplication.
+    val multiviewPickerCandidates: StateFlow<List<IptvChannelInfo>> =
+        combine(recentChannels, favoritesRepository.observeFavorites()) { recent, favorites ->
+            (recent + favorites).distinctBy { it.id }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // Only non-null while the Favourites category is selected - a live Flow collector (not a
     // one-shot fetch like every other category) so removing a favourite while looking at this
@@ -379,7 +389,14 @@ class LiveTvViewModel @Inject constructor(
         miniPlayerController.pause()
     }
 
-    /** No-op past MAX_MULTIVIEW_TILES or if the channel's already staged, rather than erroring - the "Multiview" button/menu item simply won't do anything further, which reads clearly enough on its own. */
+    /**
+     * No-op past MAX_MULTIVIEW_TILES or if the channel's already staged, rather than erroring -
+     * the "Add to Multiview" menu item simply won't do anything further, which reads clearly
+     * enough on its own. Auto-opens the grid the moment a second channel is staged - requiring a
+     * separate manual "open" step after adding gave no visible feedback that anything had
+     * happened, since nothing about a background-staged tile is visible until the grid itself is
+     * showing.
+     */
     fun addToMultiview(channel: IptvChannelInfo) {
         val current = _uiState.value.multiviewTiles
         if (current.size >= MAX_MULTIVIEW_TILES || current.any { it.channel.id == channel.id }) return
@@ -400,12 +417,14 @@ class LiveTvViewModel @Inject constructor(
         // actually opens.
         val isFirstTile = current.isEmpty()
         controller.setMuted(!isFirstTile)
+        val updatedTiles = current + MultiviewTile(channel, controller)
         _uiState.update {
             it.copy(
-                multiviewTiles = current + MultiviewTile(channel, controller),
+                multiviewTiles = updatedTiles,
                 multiviewAudioFocusChannelId = if (isFirstTile) channel.id else it.multiviewAudioFocusChannelId,
             )
         }
+        if (updatedTiles.size >= 2) openMultiview()
     }
 
     fun removeFromMultiview(channelId: String) {

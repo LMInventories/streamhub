@@ -46,8 +46,9 @@ import kotlin.math.min
 // as a floating menu. shadow() fixes that regardless of what's behind it. Used by both the
 // long-press context menu and the Record/Reminder dialogs that follow it - a deliberately
 // different, light off-white/dark-text look from the rest of the app's dark theme, sized to wrap
-// its content rather than forcing a wide fixed minimum.
-private fun Modifier.contextMenuSurface(shape: Shape) = this
+// its content rather than forcing a wide fixed minimum. internal (not private) so
+// MultiviewOverlay's own picker popup can reuse the exact same look rather than duplicating it.
+internal fun Modifier.contextMenuSurface(shape: Shape) = this
     .shadow(elevation = 10.dp, shape = shape)
     .background(Palette.ContextMenuSurface, shape)
 

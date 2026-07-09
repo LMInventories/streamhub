@@ -42,6 +42,7 @@ fun LiveTvScreenTv(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+    val multiviewPickerCandidates by viewModel.multiviewPickerCandidates.collectAsStateWithLifecycle()
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
     // returning from another tab) and pauses it whenever it leaves - there's no reason to keep a
@@ -66,8 +67,10 @@ fun LiveTvScreenTv(
         MultiviewOverlay(
             tiles = uiState.multiviewTiles,
             audioFocusChannelId = uiState.multiviewAudioFocusChannelId,
+            pickerCandidates = multiviewPickerCandidates,
             onTapTile = viewModel::setMultiviewAudioFocus,
             onRemoveTile = viewModel::removeFromMultiview,
+            onAddChannel = viewModel::addToMultiview,
             onClose = viewModel::closeMultiview,
             modifier = Modifier.fillMaxSize(),
         )
