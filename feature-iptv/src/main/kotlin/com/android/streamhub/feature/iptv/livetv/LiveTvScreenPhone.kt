@@ -5,7 +5,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,7 +63,6 @@ import com.android.streamhub.feature.iptv.livetv.cast.CastButton
 @Composable
 fun LiveTvScreenPhone(
     paddingValues: PaddingValues,
-    onSettingsClick: () -> Unit,
     onFullscreen: (channelId: String) -> Unit,
     onOpenRecordings: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
@@ -110,28 +107,12 @@ fun LiveTvScreenPhone(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // No title text - the bottom nav tab below already says "Live TV", so a second,
-            // bigger heading right above it was redundant. The settings action is still needed
-            // (before a playlist exists it's the only way to reach settings), just without a
-            // full app bar around it. Once a source exists this whole row disappears in both
-            // orientations - see the settings icon overlaid on the mini-player section below.
-            if (!uiState.hasSource) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 4.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
-                    }
-                }
-            }
-
             uiState.errorMessage?.let { error ->
                 Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
             }
 
             if (!uiState.hasSource) {
-                AddSourcePrompt(onSetupClick = onSettingsClick, modifier = Modifier.weight(1f))
+                AddSourcePrompt(modifier = Modifier.weight(1f).statusBarsPadding())
                 return@Column
             }
 
@@ -170,12 +151,7 @@ fun LiveTvScreenPhone(
                         )
                     }
                 }
-                Row(modifier = Modifier.align(Alignment.TopEnd), verticalAlignment = Alignment.CenterVertically) {
-                    CastButton(isAvailable = viewModel.isCastAvailable)
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings", tint = Color.White)
-                    }
-                }
+                CastButton(isAvailable = viewModel.isCastAvailable, modifier = Modifier.align(Alignment.TopEnd))
             }
 
             LiveTvBrowseContent(
@@ -201,18 +177,15 @@ fun LiveTvScreenPhone(
 }
 
 @Composable
-private fun AddSourcePrompt(onSetupClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AddSourcePrompt(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("No playlist added yet", color = Color.White)
             Text(
-                text = "Add an Xtream Codes or M3U playlist to start watching Live TV.",
+                text = "Add an Xtream Codes or M3U playlist from the Settings tab to start watching Live TV.",
                 color = Color.Gray,
                 modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
             )
-            IconButton(onClick = onSetupClick, modifier = Modifier.padding(top = 16.dp)) {
-                Icon(Icons.Filled.Settings, contentDescription = "Add playlist")
-            }
         }
     }
 }

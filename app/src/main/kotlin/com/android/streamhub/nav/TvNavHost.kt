@@ -77,12 +77,10 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             composable(Route.HOME_PATTERN) {
                 HomeScreenTv(
                     onNavigate = navigateToTab,
-                    onSettingsClick = { navigateToTab(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
                 LiveTvScreenTv(
-                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onOpenRecordings = { navController.navigate(Route.RECORDINGS_PATTERN) },
                 )
             }
@@ -94,7 +92,6 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.VOD_PATTERN) {
                 VodScreenTv(
-                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
                     onOpenShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
                 )
@@ -123,13 +120,11 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     title = "Emby",
                     message = "Emby integration isn't wired up yet.",
                     paddingValues = PaddingValues(24.dp),
-                    onSettingsClick = { navigateToTab(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
                 JellyfinHomeScreen(
                     paddingValues = PaddingValues(24.dp),
-                    onSettingsClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
                     onOpenLibrary = { library ->
                         navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
                     },

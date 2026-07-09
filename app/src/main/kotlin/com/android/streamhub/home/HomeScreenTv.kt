@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
@@ -26,16 +25,11 @@ import com.android.streamhub.core.design.AppShapes
 @Composable
 fun HomeScreenTv(
     onNavigate: (String) -> Unit,
-    onSettingsClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val dashboardEntries by viewModel.dashboardEntries.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Button(onClick = onSettingsClick, modifier = Modifier.padding(24.dp, 24.dp, 24.dp, 0.dp)) {
-            Text("Settings")
-        }
-
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 260.dp),
             modifier = Modifier.fillMaxSize().padding(24.dp),

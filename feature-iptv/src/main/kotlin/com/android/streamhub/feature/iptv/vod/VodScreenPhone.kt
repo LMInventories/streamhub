@@ -19,7 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -51,7 +50,6 @@ import com.android.streamhub.core.design.PillToggle
 @Composable
 fun VodScreenPhone(
     paddingValues: PaddingValues,
-    onSettingsClick: () -> Unit,
     onOpenMovie: (itemId: String) -> Unit,
     onOpenShow: (seriesId: String) -> Unit,
     viewModel: VodViewModel = hiltViewModel(),
@@ -60,19 +58,21 @@ fun VodScreenPhone(
     val selectedCategory = uiState.selectedCategory
 
     Surface(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+        // statusBarsPadding lives here unconditionally, not just on the grid density row below -
+        // that row only renders once a category's selected, but this screen still needs status
+        // bar clearance in landscape (where paddingValues arrives zeroed - see PhoneScaffold)
+        // even before that.
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).statusBarsPadding()) {
             // No title text here - the bottom nav tab below is already labeled "VOD", so a
-            // second, bigger "VOD" heading right above it was purely redundant. Just the actions
-            // that actually do something, right-aligned, rather than a full-height empty app bar.
-            Row(
-                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 4.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                if (selectedCategory != null) {
+            // second, bigger "VOD" heading right above it was purely redundant. Just the grid
+            // density action, right-aligned, rather than a full-height empty app bar - and only
+            // shown at all once there's actually a category grid on screen for it to affect.
+            if (selectedCategory != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
                     GridDensityButton(gridColumns = uiState.gridColumns, onSelect = viewModel::setGridColumns)
-                }
-                IconButton(onClick = onSettingsClick) {
-                    Icon(Icons.Filled.Settings, contentDescription = "IPTV settings")
                 }
             }
 
@@ -95,13 +95,10 @@ fun VodScreenPhone(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("No playlist added yet", color = Palette.TextPrimary)
                         Text(
-                            text = "Add an Xtream Codes playlist to browse movies and shows.",
+                            text = "Add an Xtream Codes playlist from the Settings tab to browse movies and shows.",
                             color = Palette.TextMuted,
                             modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
                         )
-                        IconButton(onClick = onSettingsClick, modifier = Modifier.padding(top = 16.dp)) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Add playlist")
-                        }
                     }
                 }
 

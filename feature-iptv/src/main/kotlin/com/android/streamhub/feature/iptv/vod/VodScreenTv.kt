@@ -32,7 +32,6 @@ import com.android.streamhub.feature.iptv.data.VodCategoryInfo
 
 @Composable
 fun VodScreenTv(
-    onSettingsClick: () -> Unit,
     onOpenMovie: (itemId: String) -> Unit,
     onOpenShow: (seriesId: String) -> Unit,
     viewModel: VodViewModel = hiltViewModel(),
@@ -41,17 +40,14 @@ fun VodScreenTv(
     val selectedCategory = uiState.selectedCategory
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.padding(24.dp, 24.dp, 24.dp, 0.dp)) {
-            if (selectedCategory == null) {
+        if (selectedCategory == null) {
+            Row(modifier = Modifier.padding(24.dp, 24.dp, 24.dp, 0.dp)) {
                 Button(onClick = { viewModel.setMode(VodMode.MOVIES) }) {
                     Text(if (uiState.mode == VodMode.MOVIES) "> Movies" else "Movies")
                 }
                 Button(onClick = { viewModel.setMode(VodMode.SHOWS) }, modifier = Modifier.padding(start = 8.dp)) {
                     Text(if (uiState.mode == VodMode.SHOWS) "> TV Shows" else "TV Shows")
                 }
-            }
-            Button(onClick = onSettingsClick, modifier = Modifier.padding(start = 8.dp)) {
-                Text("IPTV settings")
             }
         }
 
@@ -68,12 +64,9 @@ fun VodScreenTv(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("No playlist added yet")
                         Text(
-                            "Add an Xtream Codes playlist to browse movies and shows.",
+                            "Add an Xtream Codes playlist from the Settings tab to browse movies and shows.",
                             modifier = Modifier.padding(top = 8.dp),
                         )
-                        Button(onClick = onSettingsClick, modifier = Modifier.padding(top = 16.dp)) {
-                            Text("Add playlist")
-                        }
                     }
                 }
 

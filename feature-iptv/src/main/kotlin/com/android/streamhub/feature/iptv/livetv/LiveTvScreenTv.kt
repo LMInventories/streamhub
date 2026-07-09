@@ -3,7 +3,6 @@ package com.android.streamhub.feature.iptv.livetv
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,7 +36,6 @@ import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 
 @Composable
 fun LiveTvScreenTv(
-    onSettingsClick: () -> Unit,
     onOpenRecordings: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
@@ -80,7 +78,7 @@ fun LiveTvScreenTv(
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (!uiState.hasSource) {
-            AddSourcePromptTv(onSetupClick = onSettingsClick, modifier = Modifier.weight(1f))
+            AddSourcePromptTv(modifier = Modifier.weight(1f))
             return@Column
         }
 
@@ -97,8 +95,6 @@ fun LiveTvScreenTv(
                 nextProgram = uiState.nextProgram,
                 modifier = Modifier.padding(16.dp),
             )
-            Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = onSettingsClick) { Text("IPTV settings") }
         }
 
         uiState.errorMessage?.let { error ->
@@ -175,14 +171,14 @@ fun LiveTvScreenTv(
 }
 
 @Composable
-private fun AddSourcePromptTv(onSetupClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AddSourcePromptTv(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("No playlist added yet")
-            Text("Add an Xtream Codes or M3U playlist to start watching Live TV.", modifier = Modifier.padding(top = 8.dp))
-            Button(onClick = onSetupClick, modifier = Modifier.padding(top = 16.dp)) {
-                Text("Add playlist")
-            }
+            Text(
+                "Add an Xtream Codes or M3U playlist from the Settings tab to start watching Live TV.",
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }

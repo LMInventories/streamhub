@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -37,7 +34,6 @@ import com.android.streamhub.core.design.AppShapes
 fun HomeScreenPhone(
     paddingValues: PaddingValues,
     onNavigate: (String) -> Unit,
-    onSettingsClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val dashboardEntries by viewModel.dashboardEntries.collectAsStateWithLifecycle()
@@ -46,11 +42,6 @@ fun HomeScreenPhone(
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             TopAppBar(
                 title = { Text("StreamHub") },
-                actions = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
-                },
                 modifier = Modifier.statusBarsPadding(),
             )
 

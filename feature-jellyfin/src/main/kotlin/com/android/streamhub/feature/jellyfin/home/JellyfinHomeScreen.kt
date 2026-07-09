@@ -16,12 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,7 +59,6 @@ private val JellyfinHomeColorScheme = darkColorScheme(
 @Composable
 fun JellyfinHomeScreen(
     paddingValues: PaddingValues,
-    onSettingsClick: () -> Unit,
     onOpenLibrary: (JellyfinLibraryInfo) -> Unit,
     onOpenItem: (JellyfinItemInfo) -> Unit,
     onOpenFavorites: () -> Unit,
@@ -73,20 +68,13 @@ fun JellyfinHomeScreen(
 
     MaterialTheme(colorScheme = JellyfinHomeColorScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                // No title text - the bottom nav tab below already says "Jellyfin", so a second,
-                // bigger heading right above it was redundant. Just the settings action, right-aligned.
-                Row(
-                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, end = 4.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Jellyfin settings")
-                    }
-                }
-
+            // No title text - the bottom nav tab below already says "Jellyfin", so a second,
+            // bigger heading right above it was redundant. statusBarsPadding lives here
+            // unconditionally now that there's no settings row to carry it - this screen still
+            // needs status bar clearance in phone landscape, where paddingValues arrives zeroed.
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues).statusBarsPadding()) {
                 when {
-                    !uiState.hasSource -> JellyfinAddSourcePrompt(onSettingsClick, modifier = Modifier.weight(1f))
+                    !uiState.hasSource -> JellyfinAddSourcePrompt(modifier = Modifier.weight(1f))
                     uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
@@ -103,18 +91,15 @@ fun JellyfinHomeScreen(
 }
 
 @Composable
-private fun JellyfinAddSourcePrompt(onSetupClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun JellyfinAddSourcePrompt(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("No Jellyfin server signed in", color = Palette.TextPrimary)
             Text(
-                text = "Sign in to a Jellyfin server to browse your library.",
+                text = "Sign in to a Jellyfin server from the Settings tab to browse your library.",
                 color = Palette.TextMuted,
                 modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
             )
-            IconButton(onClick = onSetupClick, modifier = Modifier.padding(top = 16.dp)) {
-                Icon(Icons.Filled.Settings, contentDescription = "Sign in")
-            }
         }
     }
 }

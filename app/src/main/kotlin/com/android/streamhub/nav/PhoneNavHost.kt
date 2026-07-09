@@ -78,13 +78,11 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 HomeScreenPhone(
                     paddingValues = paddingValues,
                     onNavigate = navigateToTab,
-                    onSettingsClick = { navigateToTab(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
                 LiveTvScreenPhone(
                     paddingValues = paddingValues,
-                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onFullscreen = { channelId ->
                         navController.navigate(Route.playerRoute(channelId, SourceType.IPTV))
                     },
@@ -100,7 +98,6 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
             composable(Route.VOD_PATTERN) {
                 VodScreenPhone(
                     paddingValues = paddingValues,
-                    onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
                     onOpenShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
                 )
@@ -129,13 +126,11 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     title = "Emby",
                     message = "Emby integration isn't wired up yet.",
                     paddingValues = paddingValues,
-                    onSettingsClick = { navigateToTab(Route.SETTINGS_PATTERN) },
                 )
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
                 JellyfinHomeScreen(
                     paddingValues = paddingValues,
-                    onSettingsClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
                     onOpenLibrary = { library ->
                         navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
                     },
