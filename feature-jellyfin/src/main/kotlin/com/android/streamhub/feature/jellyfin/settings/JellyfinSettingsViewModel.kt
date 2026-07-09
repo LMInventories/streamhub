@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.streamhub.feature.jellyfin.data.JellyfinSourceConfig
 import com.android.streamhub.feature.jellyfin.data.JellyfinSourceConfigRepository
+import com.android.streamhub.feature.jellyfin.di.JellyfinDebugInterceptor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,7 +76,8 @@ class JellyfinSettingsViewModel @Inject constructor(
                     _uiState.update { it.copy(isSigningIn = false, errorMessage = "Server didn't return a valid session") }
                 }
             }.onFailure { e ->
-                _uiState.update { it.copy(isSigningIn = false, errorMessage = e.describeChain()) }
+                val exchange = JellyfinDebugInterceptor.lastExchange?.let { "\n\n$it" }.orEmpty()
+                _uiState.update { it.copy(isSigningIn = false, errorMessage = "${e.describeChain()}$exchange") }
             }
         }
     }

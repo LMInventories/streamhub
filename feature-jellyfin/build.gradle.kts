@@ -40,9 +40,12 @@ dependencies {
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))
 
-    // Handles its own HTTP client (Ktor/OkHttp engine) internally - no separate Retrofit/OkHttp
-    // stack needed here the way feature-iptv needs one for its own hand-rolled Xtream/M3U clients.
+    // Handles its own HTTP client (Ktor/OkHttp engine) internally - no separate Retrofit stack
+    // needed here the way feature-iptv needs one for its own hand-rolled Xtream/M3U clients.
+    // okhttp itself is still a direct dependency below so JellyfinDebugInterceptor can plug into
+    // the SDK's OkHttpFactory rather than relying on whatever jellyfin-core exposes transitively.
     implementation(libs.jellyfin.sdk.core)
+    implementation(libs.okhttp)
     // jellyfin-core references org.slf4j.LoggerFactory at runtime (via Ktor/one of its own
     // dependencies) but only depends on slf4j-api at compile time, not runtime - without these,
     // sign-in crashes with NoClassDefFoundError: Failed resolution of: Lorg/slf4j/LoggerFactory

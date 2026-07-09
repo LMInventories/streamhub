@@ -6,7 +6,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
 import org.jellyfin.sdk.Jellyfin
+import org.jellyfin.sdk.api.okhttp.OkHttpFactory
 import org.jellyfin.sdk.createJellyfin
 import org.jellyfin.sdk.model.ClientInfo
 import javax.inject.Singleton
@@ -24,5 +26,12 @@ object JellyfinClientModule {
     fun provideJellyfin(@ApplicationContext context: Context): Jellyfin = createJellyfin {
         this.context = context
         clientInfo = ClientInfo(name = "StreamHub", version = "1.0")
+        // Wraps the SDK's default OkHttp-backed client with a debug interceptor so a failed
+        // sign-in can surface exactly what was sent/received - see JellyfinDebugInterceptor.
+        apiClientFactory = OkHttpFactory(
+            base = OkHttpClient.Builder()
+                .addInterceptor(JellyfinDebugInterceptor)
+                .build(),
+        )
     }
 }
