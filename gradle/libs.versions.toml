@@ -24,7 +24,7 @@ kotlinxCoroutines = "1.11.0"
 coil = "3.5.0"
 room = "2.8.4"
 javaxInject = "1"
-jellyfinSdk = "1.9.0-beta.1"
+jellyfinSdk = "1.8.11"
 slf4j = "2.0.17"
 slf4jAndroid = "2.0.17-0"
 

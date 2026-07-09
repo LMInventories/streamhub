@@ -3,12 +3,12 @@ package com.android.streamhub.feature.jellyfin.data
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
-import org.jellyfin.sdk.api.client.extensions.libraryApi
+import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
-import org.jellyfin.sdk.api.client.extensions.showApi
-import org.jellyfin.sdk.api.client.extensions.userDataApi
-import org.jellyfin.sdk.api.client.extensions.userViewApi
-import org.jellyfin.sdk.api.client.extensions.videoApi
+import org.jellyfin.sdk.api.client.extensions.tvShowsApi
+import org.jellyfin.sdk.api.client.extensions.userLibraryApi
+import org.jellyfin.sdk.api.client.extensions.userViewsApi
+import org.jellyfin.sdk.api.client.extensions.videosApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
@@ -47,19 +47,19 @@ class JellyfinBrowseRepository @Inject constructor(
 
     suspend fun getLibraries(): List<JellyfinLibraryInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.userViewApi.getUserViews(userId = currentUserId(), includeHidden = false)
+        return api.userViewsApi.getUserViews(userId = currentUserId(), includeHidden = false)
             .content.items.mapNotNull { it.toLibraryInfo() }
     }
 
     suspend fun getLatestMedia(libraryId: String, limit: Int = 20): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.libraryApi.getLatestMedia(userId = currentUserId(), parentId = UUID.fromString(libraryId), limit = limit)
+        return api.userLibraryApi.getLatestMedia(userId = currentUserId(), parentId = UUID.fromString(libraryId), limit = limit)
             .content.map { it.toItemInfo(api) }
     }
 
     suspend fun getResumeItems(limit: Int = 20): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.libraryApi.getResumeItems(
+        return api.itemsApi.getResumeItems(
             userId = currentUserId(),
             limit = limit,
             includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.EPISODE),
@@ -68,7 +68,7 @@ class JellyfinBrowseRepository @Inject constructor(
 
     suspend fun getNextUp(limit: Int = 20): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.showApi.getNextUp(userId = currentUserId(), limit = limit).content.items.map { it.toItemInfo(api) }
+        return api.tvShowsApi.getNextUp(userId = currentUserId(), limit = limit).content.items.map { it.toItemInfo(api) }
     }
 
     /**
@@ -92,7 +92,7 @@ class JellyfinBrowseRepository @Inject constructor(
             else -> return emptyList()
         }
         val (sortBy, sortOrder) = sortOption.toSortByAndOrder()
-        return api.libraryApi.getItems(
+        return api.itemsApi.getItems(
             userId = currentUserId(),
             parentId = UUID.fromString(libraryId),
             includeItemTypes = listOf(kind),
@@ -109,7 +109,7 @@ class JellyfinBrowseRepository @Inject constructor(
     /** Favorites can be a mix of movies and series (unlike getItems, which is scoped to one library/kind), and span every library rather than one - so this is its own call rather than getItems with an extra flag. */
     suspend fun getFavorites(startIndex: Int, limit: Int): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.libraryApi.getItems(
+        return api.itemsApi.getItems(
             userId = currentUserId(),
             includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
             recursive = true,
@@ -127,9 +127,9 @@ class JellyfinBrowseRepository @Inject constructor(
         val uuid = UUID.fromString(itemId)
         return runCatching {
             val result = if (currentlyFavorite) {
-                api.userDataApi.unmarkFavoriteItem(itemId = uuid, userId = currentUserId())
+                api.userLibraryApi.unmarkFavoriteItem(itemId = uuid, userId = currentUserId())
             } else {
-                api.userDataApi.markFavoriteItem(itemId = uuid, userId = currentUserId())
+                api.userLibraryApi.markFavoriteItem(itemId = uuid, userId = currentUserId())
             }
             result.content.isFavorite
         }.getOrNull()
@@ -145,19 +145,19 @@ class JellyfinBrowseRepository @Inject constructor(
 
     suspend fun getItem(itemId: String): JellyfinItemInfo? {
         val api = apiOrNull() ?: return null
-        return runCatching { api.libraryApi.getItem(itemId = UUID.fromString(itemId), userId = currentUserId()).content }
+        return runCatching { api.userLibraryApi.getItem(itemId = UUID.fromString(itemId), userId = currentUserId()).content }
             .getOrNull()?.toItemInfo(api)
     }
 
     suspend fun getSeasons(seriesId: String): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.showApi.getSeasons(seriesId = UUID.fromString(seriesId), userId = currentUserId())
+        return api.tvShowsApi.getSeasons(seriesId = UUID.fromString(seriesId), userId = currentUserId())
             .content.items.map { it.toItemInfo(api) }
     }
 
     suspend fun getEpisodes(seriesId: String, seasonId: String): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
-        return api.showApi.getEpisodes(seriesId = UUID.fromString(seriesId), seasonId = UUID.fromString(seasonId), userId = currentUserId())
+        return api.tvShowsApi.getEpisodes(seriesId = UUID.fromString(seriesId), seasonId = UUID.fromString(seasonId), userId = currentUserId())
             .content.items.map { it.toItemInfo(api) }
     }
 
@@ -173,7 +173,7 @@ class JellyfinBrowseRepository @Inject constructor(
         val uuid = UUID.fromString(itemId)
         val mediaSource = runCatching { api.mediaInfoApi.getPlaybackInfo(itemId = uuid, userId = currentUserId()).content }
             .getOrNull()?.mediaSources?.firstOrNull()
-        val url = api.videoApi.getVideoStreamUrl(
+        val url = api.videosApi.getVideoStreamUrl(
             itemId = uuid,
             static = true,
             mediaSourceId = mediaSource?.id,
