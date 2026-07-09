@@ -33,4 +33,8 @@ object Palette {
     val SourceIptv = Color(0xFFFF9F1C)
     val SourceJellyfin = Color(0xFF00A4DC)
     val SourceEmby = Color(0xFF52B54B)
+    // Distinct from the favourite heart's pink (0xFFE0245E, used inline where that appears) and
+    // from Error above - a classic "record button" red, universally recognizable for its own
+    // meaning rather than reusing either of those other reds' semantics.
+    val SourceRecording = Color(0xFFDC2626)
 }

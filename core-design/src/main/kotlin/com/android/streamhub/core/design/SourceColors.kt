@@ -8,6 +8,7 @@ fun SourceType.badgeColor(): Color = when (this) {
     SourceType.IPTV -> Palette.SourceIptv
     SourceType.JELLYFIN -> Palette.SourceJellyfin
     SourceType.EMBY -> Palette.SourceEmby
+    SourceType.RECORDING -> Palette.SourceRecording
     SourceType.MOCK -> Palette.TextMuted
 }
 
@@ -15,5 +16,6 @@ fun SourceType.label(): String = when (this) {
     SourceType.IPTV -> "IPTV"
     SourceType.JELLYFIN -> "Jellyfin"
     SourceType.EMBY -> "Emby"
+    SourceType.RECORDING -> "Recording"
     SourceType.MOCK -> "Demo"
 }
