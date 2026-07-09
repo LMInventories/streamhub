@@ -54,24 +54,28 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
 
     IptvAutoUpdateEffect()
 
+    // Same "switch tabs, keep each tab's state" pattern as the phone nav host - shared by both the
+    // tab row itself and Home's own dashboard tiles, which used to call
+    // navController.navigate(route) directly with none of this (see PhoneNavHost's matching
+    // comment for the resulting bug: a dashboard tile's destination could get left stuck on top of
+    // "home" instead of the tab row's Home button actually returning to it).
+    val navigateToTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     TvScaffold(
         currentRoute = currentRoute,
         tabRowVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
-        onNavigate = { route ->
-            // Same "switch tabs, keep each tab's state" pattern as the phone nav host - without
-            // this, hopping between tabs would restart the mini-player every time instead of
-            // resuming the one already running.
-            navController.navigate(route) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
-        },
+        onNavigate = navigateToTab,
     ) {
         NavHost(navController = navController, startDestination = Route.HOME_PATTERN) {
             composable(Route.HOME_PATTERN) {
                 HomeScreenTv(
-                    onNavigate = { route -> navController.navigate(route) },
+                    onNavigate = navigateToTab,
                     onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
                 )
             }

@@ -52,26 +52,31 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
 
     IptvAutoUpdateEffect()
 
+    // Standard bottom-nav "switch tabs, keep each tab's state" pattern - without
+    // saveState/restoreState, hopping between tabs would push a fresh backstack entry (and a
+    // fresh ViewModel/mini-player) every time instead of resuming the one already running. Shared
+    // by both the bottom nav bar itself and Home's own dashboard tiles - those used to call
+    // navController.navigate(route) directly with none of this, which is why tapping a dashboard
+    // tile then later tapping Home in the bottom bar could leave a stale/duplicate "home" entry
+    // buried under the tile's destination instead of actually returning to it.
+    val navigateToTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     PhoneScaffold(
         currentRoute = currentRoute,
         bottomBarVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
-        onNavigate = { route ->
-            // Standard bottom-nav "switch tabs, keep each tab's state" pattern - without
-            // saveState/restoreState, hopping between tabs would push a fresh backstack entry
-            // (and a fresh ViewModel/mini-player) every time instead of resuming the one already
-            // running.
-            navController.navigate(route) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
-        },
+        onNavigate = navigateToTab,
     ) { paddingValues ->
         NavHost(navController = navController, startDestination = Route.HOME_PATTERN) {
             composable(Route.HOME_PATTERN) {
                 HomeScreenPhone(
                     paddingValues = paddingValues,
-                    onNavigate = { route -> navController.navigate(route) },
+                    onNavigate = navigateToTab,
                     onSettingsClick = { navController.navigate(Route.SETTINGS_PATTERN) },
                 )
             }

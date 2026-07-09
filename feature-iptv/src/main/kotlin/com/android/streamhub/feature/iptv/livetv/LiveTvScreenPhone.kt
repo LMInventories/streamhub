@@ -45,13 +45,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
@@ -210,6 +213,27 @@ private fun AddSourcePrompt(onSetupClick: () -> Unit, modifier: Modifier = Modif
     }
 }
 
+@Composable
+private fun PinnedShortcut(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(AppShapes.small)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Palette.TextPrimary, modifier = Modifier.size(20.dp))
+        Text(
+            text = label,
+            color = Palette.TextPrimary,
+            fontSize = 14.sp,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LiveTvBrowseContent(
@@ -235,16 +259,23 @@ private fun LiveTvBrowseContent(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
             selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
-                ListItem(
-                    headlineContent = { Text("Favourites") },
-                    leadingContent = { Icon(Icons.Filled.Star, contentDescription = null) },
-                    modifier = Modifier.clickable { onSelectCategory(LiveTvViewModel.FAVORITES_CATEGORY) },
-                )
-                ListItem(
-                    headlineContent = { Text("Recordings") },
-                    leadingContent = { Icon(Icons.Filled.Videocam, contentDescription = null) },
-                    modifier = Modifier.clickable(onClick = onOpenRecordings),
-                )
+                // Side by side rather than stacked - two full-width ListItem rows spent nearly
+                // 120dp of height on two single-line labels, all of it taken directly from the
+                // category/EPG listing below.
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    PinnedShortcut(
+                        label = "Favourites",
+                        icon = Icons.Filled.Star,
+                        onClick = { onSelectCategory(LiveTvViewModel.FAVORITES_CATEGORY) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    PinnedShortcut(
+                        label = "Recordings",
+                        icon = Icons.Filled.Videocam,
+                        onClick = onOpenRecordings,
+                        modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    )
+                }
                 CategoryPrefixFilterRow(
                     categories = uiState.categories,
                     selectedPrefix = selectedPrefix,
