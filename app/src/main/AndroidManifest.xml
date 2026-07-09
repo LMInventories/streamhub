@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- EPG programme reminders - runtime-requested (Android 13+) when the user first sets one. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- RecordingCaptureService streams a live channel to a local file for a scheduled window. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- required=false so the same APK installs on phones (no leanback feature) and TV boxes -->
     <uses-feature
@@ -42,6 +45,13 @@
         <receiver
             android:name="com.android.streamhub.feature.iptv.data.scheduled.ReminderAlarmReceiver"
             android:exported="false" />
+        <receiver
+            android:name="com.android.streamhub.feature.iptv.data.scheduled.RecordingAlarmReceiver"
+            android:exported="false" />
+        <service
+            android:name="com.android.streamhub.feature.iptv.data.scheduled.RecordingCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

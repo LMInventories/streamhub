@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,6 +63,7 @@ fun LiveTvScreenPhone(
     paddingValues: PaddingValues,
     onSettingsClick: () -> Unit,
     onFullscreen: (channelId: String) -> Unit,
+    onOpenRecordings: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -104,13 +106,13 @@ fun LiveTvScreenPhone(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // In landscape (once a source exists) the app bar is dropped entirely rather than
-            // just hidden - its height is exactly what the EPG grid below is short on for smaller
-            // phone screens, where it doesn't fit at all otherwise. Settings access moves to an
-            // icon overlaid on the mini-player row instead of losing its own dedicated bar. Kept
-            // when there's no source yet regardless of orientation, since that's the only way to
-            // reach settings before a playlist exists.
-            if (!isLandscape || !uiState.hasSource) {
+            // The app bar is dropped entirely once a source exists, in both orientations, rather
+            // than just hidden - its height is space the player/EPG can use instead, and on
+            // landscape phone screens in particular the EPG grid doesn't fit at all without it.
+            // Settings access moves to an icon overlaid on the mini-player section instead of
+            // losing its own dedicated bar. Kept when there's no source yet, since that's the
+            // only way to reach settings before a playlist exists.
+            if (!uiState.hasSource) {
                 TopAppBar(
                     title = { Text("Live TV") },
                     actions = {
@@ -131,8 +133,8 @@ fun LiveTvScreenPhone(
                 return@Column
             }
 
-            if (isLandscape) {
-                Box(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
+            Box(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
+                if (isLandscape) {
                     Row(modifier = Modifier.fillMaxWidth().height(140.dp)) {
                         MiniPlayerPreview(
                             exoPlayer = viewModel.miniPlayerController.exoPlayer,
@@ -147,26 +149,28 @@ fun LiveTvScreenPhone(
                             modifier = Modifier.padding(12.dp),
                         )
                     }
-                    IconButton(onClick = onSettingsClick, modifier = Modifier.align(Alignment.TopEnd)) {
-                        Icon(Icons.Filled.Settings, contentDescription = "IPTV settings", tint = Color.White)
+                } else {
+                    Column {
+                        MiniPlayerPreview(
+                            exoPlayer = viewModel.miniPlayerController.exoPlayer,
+                            uiState = miniPlayerState,
+                            onTap = viewModel::enterFullscreen,
+                            modifier = Modifier.fillMaxWidth().height(200.dp),
+                        )
+                        EpgInfoPanel(
+                            channelName = uiState.focusedChannel?.name,
+                            nowProgram = uiState.nowProgram,
+                            nextProgram = uiState.nextProgram,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black)
+                                .padding(12.dp, 8.dp),
+                        )
                     }
                 }
-            } else {
-                MiniPlayerPreview(
-                    exoPlayer = viewModel.miniPlayerController.exoPlayer,
-                    uiState = miniPlayerState,
-                    onTap = viewModel::enterFullscreen,
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                )
-                EpgInfoPanel(
-                    channelName = uiState.focusedChannel?.name,
-                    nowProgram = uiState.nowProgram,
-                    nextProgram = uiState.nextProgram,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black)
-                        .padding(12.dp, 8.dp),
-                )
+                IconButton(onClick = onSettingsClick, modifier = Modifier.align(Alignment.TopEnd)) {
+                    Icon(Icons.Filled.Settings, contentDescription = "IPTV settings", tint = Color.White)
+                }
             }
 
             LiveTvBrowseContent(
@@ -179,6 +183,7 @@ fun LiveTvScreenPhone(
                 onToggleFavorite = viewModel::toggleFavorite,
                 onScheduleRecording = viewModel::scheduleRecording,
                 onScheduleReminder = viewModel::scheduleReminder,
+                onOpenRecordings = onOpenRecordings,
                 // Without this, this content competes for height with the fixed-size mini-player
                 // row/header above it under Column's default (unbounded) child measurement,
                 // which is what made the grid/list silently fail to render in landscape - there's
@@ -219,6 +224,7 @@ private fun LiveTvBrowseContent(
     onToggleFavorite: (IptvChannelInfo) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
+    onOpenRecordings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
@@ -235,6 +241,11 @@ private fun LiveTvBrowseContent(
                     headlineContent = { Text("Favourites") },
                     leadingContent = { Icon(Icons.Filled.Star, contentDescription = null) },
                     modifier = Modifier.clickable { onSelectCategory(LiveTvViewModel.FAVORITES_CATEGORY) },
+                )
+                ListItem(
+                    headlineContent = { Text("Recordings") },
+                    leadingContent = { Icon(Icons.Filled.Videocam, contentDescription = null) },
+                    modifier = Modifier.clickable(onClick = onOpenRecordings),
                 )
                 CategoryPrefixFilterRow(
                     categories = uiState.categories,

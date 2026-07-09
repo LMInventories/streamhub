@@ -3,6 +3,7 @@ package com.android.streamhub.feature.iptv.data.scheduled
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,9 +12,11 @@ import javax.inject.Singleton
 class ScheduledEventsRepository @Inject constructor(
     private val dao: ScheduledEventsDao,
     private val reminderScheduler: ReminderScheduler,
+    private val recordingScheduler: RecordingScheduler,
 ) {
     fun observeReminders(): Flow<List<ScheduledReminderEntity>> = dao.observeReminders()
     fun observeRecordings(): Flow<List<ScheduledRecordingEntity>> = dao.observeRecordings()
+    fun observeRecordedItems(): Flow<List<RecordedItemEntity>> = dao.observeRecordedItems()
 
     suspend fun addReminder(channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) {
         val entity = ScheduledReminderEntity(
@@ -42,19 +45,25 @@ class ScheduledEventsRepository @Inject constructor(
         val entity = ScheduledRecordingEntity(
             channelId = channel.id,
             channelName = channel.name,
+            channelLogoUrl = channel.logoUrl,
             streamUrl = channel.streamUrl,
             programTitle = program.title,
             recordStartEpochSeconds = program.startAt.minusSeconds(startAdjustMinutes * 60L).epochSecond,
             recordEndEpochSeconds = program.endAt.plusSeconds(endAdjustMinutes * 60L).epochSecond,
             createdAtEpochSeconds = Instant.now().epochSecond,
         )
-        dao.insertRecording(entity)
-        // Actually capturing the stream at recordStart/recordEnd is a separate, larger piece of
-        // work (a foreground service) - not yet built. This persists the request so the UI/data
-        // layer is ready for it, but nothing records yet.
+        val id = dao.insertRecording(entity)
+        recordingScheduler.scheduleStart(entity.copy(id = id))
     }
 
     suspend fun removeRecording(recording: ScheduledRecordingEntity) {
+        recordingScheduler.cancelStart(recording.id)
         dao.deleteRecording(recording.id)
+    }
+
+    suspend fun removeRecordedItem(item: RecordedItemEntity) {
+        // Best-effort - a missing/already-deleted file shouldn't block removing the library entry.
+        runCatching { File(item.filePath).delete() }
+        dao.deleteRecordedItem(item.id)
     }
 }

@@ -18,6 +18,7 @@ import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.tv.scaffold.TvScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
+import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
@@ -77,6 +78,13 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             composable(Route.LIVE_TV_PATTERN) {
                 LiveTvScreenTv(
                     onSettingsClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
+                    onOpenRecordings = { navController.navigate(Route.RECORDINGS_PATTERN) },
+                )
+            }
+            composable(Route.RECORDINGS_PATTERN) {
+                RecordingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onPlayRecording = { itemId -> navController.navigate(Route.playerRoute(itemId, SourceType.RECORDING)) },
                 )
             }
             composable(Route.VOD_PATTERN) {

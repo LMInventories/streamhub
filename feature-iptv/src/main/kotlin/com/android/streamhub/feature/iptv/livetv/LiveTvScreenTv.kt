@@ -32,11 +32,13 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Videocam
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 
 @Composable
 fun LiveTvScreenTv(
     onSettingsClick: () -> Unit,
+    onOpenRecordings: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -115,9 +117,15 @@ fun LiveTvScreenTv(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
                 selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
-                    Button(onClick = { viewModel.selectCategory(LiveTvViewModel.FAVORITES_CATEGORY) }) {
-                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                        Text("Favourites")
+                    Row {
+                        Button(onClick = { viewModel.selectCategory(LiveTvViewModel.FAVORITES_CATEGORY) }) {
+                            Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                            Text("Favourites")
+                        }
+                        Button(onClick = onOpenRecordings, modifier = Modifier.padding(start = 12.dp)) {
+                            Icon(Icons.Filled.Videocam, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                            Text("Recordings")
+                        }
                     }
                     CategoryPrefixFilterRow(
                         categories = uiState.categories,

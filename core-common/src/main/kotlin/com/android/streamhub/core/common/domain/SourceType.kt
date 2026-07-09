@@ -4,5 +4,6 @@ enum class SourceType {
     IPTV,
     JELLYFIN,
     EMBY,
+    RECORDING,
     MOCK,
 }

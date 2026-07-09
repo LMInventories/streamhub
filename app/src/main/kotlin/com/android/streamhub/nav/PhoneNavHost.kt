@@ -16,6 +16,7 @@ import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.phone.scaffold.PhoneScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenPhone
+import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
@@ -81,6 +82,13 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     onFullscreen = { channelId ->
                         navController.navigate(Route.playerRoute(channelId, SourceType.IPTV))
                     },
+                    onOpenRecordings = { navController.navigate(Route.RECORDINGS_PATTERN) },
+                )
+            }
+            composable(Route.RECORDINGS_PATTERN) {
+                RecordingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onPlayRecording = { itemId -> navController.navigate(Route.playerRoute(itemId, SourceType.RECORDING)) },
                 )
             }
             composable(Route.VOD_PATTERN) {
