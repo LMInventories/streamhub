@@ -34,6 +34,7 @@ class IptvBrowseRepository @Inject constructor(
     private val configRepository: IptvSourceConfigRepository,
     private val xtreamRemoteDataSource: XtreamRemoteDataSource,
     private val m3uRemoteDataSource: M3uRemoteDataSource,
+    private val appSettingsRepository: IptvAppSettingsRepository,
 ) {
     // M3U's XMLTV guide is a single (potentially large) file - fetch once per epgUrl and reuse,
     // rather than re-downloading it every time the focused channel changes.
@@ -85,8 +86,12 @@ class IptvBrowseRepository @Inject constructor(
                     .filter { (it.groupTitle?.takeIf(String::isNotBlank) ?: UNCATEGORIZED_ID) == categoryId }
                     .map { IptvChannelInfo(id = it.id, name = it.name, logoUrl = it.logoUrl, streamUrl = it.streamUrl) }
         }
-        cachedChannelsByCategory[categoryId] = result
-        return result
+        val sorted = when (appSettingsRepository.settingsFlow.first().channelSortOrder) {
+            ChannelSortOrder.ALPHABETICAL -> result.sortedBy { it.name.lowercase() }
+            ChannelSortOrder.PLAYLIST -> result
+        }
+        cachedChannelsByCategory[categoryId] = sorted
+        return sorted
     }
 
     private suspend fun m3uChannels(playlistUrl: String): List<M3uChannel> {

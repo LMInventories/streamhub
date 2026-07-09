@@ -16,6 +16,10 @@ sealed class IptvSourceConfig {
         val baseUrl: String,
         val username: String,
         val password: String,
+        // Some Xtream panels' own xmltv.php is missing/incomplete - lets those users point the
+        // 7-day EPG grid at an external XMLTV feed instead, same escape hatch M3U mode already
+        // has via its own epgUrl. null means "use baseUrl/xmltv.php" (unchanged default).
+        val xmlTvUrlOverride: String? = null,
     ) : IptvSourceConfig()
 
     @Serializable

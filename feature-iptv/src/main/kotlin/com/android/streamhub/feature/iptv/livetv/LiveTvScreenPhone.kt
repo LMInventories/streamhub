@@ -116,14 +116,15 @@ fun LiveTvScreenPhone(
                 return@Column
             }
 
+            val previewSizeMultiplier = uiState.previewPlayerSize.multiplier
             Box(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
                 if (isLandscape) {
-                    Row(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth().height(140.dp * previewSizeMultiplier)) {
                         MiniPlayerPreview(
                             exoPlayer = viewModel.miniPlayerController.exoPlayer,
                             uiState = miniPlayerState,
                             onTap = viewModel::enterFullscreen,
-                            modifier = Modifier.width(220.dp).fillMaxHeight(),
+                            modifier = Modifier.width(220.dp * previewSizeMultiplier).fillMaxHeight(),
                         )
                         EpgInfoPanel(
                             channelName = uiState.focusedChannel?.name,
@@ -138,7 +139,7 @@ fun LiveTvScreenPhone(
                             exoPlayer = viewModel.miniPlayerController.exoPlayer,
                             uiState = miniPlayerState,
                             onTap = viewModel::enterFullscreen,
-                            modifier = Modifier.fillMaxWidth().height(200.dp),
+                            modifier = Modifier.fillMaxWidth().height(200.dp * previewSizeMultiplier),
                         )
                         EpgInfoPanel(
                             channelName = uiState.focusedChannel?.name,

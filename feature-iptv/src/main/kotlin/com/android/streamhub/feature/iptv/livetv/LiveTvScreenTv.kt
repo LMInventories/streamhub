@@ -82,12 +82,13 @@ fun LiveTvScreenTv(
             return@Column
         }
 
-        Row(modifier = Modifier.fillMaxWidth().height(180.dp).padding(24.dp, 24.dp, 24.dp, 0.dp)) {
+        val previewSizeMultiplier = uiState.previewPlayerSize.multiplier
+        Row(modifier = Modifier.fillMaxWidth().height(180.dp * previewSizeMultiplier).padding(24.dp, 24.dp, 24.dp, 0.dp)) {
             MiniPlayerPreview(
                 exoPlayer = viewModel.miniPlayerController.exoPlayer,
                 uiState = miniPlayerState,
                 onTap = viewModel::enterFullscreen,
-                modifier = Modifier.width(280.dp).fillMaxHeight(),
+                modifier = Modifier.width(280.dp * previewSizeMultiplier).fillMaxHeight(),
             )
             EpgInfoPanel(
                 channelName = uiState.focusedChannel?.name,

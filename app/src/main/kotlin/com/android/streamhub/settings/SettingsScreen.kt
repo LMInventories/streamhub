@@ -50,6 +50,7 @@ fun SettingsScreen(
     onJellyfinLibrariesClick: () -> Unit,
     onJellyfinHomeOrderClick: () -> Unit,
     onAppearanceClick: () -> Unit,
+    onIptvPlaybackClick: () -> Unit,
 ) {
     val sections = listOf(
         SettingsSection(
@@ -62,6 +63,7 @@ fun SettingsScreen(
             title = "Live TV & VOD",
             rows = listOf(
                 SettingsRow(label = "Source", subtitle = "Xtream Codes or M3U playlist sign-in", onClick = onIptvClick),
+                SettingsRow(label = "Playback", subtitle = "Resume channel, sort order, EPG format, preview size", onClick = onIptvPlaybackClick),
             ),
         ),
         SettingsSection(

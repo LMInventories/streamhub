@@ -12,13 +12,15 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.android.streamhub.feature.iptv.R
+import com.android.streamhub.feature.iptv.data.IptvAppSettingsRepository
+import com.android.streamhub.feature.iptv.livetv.timeFormatter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 private const val REMINDER_CHANNEL_ID = "epg_reminders"
@@ -33,6 +35,7 @@ private const val REMINDER_NOTIFICATION_ID_BASE = 90_000
 class ReminderAlarmReceiver : BroadcastReceiver() {
 
     @Inject lateinit var dao: ScheduledEventsDao
+    @Inject lateinit var appSettingsRepository: IptvAppSettingsRepository
 
     override fun onReceive(context: Context, intent: Intent) {
         val reminderId = intent.getLongExtra(EXTRA_REMINDER_ID, -1L)
@@ -50,13 +53,14 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun postNotification(context: Context, reminder: ScheduledReminderEntity) {
+    private suspend fun postNotification(context: Context, reminder: ScheduledReminderEntity) {
         ensureReminderNotificationChannel(context)
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
         }
 
-        val startTime = DateTimeFormatter.ofPattern("HH:mm")
+        val use24Hour = appSettingsRepository.settingsFlow.first().use24HourTime
+        val startTime = timeFormatter(use24Hour)
             .format(Instant.ofEpochSecond(reminder.programStartEpochSeconds).atZone(ZoneId.systemDefault()))
         val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_reminder)

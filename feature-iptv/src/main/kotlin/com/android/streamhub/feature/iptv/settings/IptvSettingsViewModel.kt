@@ -22,6 +22,7 @@ data class IptvSettingsUiState(
     val xtreamBaseUrl: String = "",
     val xtreamUsername: String = "",
     val xtreamPassword: String = "",
+    val xtreamXmlTvUrlOverride: String = "",
     val m3uPlaylistUrl: String = "",
     val m3uEpgUrl: String = "",
     val saved: Boolean = false,
@@ -49,6 +50,7 @@ class IptvSettingsViewModel @Inject constructor(
                         xtreamBaseUrl = config.baseUrl,
                         xtreamUsername = config.username,
                         xtreamPassword = config.password,
+                        xtreamXmlTvUrlOverride = config.xmlTvUrlOverride.orEmpty(),
                         hasSource = true,
                     )
                 }
@@ -83,6 +85,7 @@ class IptvSettingsViewModel @Inject constructor(
     fun updateXtreamBaseUrl(value: String) = _uiState.update { it.copy(xtreamBaseUrl = value, saved = false) }
     fun updateXtreamUsername(value: String) = _uiState.update { it.copy(xtreamUsername = value, saved = false) }
     fun updateXtreamPassword(value: String) = _uiState.update { it.copy(xtreamPassword = value, saved = false) }
+    fun updateXtreamXmlTvUrlOverride(value: String) = _uiState.update { it.copy(xtreamXmlTvUrlOverride = value, saved = false) }
     fun updateM3uPlaylistUrl(value: String) = _uiState.update { it.copy(m3uPlaylistUrl = value, saved = false) }
     fun updateM3uEpgUrl(value: String) = _uiState.update { it.copy(m3uEpgUrl = value, saved = false) }
 
@@ -93,6 +96,7 @@ class IptvSettingsViewModel @Inject constructor(
                 baseUrl = state.xtreamBaseUrl.trim(),
                 username = state.xtreamUsername.trim(),
                 password = state.xtreamPassword.trim(),
+                xmlTvUrlOverride = state.xtreamXmlTvUrlOverride.trim().takeIf(String::isNotEmpty),
             )
             IptvProviderType.M3U -> IptvSourceConfig.M3u(
                 playlistUrl = state.m3uPlaylistUrl.trim(),

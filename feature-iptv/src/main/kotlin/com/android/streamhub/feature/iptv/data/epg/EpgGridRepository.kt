@@ -125,7 +125,7 @@ class EpgGridRepository @Inject constructor(
     }
 
     private fun xmltvUrlFor(config: IptvSourceConfig): String? = when (config) {
-        is IptvSourceConfig.Xtream -> config.baseUrl.toHttpUrlOrNull()
+        is IptvSourceConfig.Xtream -> config.xmlTvUrlOverride?.takeIf(String::isNotBlank) ?: config.baseUrl.toHttpUrlOrNull()
             ?.newBuilder()
             ?.addPathSegment("xmltv.php")
             ?.addQueryParameter("username", config.username)

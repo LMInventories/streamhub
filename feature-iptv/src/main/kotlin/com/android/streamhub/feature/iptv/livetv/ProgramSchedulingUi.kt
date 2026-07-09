@@ -33,7 +33,6 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 
@@ -41,7 +40,6 @@ import kotlin.math.min
 // AlertDialog - EpgGridPanel (which hosts the long-press this triggers from) is shared by phone
 // and TV, which have no common ambient MaterialTheme, so a Material3 component here would render
 // wrong on TV, same reasoning as the rest of this file's styling.
-private val timeFormatter = DateTimeFormatter.ofPattern("EEE HH:mm")
 
 // A plain Popup + background has no built-in shadow/elevation the way Material3's DropdownMenu
 // does, so over busy content (EPG grid rows, video) it could visually blend in rather than read
@@ -111,9 +109,10 @@ private fun DialogCard(onDismiss: () -> Unit, content: @Composable ColumnScope.(
 
 @Composable
 private fun DialogTitle(program: EpgProgram, channel: IptvChannelInfo) {
+    val use24Hour = rememberUse24HourTime()
     BasicText(text = program.title, style = TextStyle(color = Palette.ContextMenuText, fontSize = 16.sp))
     BasicText(
-        text = "${channel.name} · ${timeFormatter.format(program.startAt.atZone(ZoneId.systemDefault()))}",
+        text = "${channel.name} · ${dayTimeFormatter(use24Hour).format(program.startAt.atZone(ZoneId.systemDefault()))}",
         style = TextStyle(color = ContextMenuTextMuted, fontSize = 12.sp),
         modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
     )

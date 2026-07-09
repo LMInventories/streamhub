@@ -47,15 +47,14 @@ import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.scheduled.RecordedItemEntity
+import com.android.streamhub.feature.iptv.livetv.dateTimeFormatter
+import com.android.streamhub.feature.iptv.livetv.rememberUse24HourTime
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 // Shared across phone and TV rather than split, same reasoning as the Jellyfin screens - a poster
 // grid doesn't need orientation-specific structure, and wraps its own MaterialTheme since it's
 // reachable from the TV nav host too (tv-material3's ambient theme, not this one).
-
-private val dateFormatter = DateTimeFormatter.ofPattern("d MMM, HH:mm")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,6 +124,7 @@ private fun RecordingTile(
     onDismissContextMenu: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val use24Hour = rememberUse24HourTime()
     Box {
         Column(modifier = Modifier.padding(4.dp).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
             Box(
@@ -155,7 +155,7 @@ private fun RecordingTile(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
-                text = "${item.channelName} · ${dateFormatter.format(Instant.ofEpochSecond(item.recordedAtEpochSeconds).atZone(ZoneId.systemDefault()))}",
+                text = "${item.channelName} · ${dateTimeFormatter(use24Hour).format(Instant.ofEpochSecond(item.recordedAtEpochSeconds).atZone(ZoneId.systemDefault()))}",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = Palette.TextMuted,

@@ -20,6 +20,7 @@ import com.android.streamhub.core.ui.tv.scaffold.TvScaffold
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
 import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
+import com.android.streamhub.feature.iptv.settings.IptvPlaybackSettingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
@@ -182,10 +183,14 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     onJellyfinLibrariesClick = { navController.navigate(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) },
                     onJellyfinHomeOrderClick = { navController.navigate(Route.JELLYFIN_HOME_SECTION_ORDER_PATTERN) },
                     onAppearanceClick = { navController.navigate(Route.APP_UI_SETTINGS_PATTERN) },
+                    onIptvPlaybackClick = { navController.navigate(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) },
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
                 IptvSettingsScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) {
+                IptvPlaybackSettingsScreen(onDone = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_SETTINGS_PATTERN) {
                 JellyfinSettingsScreen(onDone = { navController.popBackStack() })

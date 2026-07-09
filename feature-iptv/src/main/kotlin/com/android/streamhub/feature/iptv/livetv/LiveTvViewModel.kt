@@ -8,10 +8,12 @@ import com.android.streamhub.core.common.ui.FullscreenOverlayState
 import com.android.streamhub.core.player.PlayerController
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.feature.iptv.data.EpgProgram
+import com.android.streamhub.feature.iptv.data.IptvAppSettingsRepository
 import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
+import com.android.streamhub.feature.iptv.data.PreviewPlayerSize
 import com.android.streamhub.feature.iptv.data.epg.EpgGridRepository
 import com.android.streamhub.feature.iptv.data.epg.EpgRefreshResult
 import com.android.streamhub.feature.iptv.data.favorites.IptvFavoritesRepository
@@ -23,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -66,6 +69,7 @@ data class LiveTvUiState(
     // rather than navigating to a separate full-screen route with a second player that would
     // need to rebuffer the same stream from scratch.
     val isFullscreen: Boolean = false,
+    val previewPlayerSize: PreviewPlayerSize = PreviewPlayerSize.MEDIUM,
 )
 
 /**
@@ -83,6 +87,7 @@ class LiveTvViewModel @Inject constructor(
     private val recentChannelsRepository: RecentChannelsRepository,
     private val fullscreenOverlayState: FullscreenOverlayState,
     private val castController: LiveTvCastController,
+    private val appSettingsRepository: IptvAppSettingsRepository,
     val miniPlayerController: PlayerController,
 ) : ViewModel() {
 
@@ -142,6 +147,19 @@ class LiveTvViewModel @Inject constructor(
         // rather than requiring a channel switch first to trigger it.
         viewModelScope.launch {
             castController.isCasting.collect { casting -> if (casting) castCurrentChannel() }
+        }
+        viewModelScope.launch {
+            appSettingsRepository.settingsFlow.collect { settings ->
+                _uiState.update { it.copy(previewPlayerSize = settings.previewPlayerSize) }
+            }
+        }
+        // Runs once, at creation - checked against focusedChannel so it never clobbers a channel
+        // the user already picked (e.g. from a fast tap before this suspend read resolves).
+        viewModelScope.launch {
+            val settings = appSettingsRepository.settingsFlow.first()
+            if (settings.resumeLastChannel && _uiState.value.focusedChannel == null) {
+                recentChannelsRepository.observeRecent().first().firstOrNull()?.let(::focusChannel)
+            }
         }
     }
 

@@ -50,13 +50,11 @@ import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.epgKey
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 private val PIXELS_PER_MINUTE = 2.dp
 private val CHANNEL_LABEL_WIDTH = 110.dp
 private val ROW_HEIGHT = 56.dp
-private val hourFormatter = DateTimeFormatter.ofPattern("EEE HH:mm")
 
 /**
  * Landscape-only inline EPG grid (not a separate screen) - channel labels fixed in a left
@@ -90,6 +88,7 @@ fun EpgGridPanel(
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val use24Hour = rememberUse24HourTime()
     val sharedScrollState = rememberScrollState()
     var menuState by remember { mutableStateOf<ProgramMenuState?>(null) }
     var startAdjustMinutes by remember { mutableIntStateOf(0) }
@@ -125,7 +124,7 @@ fun EpgGridPanel(
         Row(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.width(CHANNEL_LABEL_WIDTH))
             Box(modifier = Modifier.horizontalScroll(sharedScrollState)) {
-                TimeHeader(windowStart = windowStart, windowEnd = windowEnd)
+                TimeHeader(windowStart = windowStart, windowEnd = windowEnd, use24Hour = use24Hour)
             }
         }
         HorizontalDivider(color = Palette.Border)
@@ -205,15 +204,16 @@ private fun IndeterminateSignalBar(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TimeHeader(windowStart: Instant, windowEnd: Instant) {
+private fun TimeHeader(windowStart: Instant, windowEnd: Instant, use24Hour: Boolean) {
     val hours = ChronoUnit.HOURS.between(windowStart, windowEnd).toInt()
     val zone = ZoneId.systemDefault()
+    val formatter = dayTimeFormatter(use24Hour)
     Row {
         repeat(hours) { hourIndex ->
             val hourInstant = windowStart.plus(hourIndex.toLong(), ChronoUnit.HOURS)
             Box(modifier = Modifier.width(PIXELS_PER_MINUTE * 60)) {
                 BasicText(
-                    text = hourFormatter.format(hourInstant.atZone(zone)),
+                    text = formatter.format(hourInstant.atZone(zone)),
                     style = TextStyle(color = Palette.TextMuted, fontSize = 11.sp),
                     maxLines = 1,
                     modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 8.dp),

@@ -102,6 +102,13 @@ fun IptvSettingsScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedTextField(
+                    value = uiState.xtreamXmlTvUrlOverride,
+                    onValueChange = viewModel::updateXtreamXmlTvUrlOverride,
+                    label = { Text("EPG (XMLTV) URL override - optional") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             } else {
                 OutlinedTextField(
                     value = uiState.m3uPlaylistUrl,

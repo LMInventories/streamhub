@@ -16,9 +16,6 @@ import com.android.streamhub.core.design.SignalBar
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
  * BasicText/plain TextStyle rather than material3/tv-material3's Text+MaterialTheme - this sits
@@ -33,6 +30,7 @@ fun EpgInfoPanel(
     nextProgram: EpgProgram?,
     modifier: Modifier = Modifier,
 ) {
+    val use24Hour = rememberUse24HourTime()
     Column(modifier = modifier) {
         BasicText(
             text = channelName ?: "Select a channel to preview",
@@ -40,7 +38,7 @@ fun EpgInfoPanel(
         )
         if (nowProgram != null) {
             BasicText(
-                text = "Now (${nowProgram.timeRange()}): ${nowProgram.title}",
+                text = "Now (${nowProgram.timeRange(use24Hour)}): ${nowProgram.title}",
                 style = TextStyle(color = Palette.TextPrimary, fontFamily = AppFonts.Mono, fontSize = AppTextStyles.bodySmall.fontSize),
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -61,7 +59,7 @@ fun EpgInfoPanel(
         }
         if (nextProgram != null) {
             BasicText(
-                text = "Next (${nextProgram.timeRange()}): ${nextProgram.title}",
+                text = "Next (${nextProgram.timeRange(use24Hour)}): ${nextProgram.title}",
                 style = TextStyle(color = Palette.TextMuted, fontFamily = AppFonts.Mono, fontSize = AppTextStyles.labelMedium.fontSize),
                 modifier = Modifier.padding(top = 6.dp),
             )
@@ -69,10 +67,11 @@ fun EpgInfoPanel(
     }
 }
 
-private fun EpgProgram.timeRange(): String {
+private fun EpgProgram.timeRange(use24Hour: Boolean): String {
     val zone = ZoneId.systemDefault()
-    val start = timeFormatter.format(startAt.atZone(zone))
-    val end = timeFormatter.format(endAt.atZone(zone))
+    val formatter = timeFormatter(use24Hour)
+    val start = formatter.format(startAt.atZone(zone))
+    val end = formatter.format(endAt.atZone(zone))
     return "$start-$end"
 }
 
