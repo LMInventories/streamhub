@@ -88,9 +88,13 @@ fun PlayerScreenTv(
     // they auto-hide/reappear (they auto-hide after 6s while playing, above) - Compose's focus
     // system doesn't automatically pick a new focused node when that happens, so without this,
     // D-pad input goes nowhere at all once the controls come back until something else claims
-    // focus, which reads as the remote being stuck.
+    // focus, which reads as the remote being stuck. runCatching guards a real race: this effect
+    // and AnimatedVisibility mounting the Back button it targets are both triggered by the same
+    // controlsVisible flip, with no guaranteed ordering between them - if the effect runs first,
+    // requestFocus() throws IllegalStateException (target not attached yet) and, uncaught, would
+    // crash the whole player rather than just skip a focus request that'll succeed next time.
     LaunchedEffect(controlsVisible) {
-        if (controlsVisible) backButtonFocusRequester.requestFocus()
+        if (controlsVisible) runCatching { backButtonFocusRequester.requestFocus() }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
