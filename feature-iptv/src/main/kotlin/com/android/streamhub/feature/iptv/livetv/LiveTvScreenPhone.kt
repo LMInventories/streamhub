@@ -1,6 +1,7 @@
 package com.android.streamhub.feature.iptv.livetv
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -268,6 +269,14 @@ fun LiveTvBrowseContent(
     val selectedCategory = uiState.selectedCategory
     var selectedPrefix by remember { mutableStateOf<String?>(null) }
     var contextMenuChannel by remember { mutableStateOf<IptvChannelInfo?>(null) }
+
+    // Without this, Back while browsing a category's channels/EPG has nothing to intercept it -
+    // selecting a category is pure ViewModel state, not a nav backstack entry, so the system/
+    // remote Back button fell straight through to whatever's above this screen (TvNavHost's own
+    // tab-switch BackHandler, or the Activity itself once nothing's left to pop, closing the
+    // app). Enabled only while a category's actually selected, so Back still behaves normally
+    // (tab switching / app exit) once this closes back out to the category list.
+    BackHandler(enabled = selectedCategory != null, onBack = onBackToCategories)
 
     Box(modifier = modifier.fillMaxWidth()) {
         when {

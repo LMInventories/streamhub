@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.iptv.livetv
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -91,6 +92,12 @@ fun LiveFullscreenOverlay(
     LockLandscapeWhileFullscreen()
     HideSystemBarsWhileFullscreen()
     KeepScreenOnWhilePlaying(isPlaying = playerUiState.isPlaying)
+
+    // This composable is only ever on screen while fullscreen is active, so Back always means
+    // "collapse back to the mini-player/browse view" - without this, Back here had nothing to
+    // catch it and fell through to whatever's above (tab-switch history, or the Activity itself,
+    // closing the app), same underlying gap as the category/EPG back button below.
+    BackHandler(onBack = onCollapse)
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showMultiviewPicker by remember { mutableStateOf(false) }

@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.iptv.vod
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -97,6 +98,12 @@ fun VodBrowseContent(
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
+
+    // Same underlying gap as Live TV's own category browsing - selecting a category is pure
+    // ViewModel state, not a nav backstack entry, so without this, Back had nothing to intercept
+    // it here and fell through to whatever's above this screen (tab-switch history, or closing
+    // the app once nothing's left to pop).
+    BackHandler(enabled = selectedCategory != null, onBack = onClearCategorySelection)
 
     Column(modifier = modifier) {
         // No title text here - the bottom nav tab/tab row is already labeled "VOD", so a second,

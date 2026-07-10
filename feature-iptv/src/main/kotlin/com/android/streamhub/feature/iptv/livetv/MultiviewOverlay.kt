@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.iptv.livetv
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -84,6 +85,12 @@ fun MultiviewOverlay(
     var showAddChannelPicker by remember { mutableStateOf(false) }
 
     KeepScreenOnWhilePlaying(isPlaying = tiles.isNotEmpty())
+
+    // Closes the channel picker first if it's open (same "dismiss the topmost thing" convention
+    // as everywhere else in this app a sheet/dialog sits over a screen), only closing multiview
+    // itself once there's nothing left on top - same underlying gap as LiveFullscreenOverlay's own
+    // BackHandler: without this, Back here had nothing to catch it at all.
+    BackHandler(onBack = { if (showAddChannelPicker) showAddChannelPicker = false else onClose() })
 
     Column(modifier = modifier.fillMaxSize().background(Color.Black)) {
         Row(
