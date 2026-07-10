@@ -73,11 +73,24 @@ private fun HomeHeader() {
     Row(
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 20.dp),
     ) {
-        Image(
-            painter = painterResource(id = R.mipmap.ic_launcher),
-            contentDescription = null,
-            modifier = Modifier.size(48.dp).clip(AppShapes.medium),
-        )
+        // R.mipmap.ic_launcher resolves to an <adaptive-icon> XML (background+foreground layers,
+        // masked/composited by the OS at install time) - painterResource() only understands plain
+        // vector/raster drawables and throws at runtime for that root element, crashing the app on
+        // launch since Home is the start destination. Compositing the two underlying vector layers
+        // manually here (both plain <vector> XML, safe for painterResource) gets the same look
+        // without that crash.
+        Box(modifier = Modifier.size(48.dp).clip(AppShapes.medium)) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_background),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Column(modifier = Modifier.padding(start = 14.dp)) {
             Text(text = "StreamHub", color = Palette.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(text = "All your sources in one place", color = Palette.TextMuted, fontSize = 13.sp)
