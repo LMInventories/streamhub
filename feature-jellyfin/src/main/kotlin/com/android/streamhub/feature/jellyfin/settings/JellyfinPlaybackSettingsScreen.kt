@@ -1,7 +1,9 @@
 package com.android.streamhub.feature.jellyfin.settings
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,18 +25,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 // ISO 639-2 codes - the fixed subset Jellyfin libraries most commonly carry, not an exhaustive
@@ -122,6 +128,7 @@ private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: options.first().second
 
+    val interactionSource = remember { MutableInteractionSource() }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, color = Palette.TextMuted, fontSize = 13.sp)
         Box(modifier = Modifier.padding(top = 4.dp)) {
@@ -130,15 +137,21 @@ private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>
                     .fillMaxWidth()
                     .clip(AppShapes.small)
                     .background(Palette.Surface)
-                    .clickable { expanded = true }
+                    .tvFocusBorder(interactionSource, AppShapes.small)
+                    .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { expanded = true }
                     .padding(16.dp),
             ) {
                 Text(text = selectedLabel, color = Palette.TextPrimary)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { (value, optionLabel) ->
+                // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
+                // remote's presses kept hitting whatever was focused underneath, not this menu.
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+                options.forEachIndexed { index, (value, optionLabel) ->
                     DropdownMenuItem(
                         text = { Text(optionLabel) },
+                        modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
                         onClick = { onSelect(value); expanded = false },
                     )
                 }

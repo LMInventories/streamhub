@@ -50,7 +50,8 @@ val tvNavItems = listOf(
     // Favourites joins both lists together in a later milestone.
 )
 
-private const val NAV_ITEM_WIDTH_DP = 96
+// ~33% smaller than the original 96dp, per feedback that the rail was taking up too much width.
+private const val NAV_ITEM_WIDTH_DP = 64
 
 /**
  * Left icon rail rather than a top tab row - per direct feedback, TV should look like phone held
@@ -99,9 +100,9 @@ private fun TvNavRailItem(item: TvNavItem, selected: Boolean, onClick: () -> Uni
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .tvFocusBorder(interactionSource, RoundedCornerShape(12.dp))
+            .tvFocusBorder(interactionSource, RoundedCornerShape(8.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(vertical = 14.dp, horizontal = 4.dp),
+            .padding(vertical = 9.dp, horizontal = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -110,7 +111,7 @@ private fun TvNavRailItem(item: TvNavItem, selected: Boolean, onClick: () -> Uni
                     color = if (selected) Palette.Accent.copy(alpha = 0.16f) else Color.Transparent,
                     shape = RoundedCornerShape(50),
                 )
-                .padding(horizontal = 18.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 5.dp),
         ) {
             Icon(item.icon, contentDescription = item.label, tint = contentColor)
         }
@@ -120,7 +121,7 @@ private fun TvNavRailItem(item: TvNavItem, selected: Boolean, onClick: () -> Uni
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier.padding(top = 3.dp),
         )
     }
 }

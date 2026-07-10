@@ -24,11 +24,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -105,9 +108,14 @@ private fun SortMenuButton(selected: JellyfinSortOption, onSelect: (JellyfinSort
             Icon(Icons.Filled.Sort, contentDescription = "Sort")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            JellyfinSortOption.entries.forEach { option ->
+            // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
+            // remote's presses kept hitting whatever was focused underneath, not this menu.
+            val firstItemFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+            JellyfinSortOption.entries.forEachIndexed { index, option ->
                 DropdownMenuItem(
                     text = { Text(option.label, color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
+                    modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
                     onClick = { onSelect(option); expanded = false },
                 )
             }

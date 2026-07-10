@@ -1,7 +1,9 @@
 package com.android.streamhub.feature.jellyfin.library
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,6 +31,7 @@ import androidx.compose.material3.Text
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 
 /**
@@ -79,7 +82,13 @@ fun JellyfinItemGrid(
 
 @Composable
 private fun JellyfinPosterCard(item: JellyfinItemInfo, onClick: () -> Unit) {
-    Column(modifier = Modifier.padding(6.dp).clickable(onClick = onClick)) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = Modifier
+            .padding(6.dp)
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
+    ) {
         Box(
             modifier = Modifier
                 .aspectRatio(2f / 3f)

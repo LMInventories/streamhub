@@ -1,7 +1,9 @@
 package com.android.streamhub.feature.iptv.vod
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.iptv.data.VodCategoryInfo
 import com.android.streamhub.core.design.PillToggle
 
@@ -196,9 +202,14 @@ private fun GridDensityButton(gridColumns: Int, onSelect: (Int) -> Unit) {
             Icon(Icons.Filled.GridView, contentDescription = "Grid size ($gridColumns columns)")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            VOD_GRID_COLUMN_OPTIONS.forEach { count ->
+            // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
+            // remote's presses kept hitting whatever was focused underneath, not this menu.
+            val firstItemFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+            VOD_GRID_COLUMN_OPTIONS.forEachIndexed { index, count ->
                 DropdownMenuItem(
                     text = { Text("$count columns") },
+                    modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
                     onClick = { onSelect(count); expanded = false },
                 )
             }
@@ -218,7 +229,13 @@ private fun ModePillToggle(mode: VodMode, onModeChange: (VodMode) -> Unit, modif
 
 @Composable
 private fun Poster(name: String, posterUrl: String?, onClick: () -> Unit) {
-    Column(modifier = Modifier.padding(4.dp).clickable(onClick = onClick)) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier = Modifier
+            .padding(4.dp)
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
+    ) {
         Box(
             modifier = Modifier
                 .aspectRatio(2f / 3f)
@@ -251,6 +268,7 @@ private fun Poster(name: String, posterUrl: String?, onClick: () -> Unit) {
 // above once that data exists.
 @Composable
 private fun CategoryTile(name: String, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .padding(4.dp)
@@ -258,7 +276,8 @@ private fun CategoryTile(name: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(AppShapes.medium)
             .background(Palette.Surface)
-            .clickable(onClick = onClick)
+            .tvFocusBorder(interactionSource, AppShapes.medium)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .padding(12.dp),
         contentAlignment = Alignment.BottomStart,
     ) {

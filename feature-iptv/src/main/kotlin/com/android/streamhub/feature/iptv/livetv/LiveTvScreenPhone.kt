@@ -2,9 +2,11 @@ package com.android.streamhub.feature.iptv.livetv
 
 import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
@@ -225,11 +228,13 @@ fun AddSourcePrompt(modifier: Modifier = Modifier) {
 
 @Composable
 fun PinnedShortcut(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
             .clip(AppShapes.small)
             .background(Palette.Surface)
-            .clickable(onClick = onClick)
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -299,9 +304,12 @@ fun LiveTvBrowseContent(
                 // caller's modifier param above.
                 LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     items(visibleCategories, key = { it.id }) { category ->
+                        val interactionSource = remember { MutableInteractionSource() }
                         ListItem(
                             headlineContent = { Text(category.name) },
-                            modifier = Modifier.clickable { onSelectCategory(category) },
+                            modifier = Modifier
+                                .tvFocusBorder(interactionSource)
+                                .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { onSelectCategory(category) },
                         )
                     }
                 }

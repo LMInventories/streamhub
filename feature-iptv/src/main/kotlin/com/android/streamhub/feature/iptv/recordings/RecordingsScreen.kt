@@ -1,8 +1,10 @@
 package com.android.streamhub.feature.iptv.recordings
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -29,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.scheduled.RecordedItemEntity
 import com.android.streamhub.feature.iptv.livetv.dateTimeFormatter
@@ -125,8 +131,19 @@ private fun RecordingTile(
     onDelete: () -> Unit,
 ) {
     val use24Hour = rememberUse24HourTime()
+    val interactionSource = remember { MutableInteractionSource() }
     Box {
-        Column(modifier = Modifier.padding(4.dp).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        Column(
+            modifier = Modifier
+                .padding(4.dp)
+                .tvFocusBorder(interactionSource, AppShapes.small)
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                ),
+        ) {
             Box(
                 modifier = Modifier
                     .aspectRatio(16f / 9f)
@@ -168,9 +185,14 @@ private fun RecordingTile(
             containerColor = Palette.ContextMenuSurface,
             shadowElevation = 10.dp,
         ) {
+            // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
+            // remote's presses kept hitting whatever tile was focused underneath, not this menu.
+            val firstItemFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
             DropdownMenuItem(
                 text = { Text("Play", fontSize = 16.sp, color = Palette.ContextMenuText) },
                 leadingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Palette.ContextMenuText) },
+                modifier = Modifier.focusRequester(firstItemFocusRequester),
                 onClick = {
                     onClick()
                     onDismissContextMenu()
