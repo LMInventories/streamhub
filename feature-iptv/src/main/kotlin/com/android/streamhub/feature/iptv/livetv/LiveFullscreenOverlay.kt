@@ -2,6 +2,7 @@ package com.android.streamhub.feature.iptv.livetv
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,7 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
@@ -91,11 +99,39 @@ fun LiveFullscreenOverlay(
         }
     }
 
+    // Key events only ever reach a node that's focused (or an ancestor of the focused node) -
+    // once controls hide, every focusable button in them is removed from composition, so without
+    // this the surrounding Box itself never holds focus and the onPreviewKeyEvent below would
+    // never actually fire for a D-pad OK press. Re-requested every time controls hide (not just
+    // once) since that's exactly when focus needs somewhere new to land.
+    val boxFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(controlsVisible) {
+        if (!controlsVisible) boxFocusRequester.requestFocus()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(Unit) { detectTapGestures { controlsVisible = !controlsVisible } },
+            .focusRequester(boxFocusRequester)
+            .focusable()
+            .pointerInput(Unit) { detectTapGestures { controlsVisible = !controlsVisible } }
+            // detectTapGestures above only ever fires for a touch tap - a TV remote's D-pad
+            // center/OK press is a key event, not a pointer event, so on TV there was previously
+            // no way at all to bring the controls back once they auto-hid. Only handled while
+            // hidden - once controls are showing, OK should activate whatever button is actually
+            // focused, not toggle visibility again.
+            .onPreviewKeyEvent { event ->
+                if (!controlsVisible &&
+                    event.type == KeyEventType.KeyDown &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
+                ) {
+                    controlsVisible = true
+                    true
+                } else {
+                    false
+                }
+            },
     ) {
         VideoSurface(exoPlayer = exoPlayer, aspectMode = VideoAspectMode.FIT, modifier = Modifier.fillMaxSize())
 

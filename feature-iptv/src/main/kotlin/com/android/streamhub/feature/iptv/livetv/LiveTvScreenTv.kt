@@ -15,14 +15,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.livetv.cast.CastButton
+
+// How long Back has to be held before it's treated as a "long press" shortcut rather than a
+// normal press - long enough that an ordinary tap-and-release back press never triggers it.
+private const val LONG_PRESS_BACK_THRESHOLD_MS = 500L
 
 /**
  * Reuses LiveTvScreenPhone's own landscape rendering (LiveTvBrowseContent with isLandscape=true)
@@ -106,9 +118,41 @@ fun LiveTvScreenTv(
         return
     }
 
+    // Tracks the physical Back key's own down-to-up duration (not something BackHandler exposes -
+    // it only ever sees a completed, already-classified press) so a genuine long-press while
+    // browsing can jump straight to fullscreen instead of just backing out a level. KeyDown is
+    // deliberately never consumed (returns false) so a normal short press still reaches the
+    // regular Back handling untouched; only a KeyUp that's held long enough is consumed here.
+    var backKeyDownAtMillis by remember { mutableLongStateOf(0L) }
+
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp)
+                    .onPreviewKeyEvent { event ->
+                        if (event.key != Key.Back) return@onPreviewKeyEvent false
+                        when (event.type) {
+                            KeyEventType.KeyDown -> {
+                                if (backKeyDownAtMillis == 0L) backKeyDownAtMillis = System.currentTimeMillis()
+                                false
+                            }
+                            KeyEventType.KeyUp -> {
+                                val downAtMillis = backKeyDownAtMillis
+                                backKeyDownAtMillis = 0L
+                                val heldMillis = if (downAtMillis == 0L) 0L else System.currentTimeMillis() - downAtMillis
+                                if (heldMillis >= LONG_PRESS_BACK_THRESHOLD_MS && uiState.focusedChannel != null) {
+                                    viewModel.enterFullscreen()
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            else -> false
+                        }
+                    },
+            ) {
                 uiState.errorMessage?.let { error ->
                     Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
                 }
