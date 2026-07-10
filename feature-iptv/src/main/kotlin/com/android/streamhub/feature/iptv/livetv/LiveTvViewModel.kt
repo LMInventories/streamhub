@@ -259,9 +259,18 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
-    /** Called when a channel is focused (TV D-pad) or tapped (phone) - drives the mini-player preview. */
+    /**
+     * Called when a channel is focused (TV D-pad) or tapped (phone) - drives the mini-player
+     * preview. Selecting the channel that's already focused/previewing (a "double press" from the
+     * user's perspective - pick it once to preview, pick the same one again to commit) expands
+     * straight to fullscreen instead of no-opping, the same gesture the mini-player itself already
+     * supports by tapping it directly.
+     */
     fun focusChannel(channel: IptvChannelInfo) {
-        if (channel.id == _uiState.value.focusedChannel?.id) return
+        if (channel.id == _uiState.value.focusedChannel?.id) {
+            enterFullscreen()
+            return
+        }
         _uiState.update { it.copy(focusedChannel = channel, nowProgram = null, nextProgram = null) }
 
         miniPlayerController.prepare(

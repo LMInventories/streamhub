@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -58,20 +61,28 @@ fun ProgramContextMenu(
     onRecord: () -> Unit,
     onReminder: () -> Unit,
 ) {
+    // A plain Popup never moves D-pad focus into itself on TV - without this, the remote's
+    // presses kept hitting whatever EPG program block was focused underneath, not this menu, even
+    // though the menu was the only thing visibly showing. Requesting focus onto the first row the
+    // moment this appears fixes that; see MultiviewOverlay's own long-press menu (same underlying
+    // issue) for another instance of this same fix.
+    val firstRowFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { firstRowFocusRequester.requestFocus() }
+
     Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .contextMenuSurface(AppShapes.small)
                 .padding(vertical = 4.dp),
         ) {
-            MenuRow("Record", onClick = onRecord)
+            MenuRow("Record", onClick = onRecord, modifier = Modifier.focusRequester(firstRowFocusRequester))
             MenuRow("Set Reminder", onClick = onReminder)
         }
     }
 }
 
 @Composable
-private fun MenuRow(label: String, onClick: () -> Unit) {
+private fun MenuRow(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     // No fillMaxWidth() here - that was stretching the row (and with it, the Column/Popup that
     // sizes to its widest child) out to the full available width instead of wrapping to the text,
     // which is what actually made this read as screen-wide despite contextMenuSurface's own
@@ -79,7 +90,7 @@ private fun MenuRow(label: String, onClick: () -> Unit) {
     BasicText(
         text = label,
         style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp, fontWeight = FontWeight.Medium),
-        modifier = Modifier
+        modifier = modifier
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     )
@@ -93,7 +104,11 @@ private val ContextMenuTextMuted = Palette.ContextMenuText.copy(alpha = 0.6f)
 private val ContextMenuButtonSurface = Palette.ContextMenuText.copy(alpha = 0.08f)
 
 @Composable
-private fun DialogCard(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+private fun DialogCard(onDismiss: () -> Unit, firstFocusRequester: FocusRequester, content: @Composable ColumnScope.() -> Unit) {
+    // Same "a Popup never grabs D-pad focus on TV on its own" fix as ProgramContextMenu above -
+    // see that composable's own comment.
+    LaunchedEffect(Unit) { firstFocusRequester.requestFocus() }
+
     // Same off-white contextMenuSurface as ProgramContextMenu (the long-press menu that opens
     // this) rather than the dark menuSurface these dialogs used before - the two should read as
     // one continuous flow, not a light menu handing off to an unrelated-looking dark dialog.
@@ -136,10 +151,17 @@ private fun DialogActions(onCancel: () -> Unit, confirmLabel: String, onConfirm:
 }
 
 @Composable
-private fun Stepper(label: String, value: Int, onValueChange: (Int) -> Unit, min: Int = -30, max: Int = 30) {
+private fun Stepper(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    min: Int = -30,
+    max: Int = 30,
+    minusButtonModifier: Modifier = Modifier,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         BasicText(text = label, style = TextStyle(color = Palette.ContextMenuText, fontSize = 13.sp), modifier = Modifier.weight(1f))
-        StepperButton("−") { onValueChange(max(min, value - 1)) }
+        StepperButton("−", modifier = minusButtonModifier) { onValueChange(max(min, value - 1)) }
         BasicText(
             text = "$value min",
             style = TextStyle(color = Palette.ContextMenuText, fontSize = 13.sp, textAlign = TextAlign.Center),
@@ -150,9 +172,9 @@ private fun Stepper(label: String, value: Int, onValueChange: (Int) -> Unit, min
 }
 
 @Composable
-private fun StepperButton(symbol: String, onClick: () -> Unit) {
+private fun StepperButton(symbol: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(ContextMenuButtonSurface, AppShapes.small)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -172,9 +194,10 @@ fun RecordProgramDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    DialogCard(onDismiss = onDismiss) {
+    val firstFocusRequester = remember { FocusRequester() }
+    DialogCard(onDismiss = onDismiss, firstFocusRequester = firstFocusRequester) {
         DialogTitle(program, channel)
-        Stepper("Start earlier by", startAdjustMinutes, onStartAdjustChange)
+        Stepper("Start earlier by", startAdjustMinutes, onStartAdjustChange, minusButtonModifier = Modifier.focusRequester(firstFocusRequester))
         Stepper("End later by", endAdjustMinutes, onEndAdjustChange)
         DialogActions(onCancel = onDismiss, confirmLabel = "Schedule Recording", onConfirm = onConfirm)
     }
@@ -199,7 +222,8 @@ fun ReminderProgramDialog(
         LaunchedEffect(Unit) { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
     }
 
-    DialogCard(onDismiss = onDismiss) {
+    val firstFocusRequester = remember { FocusRequester() }
+    DialogCard(onDismiss = onDismiss, firstFocusRequester = firstFocusRequester) {
         DialogTitle(program, channel)
         BasicText(
             text = "Notify me before it starts:",
@@ -207,8 +231,13 @@ fun ReminderProgramDialog(
             modifier = Modifier.padding(bottom = 8.dp),
         )
         Row {
-            REMINDER_LEAD_OPTIONS.forEach { minutes ->
-                LeadChip(minutes = minutes, selected = leadMinutes == minutes, onClick = { onLeadMinutesChange(minutes) })
+            REMINDER_LEAD_OPTIONS.forEachIndexed { index, minutes ->
+                LeadChip(
+                    minutes = minutes,
+                    selected = leadMinutes == minutes,
+                    onClick = { onLeadMinutesChange(minutes) },
+                    modifier = if (index == 0) Modifier.focusRequester(firstFocusRequester) else Modifier,
+                )
             }
         }
         DialogActions(onCancel = onDismiss, confirmLabel = "Set Reminder", onConfirm = onConfirm)
@@ -216,9 +245,9 @@ fun ReminderProgramDialog(
 }
 
 @Composable
-private fun LeadChip(minutes: Int, selected: Boolean, onClick: () -> Unit) {
+private fun LeadChip(minutes: Int, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .padding(end = 6.dp)
             .background(if (selected) Palette.Accent else ContextMenuButtonSurface, AppShapes.pill)
             .clickable(onClick = onClick)

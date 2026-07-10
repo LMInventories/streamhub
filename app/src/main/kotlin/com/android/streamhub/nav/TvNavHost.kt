@@ -1,8 +1,11 @@
 package com.android.streamhub.nav
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,16 +67,44 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
 
     IptvAutoUpdateEffect()
 
+    // Explicit history of visited tabs. The popUpTo below is exactly what keeps each tab's
+    // ViewModel/mini-player alive across switches, but as a side effect it also collapses
+    // NavController's own back stack down to just [start destination, current tab] every time -
+    // so System Back, left entirely to its default popBackStack(), always lands on Home the
+    // instant you're more than one tab-switch away from it, rather than the tab you were actually
+    // on before. This is tracked separately so Back can walk back through visited tabs one at a
+    // time instead - reported as "back always returns to Home instead of the previous screen".
+    val tabBackHistory = remember { mutableStateListOf<String>() }
+
     // Same "switch tabs, keep each tab's state" pattern as the phone nav host - shared by both the
     // tab row itself and Home's own dashboard tiles, which used to call
     // navController.navigate(route) directly with none of this (see PhoneNavHost's matching
     // comment for the resulting bug: a dashboard tile's destination could get left stuck on top of
     // "home" instead of the tab row's Home button actually returning to it).
     val navigateToTab: (String) -> Unit = { route ->
+        if (route != currentRoute) {
+            currentRoute?.let {
+                tabBackHistory.remove(it)
+                tabBackHistory.add(it)
+            }
+        }
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
             restoreState = true
+        }
+    }
+
+    // Pops history directly instead of going through navigateToTab above, which would otherwise
+    // record this "going back" hop as if it were a forward navigation and corrupt the history
+    // it's reading from.
+    val goBackToPreviousTab: () -> Unit = {
+        if (tabBackHistory.isNotEmpty()) {
+            navController.navigate(tabBackHistory.removeLast()) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
 
@@ -84,11 +115,13 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
     ) {
         NavHost(navController = navController, startDestination = Route.HOME_PATTERN) {
             composable(Route.HOME_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 HomeScreenTv(
                     onNavigate = navigateToTab,
                 )
             }
             composable(Route.SEARCH_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 SearchScreen(
                     paddingValues = PaddingValues(24.dp),
                     onPlayChannel = { channelId -> navController.navigate(Route.playerRoute(channelId, SourceType.IPTV)) },
@@ -98,6 +131,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 LiveTvScreenTv(
                     onFullscreen = { channelId -> navController.navigate(Route.playerRoute(channelId, SourceType.IPTV)) },
                     onOpenRecordings = { navController.navigate(Route.RECORDINGS_PATTERN) },
@@ -110,6 +144,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.VOD_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 VodScreenTv(
                     onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
                     onOpenShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
@@ -135,6 +170,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.EMBY_HOME_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 ComingSoonScreen(
                     title = "Emby",
                     message = "Emby integration isn't wired up yet.",
@@ -142,6 +178,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 JellyfinHomeScreenTv(
                     onOpenLibrary = { library ->
                         navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
@@ -188,6 +225,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.SETTINGS_PATTERN) {
+                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 SettingsScreenTv(
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onJellyfinClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
