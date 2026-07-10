@@ -9,33 +9,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.Button
-import androidx.tv.material3.Card
-import androidx.tv.material3.Icon
-import androidx.tv.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Videocam
-import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.feature.iptv.livetv.cast.CastButton
 
+/**
+ * Reuses LiveTvScreenPhone's own landscape rendering (LiveTvBrowseContent with isLandscape=true)
+ * rather than a second, separately-maintained TV layout - TV is always landscape-shaped, so
+ * "phone in landscape" already is the target layout here, just at TV-appropriate sizes. Wraps its
+ * own Material3 MaterialTheme since the shared content uses Material3 components (ListItem,
+ * DropdownMenu, ...) and the ambient theme from TvNavHost is tv-material3's, not this one - same
+ * reasoning as IptvSettingsScreen/JellyfinSettingsScreen/SearchScreen.
+ */
 @Composable
 fun LiveTvScreenTv(
+    onFullscreen: (channelId: String) -> Unit,
     onOpenRecordings: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
@@ -107,127 +106,54 @@ fun LiveTvScreenTv(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (!uiState.hasSource) {
-            AddSourcePromptTv(modifier = Modifier.weight(1f))
-            return@Column
-        }
-
-        val previewSizeMultiplier = uiState.previewPlayerSize.multiplier
-        Row(modifier = Modifier.fillMaxWidth().height(180.dp * previewSizeMultiplier).padding(24.dp, 24.dp, 24.dp, 0.dp)) {
-            MiniPlayerPreview(
-                exoPlayer = viewModel.miniPlayerController.exoPlayer,
-                uiState = miniPlayerState,
-                onTap = viewModel::enterFullscreen,
-                modifier = Modifier.width(280.dp * previewSizeMultiplier).fillMaxHeight(),
-            )
-            EpgInfoPanel(
-                channelName = uiState.focusedChannel?.name,
-                nowProgram = uiState.nowProgram,
-                nextProgram = uiState.nextProgram,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-
-        uiState.errorMessage?.let { error ->
-            Text(text = error, color = Color.Red, modifier = Modifier.padding(24.dp, 8.dp))
-        }
-
-        val selectedCategory = uiState.selectedCategory
-        var selectedPrefix by remember { mutableStateOf<String?>(null) }
-
-        // weight(1f) here is load-bearing, not decorative - without it this competed for height
-        // with the fixed-size header Row above under Column's default (unbounded) child
-        // measurement, which is what made the grid silently fail to render.
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(24.dp)) {
-            when {
-                selectedCategory == null && uiState.isLoadingCategories ->
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-
-                selectedCategory == null -> Column(modifier = Modifier.fillMaxSize()) {
-                    Row {
-                        Button(onClick = { viewModel.selectCategory(LiveTvViewModel.FAVORITES_CATEGORY) }) {
-                            Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text("Favourites")
-                        }
-                        Button(onClick = onOpenRecordings, modifier = Modifier.padding(start = 12.dp)) {
-                            Icon(Icons.Filled.Videocam, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text("Recordings")
-                        }
-                    }
-                    CategoryPrefixFilterRow(
-                        categories = uiState.categories,
-                        selectedPrefix = selectedPrefix,
-                        onSelectPrefix = { selectedPrefix = it },
-                    )
-                    val visibleCategories = selectedPrefix?.let { prefix ->
-                        uiState.categories.filter { categoryPrefix(it.name) == prefix }
-                    } ?: uiState.categories
-                    CategoryGrid(
-                        categories = visibleCategories,
-                        onSelectCategory = viewModel::selectCategory,
-                        // Load-bearing, not decorative - see the comment on the outer Box above.
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    )
+    MaterialTheme(colorScheme = appColorScheme()) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                uiState.errorMessage?.let { error ->
+                    Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
                 }
 
-                else -> Column(modifier = Modifier.fillMaxSize()) {
-                    Button(onClick = viewModel::clearCategorySelection) {
-                        Text("< ${selectedCategory.name}")
-                    }
-                    if (uiState.isLoadingChannels) {
-                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                        }
-                    } else {
-                        // TV is always landscape-shaped, so the EPG grid replaces the plain
-                        // channel list here unconditionally, rather than branching on
-                        // orientation the way the phone screen does.
-                        EpgGridPanel(
-                            channels = uiState.channels,
-                            programmesByChannel = uiState.programmesByChannel,
-                            windowStart = uiState.gridWindowStart,
-                            windowEnd = uiState.gridWindowEnd,
-                            isLoading = uiState.isLoadingEpgGrid,
-                            loadProgress = uiState.epgGridLoadProgress,
-                            onFocusChannel = viewModel::focusChannel,
-                            onScheduleRecording = viewModel::scheduleRecording,
-                            onScheduleReminder = viewModel::scheduleReminder,
-                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                if (!uiState.hasSource) {
+                    AddSourcePrompt(modifier = Modifier.weight(1f))
+                    return@Column
+                }
+
+                val previewSizeMultiplier = uiState.previewPlayerSize.multiplier
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth().height(180.dp * previewSizeMultiplier)) {
+                        MiniPlayerPreview(
+                            exoPlayer = viewModel.miniPlayerController.exoPlayer,
+                            uiState = miniPlayerState,
+                            onTap = viewModel::enterFullscreen,
+                            modifier = Modifier.width(280.dp * previewSizeMultiplier).fillMaxHeight(),
+                        )
+                        EpgInfoPanel(
+                            channelName = uiState.focusedChannel?.name,
+                            nowProgram = uiState.nowProgram,
+                            nextProgram = uiState.nextProgram,
+                            modifier = Modifier.padding(16.dp),
                         )
                     }
+                    CastButton(isAvailable = viewModel.isCastAvailable, modifier = Modifier.align(Alignment.TopEnd))
                 }
-            }
-        }
-    }
-}
 
-@Composable
-private fun AddSourcePromptTv(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("No playlist added yet")
-            Text(
-                "Add an Xtream Codes or M3U playlist from the Settings tab to start watching Live TV.",
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun CategoryGrid(
-    categories: List<IptvCategoryInfo>,
-    onSelectCategory: (IptvCategoryInfo) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 220.dp),
-        modifier = modifier,
-    ) {
-        items(categories, key = { it.id }) { category ->
-            Card(onClick = { onSelectCategory(category) }, modifier = Modifier.padding(8.dp)) {
-                Text(text = category.name, modifier = Modifier.padding(16.dp))
+                LiveTvBrowseContent(
+                    uiState = uiState,
+                    // TV is always landscape-shaped, so this always takes the same branch phone
+                    // does in landscape (the inline EPG grid) rather than ever falling back to
+                    // the plain portrait channel list.
+                    isLandscape = true,
+                    onSelectCategory = viewModel::selectCategory,
+                    onBackToCategories = viewModel::clearCategorySelection,
+                    onFocusChannel = viewModel::focusChannel,
+                    onPlayFullscreen = onFullscreen,
+                    onToggleFavorite = viewModel::toggleFavorite,
+                    onScheduleRecording = viewModel::scheduleRecording,
+                    onScheduleReminder = viewModel::scheduleReminder,
+                    onOpenRecordings = onOpenRecordings,
+                    // Load-bearing, not decorative - see LiveTvScreenPhone's matching comment.
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

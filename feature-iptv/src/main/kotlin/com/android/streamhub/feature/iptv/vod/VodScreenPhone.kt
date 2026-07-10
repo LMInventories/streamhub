@@ -55,101 +55,129 @@ fun VodScreenPhone(
     viewModel: VodViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val selectedCategory = uiState.selectedCategory
 
     Surface(modifier = Modifier.fillMaxSize()) {
         // statusBarsPadding lives here unconditionally, not just on the grid density row below -
         // that row only renders once a category's selected, but this screen still needs status
         // bar clearance in landscape (where paddingValues arrives zeroed - see PhoneScaffold)
         // even before that.
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).statusBarsPadding()) {
-            // No title text here - the bottom nav tab below is already labeled "VOD", so a
-            // second, bigger "VOD" heading right above it was purely redundant. Just the grid
-            // density action, right-aligned, rather than a full-height empty app bar - and only
-            // shown at all once there's actually a category grid on screen for it to affect.
-            if (selectedCategory != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, end = 4.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    GridDensityButton(gridColumns = uiState.gridColumns, onSelect = viewModel::setGridColumns)
+        VodBrowseContent(
+            uiState = uiState,
+            onSelectCategory = viewModel::selectCategory,
+            onClearCategorySelection = viewModel::clearCategorySelection,
+            onSetMode = viewModel::setMode,
+            onSetGridColumns = viewModel::setGridColumns,
+            onOpenMovie = onOpenMovie,
+            onOpenShow = onOpenShow,
+            modifier = Modifier.fillMaxSize().padding(paddingValues).statusBarsPadding(),
+        )
+    }
+}
+
+/**
+ * Not private - reused as-is by VodScreenTv rather than a second TV-only implementation of the
+ * same category/poster-grid browsing, same reasoning as LiveTvScreenPhone's LiveTvBrowseContent.
+ */
+@Composable
+fun VodBrowseContent(
+    uiState: VodUiState,
+    onSelectCategory: (VodCategoryInfo) -> Unit,
+    onClearCategorySelection: () -> Unit,
+    onSetMode: (VodMode) -> Unit,
+    onSetGridColumns: (Int) -> Unit,
+    onOpenMovie: (itemId: String) -> Unit,
+    onOpenShow: (seriesId: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selectedCategory = uiState.selectedCategory
+
+    Column(modifier = modifier) {
+        // No title text here - the bottom nav tab/tab row is already labeled "VOD", so a second,
+        // bigger "VOD" heading right above it was purely redundant. Just the grid density action,
+        // right-aligned, rather than a full-height empty app bar - and only shown at all once
+        // there's actually a category grid on screen for it to affect.
+        if (selectedCategory != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, end = 4.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                GridDensityButton(gridColumns = uiState.gridColumns, onSelect = onSetGridColumns)
+            }
+        }
+
+        if (selectedCategory == null && uiState.hasSource && uiState.isSupported) {
+            ModePillToggle(
+                mode = uiState.mode,
+                onModeChange = onSetMode,
+                modifier = Modifier.padding(16.dp, 8.dp),
+            )
+        }
+
+        uiState.errorMessage?.let { error ->
+            Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
+        }
+
+        // weight(1f) is load-bearing here, not decorative - without it this content competed
+        // for height with TopAppBar under Column's default (unbounded) child measurement.
+        when {
+            !uiState.hasSource -> Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No playlist added yet", color = Palette.TextPrimary)
+                    Text(
+                        text = "Add an Xtream Codes playlist from the Settings tab to browse movies and shows.",
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
+                    )
                 }
             }
 
-            if (selectedCategory == null && uiState.hasSource && uiState.isSupported) {
-                ModePillToggle(
-                    mode = uiState.mode,
-                    onModeChange = viewModel::setMode,
-                    modifier = Modifier.padding(16.dp, 8.dp),
+            !uiState.isSupported -> Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "VOD needs an Xtream Codes source. M3U playlists don't have a standard way to separate movies from live channels.",
+                    color = Palette.TextMuted,
+                    modifier = Modifier.padding(32.dp),
                 )
             }
 
-            uiState.errorMessage?.let { error ->
-                Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
+            selectedCategory == null && uiState.isLoadingCategories ->
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+
+            selectedCategory == null -> LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
+            ) {
+                items(uiState.categories, key = { it.id }) { category ->
+                    CategoryTile(name = category.name, onClick = { onSelectCategory(category) })
+                }
             }
 
-            // weight(1f) is load-bearing here, not decorative - without it this content competed
-            // for height with TopAppBar under Column's default (unbounded) child measurement.
-            when {
-                !uiState.hasSource -> Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No playlist added yet", color = Palette.TextPrimary)
-                        Text(
-                            text = "Add an Xtream Codes playlist from the Settings tab to browse movies and shows.",
-                            color = Palette.TextMuted,
-                            modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
-                        )
-                    }
-                }
-
-                !uiState.isSupported -> Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "VOD needs an Xtream Codes source. M3U playlists don't have a standard way to separate movies from live channels.",
-                        color = Palette.TextMuted,
-                        modifier = Modifier.padding(32.dp),
-                    )
-                }
-
-                selectedCategory == null && uiState.isLoadingCategories ->
+            else -> Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                ListItem(
+                    headlineContent = { Text(selectedCategory.name) },
+                    leadingContent = {
+                        IconButton(onClick = onClearCategorySelection) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to categories")
+                        }
+                    },
+                )
+                if (uiState.isLoadingContent) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
-
-                selectedCategory == null -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
-                ) {
-                    items(uiState.categories, key = { it.id }) { category ->
-                        CategoryTile(name = category.name, onClick = { viewModel.selectCategory(category) })
-                    }
-                }
-
-                else -> Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    ListItem(
-                        headlineContent = { Text(selectedCategory.name) },
-                        leadingContent = {
-                            IconButton(onClick = viewModel::clearCategorySelection) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to categories")
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(uiState.gridColumns),
+                        modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
+                    ) {
+                        if (uiState.mode == VodMode.MOVIES) {
+                            items(uiState.movies, key = { it.id }) { movie ->
+                                Poster(name = movie.name, posterUrl = movie.posterUrl, onClick = { onOpenMovie(movie.id) })
                             }
-                        },
-                    )
-                    if (uiState.isLoadingContent) {
-                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(uiState.gridColumns),
-                            modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp),
-                        ) {
-                            if (uiState.mode == VodMode.MOVIES) {
-                                items(uiState.movies, key = { it.id }) { movie ->
-                                    Poster(name = movie.name, posterUrl = movie.posterUrl, onClick = { onOpenMovie(movie.id) })
-                                }
-                            } else {
-                                items(uiState.shows, key = { it.id }) { show ->
-                                    Poster(name = show.name, posterUrl = show.posterUrl, onClick = { onOpenShow(show.id) })
-                                }
+                        } else {
+                            items(uiState.shows, key = { it.id }) { show ->
+                                Poster(name = show.name, posterUrl = show.posterUrl, onClick = { onOpenShow(show.id) })
                             }
                         }
                     }

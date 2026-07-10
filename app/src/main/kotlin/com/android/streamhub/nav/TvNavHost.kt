@@ -99,6 +99,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.LIVE_TV_PATTERN) {
                 LiveTvScreenTv(
+                    onFullscreen = { channelId -> navController.navigate(Route.playerRoute(channelId, SourceType.IPTV)) },
                     onOpenRecordings = { navController.navigate(Route.RECORDINGS_PATTERN) },
                 )
             }

@@ -208,8 +208,9 @@ fun LiveTvScreenPhone(
     }
 }
 
+/** Not private - shared with LiveTvScreenTv, which reuses this whole file's landscape rendering rather than keeping a second, diverging TV-only layout. */
 @Composable
-private fun AddSourcePrompt(modifier: Modifier = Modifier) {
+fun AddSourcePrompt(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("No playlist added yet", color = Color.White)
@@ -223,7 +224,7 @@ private fun AddSourcePrompt(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PinnedShortcut(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun PinnedShortcut(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .clip(AppShapes.small)
@@ -243,9 +244,10 @@ private fun PinnedShortcut(label: String, icon: ImageVector, onClick: () -> Unit
     }
 }
 
+/** Not private - reused as-is by LiveTvScreenTv with isLandscape always true, rather than a second TV-only implementation of the same category/EPG browsing. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun LiveTvBrowseContent(
+fun LiveTvBrowseContent(
     uiState: LiveTvUiState,
     isLandscape: Boolean,
     onSelectCategory: (IptvCategoryInfo) -> Unit,
