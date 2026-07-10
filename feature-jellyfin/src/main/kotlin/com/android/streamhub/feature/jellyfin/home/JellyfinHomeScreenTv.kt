@@ -108,7 +108,7 @@ private fun JellyfinHomeContentTv(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        PreviewPanel(item = previewItem, modifier = Modifier.fillMaxWidth().height(420.dp))
+        PreviewPanel(item = previewItem, modifier = Modifier.fillMaxWidth().height(210.dp))
 
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -168,8 +168,8 @@ private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier)
                 ),
         )
         if (item != null) {
-            Column(modifier = Modifier.align(Alignment.BottomStart).padding(32.dp).fillMaxWidth(0.6f)) {
-                Text(text = item.name, style = MaterialTheme.typography.headlineMedium)
+            Column(modifier = Modifier.align(Alignment.BottomStart).padding(20.dp).fillMaxWidth(0.6f)) {
+                Text(text = item.name, style = MaterialTheme.typography.titleLarge)
 
                 val subtitleParts = buildList {
                     item.productionYear?.let { add(it.toString()) }
@@ -181,16 +181,22 @@ private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier)
                     }
                 }
                 if (subtitleParts.isNotEmpty()) {
-                    Text(text = subtitleParts.joinToString(" • "), color = Palette.TextMuted, modifier = Modifier.padding(top = 6.dp))
+                    Text(
+                        text = subtitleParts.joinToString(" • "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
 
                 item.overview?.let { overview ->
                     Text(
                         text = overview,
-                        maxLines = 3,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         color = Palette.TextMuted,
-                        modifier = Modifier.padding(top = 10.dp),
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
             }

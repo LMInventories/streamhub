@@ -24,6 +24,14 @@ val tvNavItems = listOf(
 /**
  * Top tab row shell for TV. D-pad focus moves along the tab row (tv-material's TabRow handles
  * the focus/remote-key wiring) and down into whatever [content] renders below it.
+ *
+ * Navigates only on click/select, not on mere focus. Firing navigation from onFocus (as this used
+ * to) sets up a feedback loop: focus moving to a tab navigates -> the route change recomposes
+ * this with a new selectedTabIndex -> TabRow reactively re-syncs focus to that index - which can
+ * fight the D-pad's own focus movement if that recomposition lands a frame behind, reading as
+ * "the tab row doesn't respond" or snapping back to the previous tab. Click-only sidesteps the
+ * loop entirely and matches how most Android TV apps' top nav actually behaves (arrow to
+ * highlight, press select to actually go there).
  */
 @Composable
 fun TvScaffold(
@@ -40,7 +48,6 @@ fun TvScaffold(
                 tvNavItems.forEachIndexed { index, item ->
                     Tab(
                         selected = index == selectedIndex,
-                        onFocus = { onNavigate(item.route) },
                         onClick = { onNavigate(item.route) },
                     ) {
                         Text(text = item.label)
