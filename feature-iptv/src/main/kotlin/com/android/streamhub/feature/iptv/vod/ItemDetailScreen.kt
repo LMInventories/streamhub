@@ -1,6 +1,7 @@
 package com.android.streamhub.feature.iptv.vod
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,6 +45,8 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
+import com.android.streamhub.core.player.download.DownloadInfo
+import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 // Reachable from both the phone and TV nav hosts, and built with mobile Material3 components -
@@ -54,6 +61,7 @@ fun ItemDetailScreen(
     viewModel: ItemDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val downloadInfo by viewModel.downloadInfo.collectAsStateWithLifecycle()
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -77,7 +85,15 @@ fun ItemDetailScreen(
                         Text(text = uiState.errorMessage ?: "", color = Palette.Error, modifier = Modifier.padding(32.dp))
                     }
 
-                    else -> ItemDetailContent(uiState = uiState, onPlay = onPlay)
+                    else -> ItemDetailContent(
+                        uiState = uiState,
+                        downloadInfo = downloadInfo,
+                        onPlay = onPlay,
+                        onStartDownload = viewModel::startDownload,
+                        onPauseDownload = viewModel::pauseDownload,
+                        onResumeDownload = viewModel::resumeDownload,
+                        onRemoveDownload = viewModel::removeDownload,
+                    )
                 }
             }
         }
@@ -85,7 +101,15 @@ fun ItemDetailScreen(
 }
 
 @Composable
-private fun ItemDetailContent(uiState: ItemDetailUiState, onPlay: () -> Unit) {
+private fun ItemDetailContent(
+    uiState: ItemDetailUiState,
+    downloadInfo: DownloadInfo?,
+    onPlay: () -> Unit,
+    onStartDownload: () -> Unit,
+    onPauseDownload: () -> Unit,
+    onResumeDownload: () -> Unit,
+    onRemoveDownload: () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Box(
@@ -121,9 +145,19 @@ private fun ItemDetailContent(uiState: ItemDetailUiState, onPlay: () -> Unit) {
                 DetailMetaRow(uiState)
 
                 val resumeFraction = uiState.resumeFractionComplete
-                Button(onClick = onPlay, modifier = Modifier.padding(top = 16.dp)) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(text = if (resumeFraction != null) "Resume" else "Play", modifier = Modifier.padding(start = 6.dp))
+                Row(modifier = Modifier.padding(top = 16.dp)) {
+                    Button(onClick = onPlay) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(text = if (resumeFraction != null) "Resume" else "Play", modifier = Modifier.padding(start = 6.dp))
+                    }
+                    DownloadButton(
+                        downloadInfo = downloadInfo,
+                        onStart = onStartDownload,
+                        onPause = onPauseDownload,
+                        onResume = onResumeDownload,
+                        onRemove = onRemoveDownload,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
                 }
                 if (resumeFraction != null) {
                     SignalBar(progress = resumeFraction, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), segmentCount = 20)
@@ -150,6 +184,70 @@ private fun ItemDetailContent(uiState: ItemDetailUiState, onPlay: () -> Unit) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/**
+ * State-driven download control - one tap does whatever's the obvious next action for the
+ * current state (start/pause/resume/remove), same "one control, state decides the verb" shape as
+ * the Play/Resume button above it. Not shared via :core-player since that module has no material3
+ * dependency and this is small enough to duplicate once in feature-jellyfin's equivalent rather
+ * than adding one just for this.
+ */
+@Composable
+private fun DownloadButton(
+    downloadInfo: DownloadInfo?,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val onClick = when (downloadInfo?.state) {
+        null, DownloadState.FAILED -> onStart
+        DownloadState.PAUSED -> onResume
+        DownloadState.QUEUED, DownloadState.DOWNLOADING -> onPause
+        DownloadState.COMPLETED -> onRemove
+        DownloadState.REMOVING -> ({})
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(AppShapes.small)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        when (downloadInfo?.state) {
+            null, DownloadState.FAILED -> {
+                Icon(Icons.Filled.Download, contentDescription = "Download", modifier = Modifier.size(18.dp))
+                Text("Download", modifier = Modifier.padding(start = 6.dp))
+            }
+            DownloadState.QUEUED, DownloadState.DOWNLOADING -> {
+                val progress = downloadInfo.progressPercent
+                if (progress >= 0f) {
+                    CircularProgressIndicator(progress = { progress / 100f }, modifier = Modifier.size(18.dp))
+                    Text(text = "${progress.toInt()}%", modifier = Modifier.padding(start = 6.dp))
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    Text(text = "Downloading", modifier = Modifier.padding(start = 6.dp))
+                }
+                Icon(Icons.Filled.Pause, contentDescription = "Pause download", modifier = Modifier.padding(start = 6.dp).size(16.dp))
+            }
+            DownloadState.PAUSED -> {
+                Icon(Icons.Filled.Download, contentDescription = "Resume download", modifier = Modifier.size(18.dp))
+                Text("Paused", modifier = Modifier.padding(start = 6.dp))
+            }
+            DownloadState.COMPLETED -> {
+                Icon(Icons.Filled.Check, contentDescription = "Downloaded", tint = Palette.Accent, modifier = Modifier.size(18.dp))
+                Text("Downloaded", modifier = Modifier.padding(start = 6.dp))
+                Icon(Icons.Filled.Close, contentDescription = "Remove download", modifier = Modifier.padding(start = 6.dp).size(16.dp))
+            }
+            DownloadState.REMOVING -> {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                Text("Removing", modifier = Modifier.padding(start = 6.dp))
+            }
+        }
     }
 }
 

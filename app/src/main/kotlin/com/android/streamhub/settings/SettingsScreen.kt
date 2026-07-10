@@ -52,12 +52,14 @@ fun SettingsScreen(
     onAppearanceClick: () -> Unit,
     onIptvPlaybackClick: () -> Unit,
     onScheduledManagementClick: () -> Unit,
+    onDownloadsManagementClick: () -> Unit,
 ) {
     val sections = listOf(
         SettingsSection(
             title = "App",
             rows = listOf(
                 SettingsRow(label = "Appearance", subtitle = "Theme, text size", onClick = onAppearanceClick),
+                SettingsRow(label = "Downloads", subtitle = "Manage offline downloads and storage", onClick = onDownloadsManagementClick),
             ),
         ),
         SettingsSection(

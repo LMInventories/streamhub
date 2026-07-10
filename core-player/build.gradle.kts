@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -55,6 +56,11 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // DownloadMetadata (title/poster/source, serialized into Media3's DownloadRequest.data) -
+    // avoids a parallel Room table for download bookkeeping that Media3's own DownloadIndex
+    // already persists everything else about (state, progress, bytes).
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

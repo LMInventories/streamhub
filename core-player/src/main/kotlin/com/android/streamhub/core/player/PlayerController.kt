@@ -9,9 +9,12 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.exoplayer.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.player.download.PlaybackCacheDataSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +34,7 @@ import javax.inject.Inject
 @UnstableApi
 class PlayerController @Inject constructor(
     @ApplicationContext context: Context,
+    @PlaybackCacheDataSource cacheDataSourceFactory: CacheDataSource.Factory,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var positionTicker: Job? = null
@@ -46,7 +50,15 @@ class PlayerController @Inject constructor(
     private val renderersFactory = DefaultRenderersFactory(context)
         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
 
-    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context, renderersFactory).build()
+    // Read-only cache data source (see PlaybackCacheDataSource's own doc) - a downloaded item
+    // plays back straight from local disk through this same streamUri with no branching needed
+    // anywhere else in this class; anything not downloaded falls straight through to the network
+    // upstream exactly as before.
+    private val mediaSourceFactory = DefaultMediaSourceFactory(context).setDataSourceFactory(cacheDataSourceFactory)
+
+    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context, renderersFactory)
+        .setMediaSourceFactory(mediaSourceFactory)
+        .build()
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {

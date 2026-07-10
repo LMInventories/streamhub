@@ -17,6 +17,7 @@ import androidx.navigation.navArgument
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.tv.scaffold.TvScaffold
+import com.android.streamhub.downloads.DownloadsManagementScreen
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
 import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
 import com.android.streamhub.feature.iptv.scheduled.ScheduledManagementScreen
@@ -197,6 +198,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     onAppearanceClick = { navController.navigate(Route.APP_UI_SETTINGS_PATTERN) },
                     onIptvPlaybackClick = { navController.navigate(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) },
                     onScheduledManagementClick = { navController.navigate(Route.SCHEDULED_MANAGEMENT_PATTERN) },
+                    onDownloadsManagementClick = { navController.navigate(Route.DOWNLOADS_MANAGEMENT_PATTERN) },
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
@@ -204,6 +206,9 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) {
                 IptvPlaybackSettingsScreen(onDone = { navController.popBackStack() })
+            }
+            composable(Route.DOWNLOADS_MANAGEMENT_PATTERN) {
+                DownloadsManagementScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.SCHEDULED_MANAGEMENT_PATTERN) {
                 ScheduledManagementScreen(onBack = { navController.popBackStack() })

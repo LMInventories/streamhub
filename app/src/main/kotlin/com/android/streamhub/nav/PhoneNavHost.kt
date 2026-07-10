@@ -33,6 +33,7 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderS
 import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibilityScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
+import com.android.streamhub.downloads.DownloadsManagementScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
 import com.android.streamhub.home.HomeScreenPhone
 import com.android.streamhub.placeholder.ComingSoonScreen
@@ -203,6 +204,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     onAppearanceClick = { navController.navigate(Route.APP_UI_SETTINGS_PATTERN) },
                     onIptvPlaybackClick = { navController.navigate(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) },
                     onScheduledManagementClick = { navController.navigate(Route.SCHEDULED_MANAGEMENT_PATTERN) },
+                    onDownloadsManagementClick = { navController.navigate(Route.DOWNLOADS_MANAGEMENT_PATTERN) },
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
@@ -213,6 +215,9 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.SCHEDULED_MANAGEMENT_PATTERN) {
                 ScheduledManagementScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Route.DOWNLOADS_MANAGEMENT_PATTERN) {
+                DownloadsManagementScreen(onBack = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_SETTINGS_PATTERN) {
                 JellyfinSettingsScreen(onDone = { navController.popBackStack() })

@@ -5,10 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.domain.WatchProgressRepository
+import com.android.streamhub.core.player.download.DownloadInfo
+import com.android.streamhub.core.player.download.DownloadTracker
 import com.android.streamhub.feature.iptv.data.IptvVodRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,12 +37,14 @@ data class ItemDetailUiState(
     // null = start from the beginning (show "Play"); non-null = resumable (show "Resume").
     val resumeFractionComplete: Float? = null,
     val errorMessage: String? = null,
+    val streamUrl: String? = null,
 )
 
 @HiltViewModel
 class ItemDetailViewModel @Inject constructor(
     private val vodRepository: IptvVodRepository,
     private val watchProgressRepository: WatchProgressRepository,
+    private val downloadTracker: DownloadTracker,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -46,6 +53,10 @@ class ItemDetailViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ItemDetailUiState())
     val uiState: StateFlow<ItemDetailUiState> = _uiState
+
+    val downloadInfo: StateFlow<DownloadInfo?> = downloadTracker.downloads
+        .map { downloads -> downloads.firstOrNull { it.id == itemId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
         viewModelScope.launch {
@@ -77,10 +88,21 @@ class ItemDetailViewModel @Inject constructor(
                             seasonNumber = detail.seasonNumber,
                             episodeNumber = detail.episodeNumber,
                             resumeFractionComplete = resumeFraction,
+                            streamUrl = detail.streamUrl,
                         )
                     }
                 }
                 .onFailure { e -> _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load details") } }
         }
     }
+
+    fun startDownload() {
+        val state = _uiState.value
+        val streamUrl = state.streamUrl ?: return
+        downloadTracker.startDownload(itemId, SourceType.IPTV, state.title, state.posterUrl, streamUrl)
+    }
+
+    fun pauseDownload() = downloadTracker.pauseDownload(itemId)
+    fun resumeDownload() = downloadTracker.resumeDownload(itemId)
+    fun removeDownload() = downloadTracker.removeDownload(itemId)
 }

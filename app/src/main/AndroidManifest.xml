@@ -70,6 +70,12 @@
             android:name="com.android.streamhub.feature.iptv.data.scheduled.RecordingCaptureService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- Media3's DownloadManager requires this to keep offline downloads running as a
+             foreground service while any are in progress. -->
+        <service
+            android:name="com.android.streamhub.core.player.download.StreamHubDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>
