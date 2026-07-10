@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.design.rememberTvManualKeyboardReadOnly
 import com.android.streamhub.core.design.tvManualKeyboard
 import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
@@ -77,28 +78,34 @@ fun JellyfinSettingsScreen(
                     .navigationBarsPadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                val serverUrlReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.serverUrl,
                     onValueChange = viewModel::updateServerUrl,
                     label = { Text("Server URL (e.g. http://host:8096)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = serverUrlReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(serverUrlReadOnly),
                 )
+                val usernameReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.username,
                     onValueChange = viewModel::updateUsername,
                     label = { Text("Username") },
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = usernameReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(usernameReadOnly),
                 )
+                val passwordReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.password,
                     onValueChange = viewModel::updatePassword,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = passwordReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(passwordReadOnly),
                 )
 
                 Button(

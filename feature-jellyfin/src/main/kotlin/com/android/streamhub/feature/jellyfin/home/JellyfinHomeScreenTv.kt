@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
@@ -303,12 +304,16 @@ private fun JellyfinItemRowTv(
 }
 
 // No title beneath the poster - the preview panel above already shows the focused item's name
-// (and everything else about it), so a repeated label here would just be clutter.
+// (and everything else about it), so a repeated label here would just be clutter. Width is 2/3 of
+// the original 140dp per feedback that the rows read too large; focusedScale is half of
+// CardDefaults' own default growth (1.1f) since the full-size grow-on-focus was tall enough to
+// visually cover the "Next Up" row/title sitting just above it.
 @Composable
 private fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier.width(140.dp).onFocusChanged { state -> onFocused(state.isFocused) },
+        scale = CardDefaults.scale(focusedScale = 1.05f),
+        modifier = Modifier.width(94.dp).onFocusChanged { state -> onFocused(state.isFocused) },
     ) {
         Box(
             modifier = Modifier

@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.design.rememberTvManualKeyboardReadOnly
 import com.android.streamhub.core.design.tvManualKeyboard
 import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
@@ -93,47 +94,59 @@ fun IptvSettingsScreen(
             }
 
             if (uiState.providerType == IptvProviderType.XTREAM) {
+                val baseUrlReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.xtreamBaseUrl,
                     onValueChange = viewModel::updateXtreamBaseUrl,
                     label = { Text("Server URL (e.g. http://host:port)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = baseUrlReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(baseUrlReadOnly),
                 )
+                val usernameReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.xtreamUsername,
                     onValueChange = viewModel::updateXtreamUsername,
                     label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = usernameReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(usernameReadOnly),
                 )
+                val passwordReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.xtreamPassword,
                     onValueChange = viewModel::updateXtreamPassword,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = passwordReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(passwordReadOnly),
                 )
+                val xmlTvUrlReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.xtreamXmlTvUrlOverride,
                     onValueChange = viewModel::updateXtreamXmlTvUrlOverride,
                     label = { Text("EPG (XMLTV) URL override - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = xmlTvUrlReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(xmlTvUrlReadOnly),
                 )
             } else {
+                val playlistUrlReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.m3uPlaylistUrl,
                     onValueChange = viewModel::updateM3uPlaylistUrl,
                     label = { Text("Playlist URL") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = playlistUrlReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(playlistUrlReadOnly),
                 )
+                val epgUrlReadOnly = rememberTvManualKeyboardReadOnly()
                 OutlinedTextField(
                     value = uiState.m3uEpgUrl,
                     onValueChange = viewModel::updateM3uEpgUrl,
                     label = { Text("EPG (XMLTV) URL - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
+                    readOnly = epgUrlReadOnly.value,
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(epgUrlReadOnly),
                 )
             }
 
