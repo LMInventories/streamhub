@@ -39,6 +39,8 @@ sealed class Route {
 
     data object Recordings : Route()
 
+    data object ScheduledManagement : Route()
+
     data class Player(val itemId: String, val sourceType: SourceType) : Route()
 
     companion object {
@@ -63,6 +65,7 @@ sealed class Route {
         const val JELLYFIN_ITEM_DETAIL_PATTERN = "jellyfin_item_detail/{itemId}"
         const val JELLYFIN_SERIES_DETAIL_PATTERN = "jellyfin_series_detail/{seriesId}"
         const val RECORDINGS_PATTERN = "recordings"
+        const val SCHEDULED_MANAGEMENT_PATTERN = "scheduled_management"
         const val PLAYER_PATTERN = "player/{sourceType}/{itemId}"
 
         fun playerRoute(itemId: String, sourceType: SourceType): String =

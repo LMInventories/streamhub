@@ -162,6 +162,8 @@ fun SearchScreen(
                                 leadMinutes = 10
                                 dialogState = ProgramDialogState.Reminder(channel, program)
                             },
+                            onExpandLiveTv = viewModel::expandLiveTvResults,
+                            onExpandVod = viewModel::expandVodResults,
                         )
                     }
                 }
@@ -226,6 +228,8 @@ private fun SearchResultsTabs(
     onOpenJellyfinItem: (JellyfinItemInfo) -> Unit,
     onRecord: (IptvChannelInfo, EpgProgram) -> Unit,
     onReminder: (IptvChannelInfo, EpgProgram) -> Unit,
+    onExpandLiveTv: () -> Unit,
+    onExpandVod: () -> Unit,
 ) {
     var selectedTab by remember { mutableStateOf(SearchTab.LIVE_TV) }
     val use24Hour = rememberUse24HourTime()
@@ -243,16 +247,20 @@ private fun SearchResultsTabs(
         when (selectedTab) {
             SearchTab.LIVE_TV -> LiveTvResultsTab(
                 results = uiState.epgResults,
+                expanded = uiState.epgExpanded,
                 use24Hour = use24Hour,
                 onPlayChannel = onPlayChannel,
                 onRecord = onRecord,
                 onReminder = onReminder,
+                onExpand = onExpandLiveTv,
             )
             SearchTab.VOD -> VodResultsTab(
                 movies = uiState.vodMovies,
                 shows = uiState.vodShows,
+                expanded = uiState.vodExpanded,
                 onOpenMovie = onOpenVodMovie,
                 onOpenShow = onOpenVodShow,
+                onExpand = onExpandVod,
             )
             SearchTab.JELLYFIN -> JellyfinResultsTab(results = uiState.jellyfinResults, onOpenItem = onOpenJellyfinItem)
             SearchTab.EMBY -> EmptyPrompt("Emby integration isn't wired up yet.")
@@ -274,10 +282,12 @@ private fun tabLabel(tab: SearchTab, uiState: SearchUiState): String {
 @Composable
 private fun LiveTvResultsTab(
     results: List<EpgSearchResult>,
+    expanded: Boolean,
     use24Hour: Boolean,
     onPlayChannel: (String) -> Unit,
     onRecord: (IptvChannelInfo, EpgProgram) -> Unit,
     onReminder: (IptvChannelInfo, EpgProgram) -> Unit,
+    onExpand: () -> Unit,
 ) {
     if (results.isEmpty()) {
         EmptyPrompt("No upcoming Live TV matches.")
@@ -293,6 +303,11 @@ private fun LiveTvResultsTab(
                 onReminder = { onReminder(result.channel, result.program) },
             )
         }
+        // results.size == the capped limit is the only signal available that more might exist -
+        // an exact-count coincidence just makes tapping this a harmless no-op re-fetch.
+        if (!expanded && results.size >= DEFAULT_SEARCH_RESULT_LIMIT) {
+            item { ShowMoreRow(onClick = onExpand) }
+        }
     }
 }
 
@@ -300,8 +315,10 @@ private fun LiveTvResultsTab(
 private fun VodResultsTab(
     movies: List<VodMovieInfo>,
     shows: List<VodShowInfo>,
+    expanded: Boolean,
     onOpenMovie: (String) -> Unit,
     onOpenShow: (String) -> Unit,
+    onExpand: () -> Unit,
 ) {
     if (movies.isEmpty() && shows.isEmpty()) {
         EmptyPrompt("No VOD matches.")
@@ -332,6 +349,20 @@ private fun VodResultsTab(
                 )
             }
         }
+        if (!expanded && (movies.size >= DEFAULT_SEARCH_RESULT_LIMIT || shows.size >= DEFAULT_SEARCH_RESULT_LIMIT)) {
+            item { ShowMoreRow(onClick = onExpand) }
+        }
+    }
+}
+
+@Composable
+private fun ShowMoreRow(onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+        Text(
+            text = "Show more results",
+            color = Palette.Accent,
+            modifier = Modifier.clickable(onClick = onClick).padding(8.dp),
+        )
     }
 }
 

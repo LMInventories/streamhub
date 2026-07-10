@@ -130,13 +130,13 @@ class IptvVodRepository @Inject constructor(
      * meaningfully return Search results, and one bad category used to blank out every other
      * category's results too.
      */
-    suspend fun searchMovies(query: String): List<VodMovieInfo> {
+    suspend fun searchMovies(query: String, limit: Int = Int.MAX_VALUE): List<VodMovieInfo> {
         if (!isSupported() || query.isBlank()) return emptyList()
         return coroutineScope {
             getCategories()
                 .map { category -> async { runCatching { getMovies(category.id) }.getOrDefault(emptyList()) } }
                 .flatMap { it.await() }
-        }.filter { FuzzyMatch.matches(it.name, query) }
+        }.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
 
     suspend fun getMovieDetail(playbackId: String): VodDetailInfo? {
@@ -178,13 +178,13 @@ class IptvVodRepository @Inject constructor(
     }
 
     /** Client-side filter over every show in every series category - same parallel/fault-tolerant reasoning as searchMovies. */
-    suspend fun searchShows(query: String): List<VodShowInfo> {
+    suspend fun searchShows(query: String, limit: Int = Int.MAX_VALUE): List<VodShowInfo> {
         if (!isSupported() || query.isBlank()) return emptyList()
         return coroutineScope {
             getSeriesCategories()
                 .map { category -> async { runCatching { getShows(category.id) }.getOrDefault(emptyList()) } }
                 .flatMap { it.await() }
-        }.filter { FuzzyMatch.matches(it.name, query) }
+        }.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
 
     /** Drops every cached category/item list - mirrors IptvBrowseRepository.invalidateCache(), called from the same refresh flow. */
