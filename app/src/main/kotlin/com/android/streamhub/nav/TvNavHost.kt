@@ -29,7 +29,7 @@ import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenTv
 import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreen
 import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
-import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreen
+import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreenTv
 import com.android.streamhub.feature.jellyfin.library.JellyfinFavoritesScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderScreen
@@ -142,8 +142,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
-                JellyfinHomeScreen(
-                    paddingValues = PaddingValues(24.dp),
+                JellyfinHomeScreenTv(
                     onOpenLibrary = { library ->
                         navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
                     },
