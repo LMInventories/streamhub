@@ -81,7 +81,7 @@ fun JellyfinHomeScreenTv(
 private fun JellyfinAddSourcePromptTv(modifier: Modifier = Modifier) {
     Box(modifier = modifier.padding(24.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("No Jellyfin server signed in")
+            Text("No Jellyfin server signed in", color = Palette.TextPrimary)
             Text(
                 text = "Sign in to a Jellyfin server from the Settings tab to browse your library.",
                 color = Palette.TextMuted,
@@ -146,10 +146,16 @@ private fun JellyfinHomeContentTv(
 
 @Composable
 private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier) {
+    // Falls back to the poster/thumbnail when there's no dedicated backdrop - Continue Watching/
+    // Next Up are mostly individual episodes, which often have no backdrop of their own even
+    // though the series does, so without this the panel would just be a blank black box for most
+    // of what's actually in those rows.
+    val heroImageUrl = item?.backdropImageUrl ?: item?.primaryImageUrl
+
     Box(modifier = modifier.background(Color.Black)) {
-        if (item?.backdropImageUrl != null) {
+        if (heroImageUrl != null) {
             AsyncImage(
-                model = item.backdropImageUrl,
+                model = heroImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -163,13 +169,17 @@ private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier)
                 .fillMaxSize()
                 .background(
                     Brush.horizontalGradient(
-                        colors = listOf(Color.Black.copy(alpha = 0.9f), Color.Black.copy(alpha = 0.4f), Color.Transparent),
+                        colors = listOf(Color.Black.copy(alpha = 0.9f), Color.Black.copy(alpha = 0.5f), Color.Transparent),
                     ),
                 ),
         )
         if (item != null) {
             Column(modifier = Modifier.align(Alignment.BottomStart).padding(20.dp).fillMaxWidth(0.6f)) {
-                Text(text = item.name, style = MaterialTheme.typography.titleLarge)
+                // Plain white rather than a Palette/theme-derived color - this text always sits on
+                // the dark scrim above, regardless of the app's own light/dark setting, same as
+                // every other "text over a video/image backdrop" spot in this app (PlayerScreenTv,
+                // LiveFullscreenOverlay, EpgGridPanel).
+                Text(text = item.name, style = MaterialTheme.typography.titleLarge, color = Color.White)
 
                 val subtitleParts = buildList {
                     item.productionYear?.let { add(it.toString()) }
@@ -184,7 +194,7 @@ private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier)
                     Text(
                         text = subtitleParts.joinToString(" • "),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Palette.TextMuted,
+                        color = Color.White.copy(alpha = 0.75f),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
@@ -195,7 +205,7 @@ private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier)
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        color = Palette.TextMuted,
+                        color = Color.White.copy(alpha = 0.75f),
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
@@ -223,7 +233,7 @@ private fun JellyfinItemRowTv(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(text = title)
+            Text(text = title, color = Palette.TextPrimary)
             if (onSeeAll != null) {
                 val interactionSource = remember { MutableInteractionSource() }
                 Text(
@@ -251,36 +261,30 @@ private fun JellyfinItemRowTv(
     }
 }
 
+// No title beneath the poster - the preview panel above already shows the focused item's name
+// (and everything else about it), so a repeated label here would just be clutter.
 @Composable
 private fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.width(140.dp).onFocusChanged { state -> onFocused(state.isFocused) },
     ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .aspectRatio(2f / 3f)
-                    .fillMaxWidth()
-                    .clip(AppShapes.small),
-            ) {
-                if (item.primaryImageUrl != null) {
-                    AsyncImage(
-                        model = item.primaryImageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
-                }
+        Box(
+            modifier = Modifier
+                .aspectRatio(2f / 3f)
+                .fillMaxWidth()
+                .clip(AppShapes.small),
+        ) {
+            if (item.primaryImageUrl != null) {
+                AsyncImage(
+                    model = item.primaryImageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
             }
-            Text(
-                text = item.seriesName ?: item.name,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(8.dp),
-            )
         }
     }
 }
