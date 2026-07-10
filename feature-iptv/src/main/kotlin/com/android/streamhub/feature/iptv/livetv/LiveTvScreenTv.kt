@@ -42,7 +42,6 @@ fun LiveTvScreenTv(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
-    val multiviewPickerCandidates by viewModel.multiviewPickerCandidates.collectAsStateWithLifecycle()
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
     // returning from another tab) and pauses it whenever it leaves - there's no reason to keep a
@@ -67,7 +66,13 @@ fun LiveTvScreenTv(
         MultiviewOverlay(
             tiles = uiState.multiviewTiles,
             audioFocusChannelId = uiState.multiviewAudioFocusChannelId,
-            pickerCandidates = multiviewPickerCandidates,
+            categories = uiState.categories,
+            pickerActiveTab = uiState.multiviewPickerTab,
+            recentChannels = recentChannels,
+            pickerChannels = uiState.multiviewPickerChannels,
+            isLoadingPickerChannels = uiState.isLoadingMultiviewPickerChannels,
+            onSelectPickerTab = viewModel::selectMultiviewPickerTab,
+            onResetPicker = viewModel::resetMultiviewPicker,
             onTapTile = viewModel::setMultiviewAudioFocus,
             onRemoveTile = viewModel::removeFromMultiview,
             onAddChannel = viewModel::addToMultiview,
@@ -86,7 +91,12 @@ fun LiveTvScreenTv(
             nowProgram = uiState.nowProgram,
             nextProgram = uiState.nextProgram,
             recentChannels = recentChannels,
-            multiviewPickerCandidates = multiviewPickerCandidates,
+            categories = uiState.categories,
+            multiviewPickerTab = uiState.multiviewPickerTab,
+            multiviewPickerChannels = uiState.multiviewPickerChannels,
+            isLoadingMultiviewPickerChannels = uiState.isLoadingMultiviewPickerChannels,
+            onSelectMultiviewPickerTab = viewModel::selectMultiviewPickerTab,
+            onResetMultiviewPicker = viewModel::resetMultiviewPicker,
             onSwitchChannel = viewModel::switchFullscreenChannel,
             onPlayPause = viewModel::toggleMiniPlayerPlayback,
             onToggleMute = viewModel::toggleMiniPlayerMute,

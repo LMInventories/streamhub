@@ -47,6 +47,7 @@ import com.android.streamhub.core.player.audioChannelsLabel
 import com.android.streamhub.core.player.frameRateLabel
 import com.android.streamhub.core.player.resolutionLabel
 import com.android.streamhub.feature.iptv.data.EpgProgram
+import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import kotlinx.coroutines.delay
 
@@ -65,7 +66,12 @@ fun LiveFullscreenOverlay(
     nowProgram: EpgProgram?,
     nextProgram: EpgProgram?,
     recentChannels: List<IptvChannelInfo>,
-    multiviewPickerCandidates: List<IptvChannelInfo>,
+    categories: List<IptvCategoryInfo>,
+    multiviewPickerTab: MultiviewPickerTab,
+    multiviewPickerChannels: List<IptvChannelInfo>,
+    isLoadingMultiviewPickerChannels: Boolean,
+    onSelectMultiviewPickerTab: (MultiviewPickerTab) -> Unit,
+    onResetMultiviewPicker: () -> Unit,
     onSwitchChannel: (IptvChannelInfo) -> Unit,
     onPlayPause: () -> Unit,
     onToggleMute: () -> Unit,
@@ -118,7 +124,13 @@ fun LiveFullscreenOverlay(
                         Spacer(modifier = Modifier.width(12.dp))
                         OverlayTextButton(if (playerUiState.isMuted) "Unmute" else "Mute", onClick = onToggleMute)
                         Spacer(modifier = Modifier.width(12.dp))
-                        OverlayTextButton("Multiview", onClick = { showMultiviewPicker = true })
+                        OverlayTextButton(
+                            "Multiview",
+                            onClick = {
+                                onResetMultiviewPicker()
+                                showMultiviewPicker = true
+                            },
+                        )
                     }
 
                     if (recentChannels.isNotEmpty()) {
@@ -143,8 +155,14 @@ fun LiveFullscreenOverlay(
     }
 
     if (showMultiviewPicker) {
-        MultiviewAddChannelPicker(
-            candidates = multiviewPickerCandidates.filterNot { it.id == channel.id },
+        MultiviewChannelPicker(
+            categories = categories,
+            activeTab = multiviewPickerTab,
+            recentChannels = recentChannels,
+            tabChannels = multiviewPickerChannels,
+            isLoadingTabChannels = isLoadingMultiviewPickerChannels,
+            excludeChannelIds = setOf(channel.id),
+            onSelectTab = onSelectMultiviewPickerTab,
             onPick = { picked ->
                 onStartMultiview(picked)
                 showMultiviewPicker = false

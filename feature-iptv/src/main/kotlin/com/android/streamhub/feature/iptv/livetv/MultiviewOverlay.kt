@@ -5,22 +5,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -34,7 +36,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,10 +47,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.VideoSurface
+import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 
 /**
@@ -60,7 +67,13 @@ import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 fun MultiviewOverlay(
     tiles: List<MultiviewTile>,
     audioFocusChannelId: String?,
-    pickerCandidates: List<IptvChannelInfo>,
+    categories: List<IptvCategoryInfo>,
+    pickerActiveTab: MultiviewPickerTab,
+    recentChannels: List<IptvChannelInfo>,
+    pickerChannels: List<IptvChannelInfo>,
+    isLoadingPickerChannels: Boolean,
+    onSelectPickerTab: (MultiviewPickerTab) -> Unit,
+    onResetPicker: () -> Unit,
     onTapTile: (channelId: String) -> Unit,
     onRemoveTile: (channelId: String) -> Unit,
     onAddChannel: (IptvChannelInfo) -> Unit,
@@ -123,7 +136,10 @@ fun MultiviewOverlay(
             MultiviewToolbarAction(
                 label = "Add Channel",
                 enabled = tiles.size < MAX_MULTIVIEW_TILES,
-                onClick = { showAddChannelPicker = true },
+                onClick = {
+                    onResetPicker()
+                    showAddChannelPicker = true
+                },
             )
             MultiviewToolbarAction(
                 label = "Dismiss Focused",
@@ -134,8 +150,14 @@ fun MultiviewOverlay(
     }
 
     if (showAddChannelPicker) {
-        MultiviewAddChannelPicker(
-            candidates = pickerCandidates.filterNot { candidate -> tiles.any { it.channel.id == candidate.id } },
+        MultiviewChannelPicker(
+            categories = categories,
+            activeTab = pickerActiveTab,
+            recentChannels = recentChannels,
+            tabChannels = pickerChannels,
+            isLoadingTabChannels = isLoadingPickerChannels,
+            excludeChannelIds = tiles.map { it.channel.id }.toSet(),
+            onSelectTab = onSelectPickerTab,
             onPick = { channel ->
                 onAddChannel(channel)
                 showAddChannelPicker = false
@@ -158,48 +180,130 @@ private fun MultiviewToolbarAction(label: String, enabled: Boolean, onClick: () 
 }
 
 /**
- * Recent + favourite channels rather than a full category browser - see
- * LiveTvViewModel.multiviewPickerCandidates' own comment for why. Shared by both entry points -
- * the fullscreen player's "Multiview" button (starting a new session) and the grid's own "Add
- * Channel" toolbar action (extending one already running) - same picker either way.
+ * Category-tabbed channel browser docked to the bottom of the screen, modelled on Sparkle's own
+ * multiview channel selector - Recent/Favourites/All Channels quick tabs plus every real live
+ * category, each opening a horizontally-scrolling strip of thumbnail cards, rather than the small
+ * recent+favourites-only popup this replaced. Shared by both entry points - the fullscreen
+ * player's own "Multiview" button (starting a new session) and the grid's own "Add Channel"
+ * toolbar action (extending one already running) - same picker either way. Backed by
+ * LiveTvViewModel's own picker state (see MultiviewPickerTab) rather than the main screen's
+ * selectedCategory/channels, so browsing here never leaves the main screen on a different
+ * category underneath once the picker closes.
  */
 @Composable
-fun MultiviewAddChannelPicker(candidates: List<IptvChannelInfo>, onPick: (IptvChannelInfo) -> Unit, onDismiss: () -> Unit) {
-    Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
+fun MultiviewChannelPicker(
+    categories: List<IptvCategoryInfo>,
+    activeTab: MultiviewPickerTab,
+    recentChannels: List<IptvChannelInfo>,
+    tabChannels: List<IptvChannelInfo>,
+    isLoadingTabChannels: Boolean,
+    excludeChannelIds: Set<String>,
+    onSelectTab: (MultiviewPickerTab) -> Unit,
+    onPick: (IptvChannelInfo) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .pointerInput(Unit) { detectTapGestures { onDismiss() } },
+    ) {
         Column(
             modifier = Modifier
-                .widthIn(min = 220.dp, max = 300.dp)
-                .contextMenuSurface(AppShapes.medium)
-                .padding(vertical = 8.dp),
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Palette.Surface)
+                // Swallows taps so tapping the panel itself doesn't fall through to the scrim
+                // behind it and dismiss the picker.
+                .pointerInput(Unit) { detectTapGestures {} }
+                .navigationBarsPadding()
+                .padding(vertical = 10.dp),
         ) {
-            BasicText(
-                text = "Add to Multiview",
-                style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            if (candidates.isEmpty()) {
-                BasicText(
-                    text = "No recent or favourite channels to suggest - favourite a channel, or add one from the channel list instead.",
-                    style = TextStyle(color = Palette.ContextMenuText.copy(alpha = 0.6f), fontSize = 13.sp),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            } else {
-                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                    candidates.forEach { channel ->
+            LazyRow(modifier = Modifier.fillMaxWidth()) {
+                item { PickerTabChip("Recent", activeTab is MultiviewPickerTab.Recent) { onSelectTab(MultiviewPickerTab.Recent) } }
+                item { PickerTabChip("All Channels", activeTab is MultiviewPickerTab.AllChannels) { onSelectTab(MultiviewPickerTab.AllChannels) } }
+                item { PickerTabChip("Favourites", activeTab is MultiviewPickerTab.Favorites) { onSelectTab(MultiviewPickerTab.Favorites) } }
+                items(categories, key = { it.id }) { category ->
+                    val selected = (activeTab as? MultiviewPickerTab.Category)?.category?.id == category.id
+                    PickerTabChip(category.name, selected) { onSelectTab(MultiviewPickerTab.Category(category)) }
+                }
+            }
+
+            val displayedChannels = (if (activeTab is MultiviewPickerTab.Recent) recentChannels else tabChannels)
+                .filterNot { it.id in excludeChannelIds }
+
+            Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                when {
+                    activeTab !is MultiviewPickerTab.Recent && isLoadingTabChannels ->
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp))
+                    displayedChannels.isEmpty() ->
                         BasicText(
-                            text = channel.name,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onPick(channel) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            text = "No channels here yet.",
+                            style = TextStyle(color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp),
                         )
+                    else -> LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                    ) {
+                        items(displayedChannels, key = { it.id }) { channel ->
+                            PickerChannelCard(channel = channel, onClick = { onPick(channel) })
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PickerTabChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    BasicText(
+        text = label,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = TextStyle(
+            color = if (selected) Color.White else Color.White.copy(alpha = 0.6f),
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        ),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    )
+}
+
+@Composable
+private fun PickerChannelCard(channel: IptvChannelInfo, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.padding(end = 10.dp).width(84.dp).clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(AppShapes.small)
+                .background(Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (channel.logoUrl != null) {
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(6.dp),
+                )
+            } else {
+                BasicText(text = channel.name.take(2).uppercase(), style = TextStyle(color = Color.White, fontSize = 13.sp))
+            }
+        }
+        BasicText(
+            text = channel.name,
+            style = TextStyle(color = Color.White, fontSize = 11.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
     }
 }
 

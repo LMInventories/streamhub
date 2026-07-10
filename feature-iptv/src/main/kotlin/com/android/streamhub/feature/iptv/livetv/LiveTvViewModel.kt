@@ -25,7 +25,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -44,6 +43,14 @@ const val MAX_MULTIVIEW_TILES = 4
 
 /** One live tile in the multiview grid - its own independent PlayerController/ExoPlayer instance, same as miniPlayerController but one per staged channel instead of one overall. */
 data class MultiviewTile(val channel: IptvChannelInfo, val controller: PlayerController)
+
+/** Which strip the multiview "Add Channel" picker is currently browsing - mirrors the main Live TV screen's own category browsing, but kept as separate state (see [LiveTvViewModel.selectMultiviewPickerTab]) so opening the picker never disturbs whatever category the main screen has selected underneath it. */
+sealed class MultiviewPickerTab {
+    data object Recent : MultiviewPickerTab()
+    data object Favorites : MultiviewPickerTab()
+    data object AllChannels : MultiviewPickerTab()
+    data class Category(val category: IptvCategoryInfo) : MultiviewPickerTab()
+}
 
 data class LiveTvUiState(
     // Defaults true so the first frame shows the normal loading spinner rather than a flash of
@@ -85,6 +92,12 @@ data class LiveTvUiState(
     val multiviewTiles: List<MultiviewTile> = emptyList(),
     val isMultiviewActive: Boolean = false,
     val multiviewAudioFocusChannelId: String? = null,
+    // Backs the multiview "Add Channel" picker's own category-tabbed browsing (see
+    // MultiviewPickerTab) - independent of selectedCategory/channels above so browsing inside the
+    // picker never leaves the main screen on a different category than the user actually left it on.
+    val multiviewPickerTab: MultiviewPickerTab = MultiviewPickerTab.Recent,
+    val multiviewPickerChannels: List<IptvChannelInfo> = emptyList(),
+    val isLoadingMultiviewPickerChannels: Boolean = false,
 )
 
 /**
@@ -129,15 +142,6 @@ class LiveTvViewModel @Inject constructor(
     // watching it just now shows up there immediately, not just next time the app opens.
     val recentChannels: StateFlow<List<IptvChannelInfo>> =
         recentChannelsRepository.observeRecent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // Candidates for the "Add Channel" picker inside the multiview grid itself - recent +
-    // favourite channels rather than a full category browser, since building that into the
-    // overlay would mean duplicating category/channel-list browsing UI a second time. Covers the
-    // channels someone's actually likely to want in a multiview session without that duplication.
-    val multiviewPickerCandidates: StateFlow<List<IptvChannelInfo>> =
-        combine(recentChannels, favoritesRepository.observeFavorites()) { recent, favorites ->
-            (recent + favorites).distinctBy { it.id }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // Only non-null while the Favourites category is selected - a live Flow collector (not a
     // one-shot fetch like every other category) so removing a favourite while looking at this
@@ -464,6 +468,35 @@ class LiveTvViewModel @Inject constructor(
     fun setMultiviewAudioFocus(channelId: String) {
         _uiState.value.multiviewTiles.forEach { tile -> tile.controller.setMuted(tile.channel.id != channelId) }
         _uiState.update { it.copy(multiviewAudioFocusChannelId = channelId) }
+    }
+
+    /** Back to the default Recent tab with no stale channel list - called every time the "Add Channel"/"Multiview" picker is opened, so it never reopens on whatever tab was last browsed in a previous session. */
+    fun resetMultiviewPicker() {
+        _uiState.update { it.copy(multiviewPickerTab = MultiviewPickerTab.Recent, multiviewPickerChannels = emptyList()) }
+    }
+
+    /** Recent needs no fetch (already a live StateFlow the picker UI reads directly); the other three each do their own one-shot load into multiviewPickerChannels. */
+    fun selectMultiviewPickerTab(tab: MultiviewPickerTab) {
+        _uiState.update {
+            it.copy(multiviewPickerTab = tab, multiviewPickerChannels = emptyList(), isLoadingMultiviewPickerChannels = tab != MultiviewPickerTab.Recent)
+        }
+        when (tab) {
+            MultiviewPickerTab.Recent -> Unit
+            MultiviewPickerTab.Favorites -> viewModelScope.launch {
+                val channels = favoritesRepository.observeFavorites().first()
+                _uiState.update { it.copy(multiviewPickerChannels = channels, isLoadingMultiviewPickerChannels = false) }
+            }
+            MultiviewPickerTab.AllChannels -> viewModelScope.launch {
+                runCatching { browseRepository.getAllChannels() }
+                    .onSuccess { channels -> _uiState.update { it.copy(multiviewPickerChannels = channels, isLoadingMultiviewPickerChannels = false) } }
+                    .onFailure { _uiState.update { it.copy(isLoadingMultiviewPickerChannels = false) } }
+            }
+            is MultiviewPickerTab.Category -> viewModelScope.launch {
+                runCatching { browseRepository.getChannels(tab.category.id) }
+                    .onSuccess { channels -> _uiState.update { it.copy(multiviewPickerChannels = channels, isLoadingMultiviewPickerChannels = false) } }
+                    .onFailure { _uiState.update { it.copy(isLoadingMultiviewPickerChannels = false) } }
+            }
+        }
     }
 
     override fun onCleared() {
