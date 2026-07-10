@@ -7,11 +7,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.epgKey
@@ -233,11 +236,13 @@ private fun GridChannelRow(
     onClick: () -> Unit,
     onLongPressProgram: (EpgProgram) -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Row(modifier = Modifier.height(ROW_HEIGHT)) {
         Box(
             modifier = Modifier.width(CHANNEL_LABEL_WIDTH).fillMaxHeight()
                 .background(Palette.Surface)
-                .clickable(onClick = onClick)
+                .tvFocusBorder(interactionSource)
+                .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
                 .padding(8.dp),
             contentAlignment = Alignment.CenterStart,
         ) {

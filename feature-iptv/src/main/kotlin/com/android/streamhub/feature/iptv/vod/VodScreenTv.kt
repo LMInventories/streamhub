@@ -43,10 +43,10 @@ fun VodScreenTv(
         if (selectedCategory == null) {
             Row(modifier = Modifier.padding(24.dp, 24.dp, 24.dp, 0.dp)) {
                 Button(onClick = { viewModel.setMode(VodMode.MOVIES) }) {
-                    Text(if (uiState.mode == VodMode.MOVIES) "> Movies" else "Movies")
+                    Text(if (uiState.mode == VodMode.MOVIES) "✓ Movies" else "Movies")
                 }
                 Button(onClick = { viewModel.setMode(VodMode.SHOWS) }, modifier = Modifier.padding(start = 8.dp)) {
-                    Text(if (uiState.mode == VodMode.SHOWS) "> TV Shows" else "TV Shows")
+                    Text(if (uiState.mode == VodMode.SHOWS) "✓ TV Shows" else "TV Shows")
                 }
             }
         }

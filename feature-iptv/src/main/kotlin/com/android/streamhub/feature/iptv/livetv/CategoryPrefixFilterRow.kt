@@ -1,7 +1,9 @@
 package com.android.streamhub.feature.iptv.livetv
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.iptv.data.IptvCategoryInfo
 
 /**
@@ -71,11 +74,13 @@ fun CategoryPrefixFilterRow(
 
 @Composable
 private fun PrefixChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .clip(AppShapes.pill)
             .background(if (selected) Palette.Accent else Palette.Surface)
-            .clickable(onClick = onClick)
+            .tvFocusBorder(interactionSource, AppShapes.pill)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         BasicText(
