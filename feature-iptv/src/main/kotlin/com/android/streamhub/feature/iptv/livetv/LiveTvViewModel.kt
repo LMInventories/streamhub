@@ -162,7 +162,10 @@ class LiveTvViewModel @Inject constructor(
             configRepository.configFlow.collect { config ->
                 val hasSource = config != null
                 _uiState.update { it.copy(hasSource = hasSource) }
-                if (hasSource) loadCategories()
+                if (hasSource) {
+                    loadCategories()
+                    prefetchEpgGrid()
+                }
             }
         }
         // "Update Playlist" in Settings - re-saving the same config doesn't change configFlow's
@@ -192,6 +195,19 @@ class LiveTvViewModel @Inject constructor(
     private fun castCurrentChannel() {
         val channel = _uiState.value.focusedChannel ?: return
         castController.loadStream(streamUrl = channel.streamUrl, title = channel.name, subtitle = _uiState.value.nowProgram?.title)
+    }
+
+    /**
+     * Kicked off proactively as soon as a source exists, in parallel with loadCategories() - a
+     * bulk XMLTV guide fetch/parse (EpgGridRepository.ensureFresh()) is the slow part of picking a
+     * category for the first time each day, so this gives it a head start rather than only
+     * starting once selectCategory() -> loadEpgGrid() gets around to it. Fire-and-forget and no-op
+     * on failure: EpgGridRepository's own refreshMutex means this and any later
+     * category-triggered ensureFresh() call share a single in-flight fetch rather than racing, and
+     * loadEpgGrid() already surfaces a failure to the user once a category's actually selected.
+     */
+    private fun prefetchEpgGrid() {
+        viewModelScope.launch { runCatching { epgGridRepository.ensureFresh() } }
     }
 
     fun loadCategories() {

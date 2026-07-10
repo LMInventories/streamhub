@@ -75,6 +75,7 @@ import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
+import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
@@ -108,6 +109,7 @@ fun PlayerScreenPhone(
 
     LockLandscapeWhilePlaying()
     HideSystemBarsWhilePlaying()
+    KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
 
     LaunchedEffect(controlsVisible, uiState.isPlaying) {
         if (controlsVisible && uiState.isPlaying) {

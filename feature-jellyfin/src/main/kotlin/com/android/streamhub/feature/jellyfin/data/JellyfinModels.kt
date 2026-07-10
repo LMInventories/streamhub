@@ -46,6 +46,10 @@ data class JellyfinItemInfo(
     // Default null (not just nullable) - JellyfinHomeCacheRepository persists this whole type as
     // JSON, and a cache written before this field existed needs to still decode successfully.
     val logoImageUrl: String? = null,
+    // Default null for the same cache-compatibility reason as logoImageUrl above. Only populated
+    // when the caller requested ItemFields.MEDIA_STREAMS (currently just search()) - other callers
+    // simply get null here rather than paying for MediaStreams data nothing renders yet.
+    val videoHeight: Int? = null,
     val seriesId: String?,
     val seriesName: String?,
     val seasonId: String?,

@@ -61,6 +61,7 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.player.resolutionLabel
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
@@ -382,6 +383,7 @@ private fun JellyfinResultsTab(results: List<JellyfinItemInfo>, onOpenItem: (Jel
                 subtitle = item.seriesName,
                 posterUrl = item.primaryImageUrl,
                 badgeColor = Palette.SourceJellyfin,
+                qualityLabel = item.videoHeight?.let(::resolutionLabel)?.takeIf { it.isNotBlank() },
                 onClick = { onOpenItem(item) },
             )
         }
@@ -447,6 +449,7 @@ private fun ResultRow(
     posterUrl: String?,
     badgeColor: Color,
     onClick: () -> Unit,
+    qualityLabel: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -473,7 +476,23 @@ private fun ResultRow(
             )
         }
         Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(text = title, color = Palette.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    color = Palette.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (qualityLabel != null) {
+                    Text(
+                        text = qualityLabel,
+                        color = Palette.TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
             if (subtitle != null) {
                 Text(text = subtitle, color = Palette.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

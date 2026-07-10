@@ -14,7 +14,9 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ImageType
+import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.api.PlaybackInfoDto
 import org.jellyfin.sdk.model.api.SortOrder
@@ -139,6 +141,9 @@ class JellyfinBrowseRepository @Inject constructor(
             includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES, BaseItemKind.EPISODE),
             recursive = true,
             limit = limit * 4,
+            // MediaStreams isn't returned by default - needed here so toItemInfo can read the
+            // video stream's height for the search result quality tag (4K/FHD/HD/SD).
+            fields = listOf(ItemFields.MEDIA_STREAMS),
         ).content.items.map { it.toItemInfo(api) }
         return results.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
@@ -301,6 +306,7 @@ class JellyfinBrowseRepository @Inject constructor(
             primaryImageUrl = primaryImageUrl,
             backdropImageUrl = backdropImageUrl,
             logoImageUrl = logoImageUrl,
+            videoHeight = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.height,
             seriesId = seriesId?.toString(),
             seriesName = seriesName,
             seasonId = seasonId?.toString(),

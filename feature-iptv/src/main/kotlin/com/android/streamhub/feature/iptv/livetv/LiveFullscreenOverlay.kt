@@ -47,6 +47,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.VideoSurface
@@ -89,6 +90,7 @@ fun LiveFullscreenOverlay(
 ) {
     LockLandscapeWhileFullscreen()
     HideSystemBarsWhileFullscreen()
+    KeepScreenOnWhilePlaying(isPlaying = playerUiState.isPlaying)
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showMultiviewPicker by remember { mutableStateOf(false) }

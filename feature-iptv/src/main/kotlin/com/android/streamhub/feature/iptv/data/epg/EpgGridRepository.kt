@@ -15,6 +15,8 @@ import com.android.streamhub.feature.iptv.data.epgKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -56,6 +58,14 @@ class EpgGridRepository @Inject constructor(
     // A bit under 24h so a daily refresh doesn't creep later and later each day.
     private val refreshIntervalSeconds = TimeUnit.HOURS.toSeconds(20)
 
+    // LiveTvViewModel now kicks this off proactively on init (in parallel with loadCategories())
+    // *and* whenever a category is selected - without this, both of those firing close together
+    // on a cold cache used to start two full XMLTV downloads/parses/Room writes at once. A caller
+    // that finds the lock already held blocks here, then - since the first caller has already
+    // updated lastRefreshedKey by the time it gets the lock - falls straight through to the
+    // freshness check below and returns UpToDate instead of fetching a second time.
+    private val refreshMutex = Mutex()
+
     /**
      * Fetches and stores the full guide if the cache is missing or stale. Every failure mode
      * (no EPG configured, download failed, response wasn't valid XMLTV, valid XML but zero
@@ -71,40 +81,42 @@ class EpgGridRepository @Inject constructor(
         val config = configRepository.configFlow.first() ?: return@withContext EpgRefreshResult.NotConfigured
         val xmltvUrl = xmltvUrlFor(config) ?: return@withContext EpgRefreshResult.NotConfigured
 
-        val lastRefreshed = dataStore.data.map { it[lastRefreshedKey] ?: 0L }.first()
-        val now = Instant.now().epochSecond
-        if (!forceRefresh && now - lastRefreshed < refreshIntervalSeconds && dao.count() > 0) {
-            return@withContext EpgRefreshResult.UpToDate
-        }
+        refreshMutex.withLock {
+            val lastRefreshed = dataStore.data.map { it[lastRefreshedKey] ?: 0L }.first()
+            val now = Instant.now().epochSecond
+            if (!forceRefresh && now - lastRefreshed < refreshIntervalSeconds && dao.count() > 0) {
+                return@withContext EpgRefreshResult.UpToDate
+            }
 
-        val fetchResult = fetchAndParse(xmltvUrl, onProgress)
-        val programmes = fetchResult.getOrElse { throwable ->
-            return@withContext EpgRefreshResult.Failed(
-                reason = describeFetchFailure(throwable),
-                hasCachedData = dao.count() > 0,
-            )
-        }
-        if (programmes.isEmpty()) {
-            return@withContext EpgRefreshResult.Failed(
-                reason = "Guide downloaded successfully but contained no programme entries in the relevant date range",
-                hasCachedData = dao.count() > 0,
-            )
-        }
-
-        dao.clearAll()
-        dao.insertAll(
-            programmes.map {
-                ProgrammeEntity(
-                    channelId = it.channelId,
-                    startAtEpochSeconds = it.program.startAt.epochSecond,
-                    endAtEpochSeconds = it.program.endAt.epochSecond,
-                    title = it.program.title,
-                    description = it.program.description,
+            val fetchResult = fetchAndParse(xmltvUrl, onProgress)
+            val programmes = fetchResult.getOrElse { throwable ->
+                return@withContext EpgRefreshResult.Failed(
+                    reason = describeFetchFailure(throwable),
+                    hasCachedData = dao.count() > 0,
                 )
-            },
-        )
-        dataStore.edit { it[lastRefreshedKey] = now }
-        EpgRefreshResult.Fetched(programmeCount = programmes.size, channelCount = programmes.map { it.channelId }.distinct().size)
+            }
+            if (programmes.isEmpty()) {
+                return@withContext EpgRefreshResult.Failed(
+                    reason = "Guide downloaded successfully but contained no programme entries in the relevant date range",
+                    hasCachedData = dao.count() > 0,
+                )
+            }
+
+            dao.clearAll()
+            dao.insertAll(
+                programmes.map {
+                    ProgrammeEntity(
+                        channelId = it.channelId,
+                        startAtEpochSeconds = it.program.startAt.epochSecond,
+                        endAtEpochSeconds = it.program.endAt.epochSecond,
+                        title = it.program.title,
+                        description = it.program.description,
+                    )
+                },
+            )
+            dataStore.edit { it[lastRefreshedKey] = now }
+            EpgRefreshResult.Fetched(programmeCount = programmes.size, channelCount = programmes.map { it.channelId }.distinct().size)
+        }
     }
 
     /**

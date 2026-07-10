@@ -56,6 +56,7 @@ import com.android.streamhub.core.player.audioChannelsLabel
 import com.android.streamhub.core.player.aspectRatioLabel
 import com.android.streamhub.core.player.formatPositionMs
 import com.android.streamhub.core.player.frameRateLabel
+import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
 import com.android.streamhub.core.player.resolutionLabel
 import kotlinx.coroutines.delay
 
@@ -70,6 +71,8 @@ fun PlayerScreenTv(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentItem by viewModel.currentItem.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+
+    KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
