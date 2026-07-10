@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.dpadMovesFocusVertically
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
@@ -93,6 +95,7 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var dialogState by remember { mutableStateOf<ProgramDialogState?>(null) }
     var startAdjustMinutes by remember { mutableIntStateOf(0) }
     var endAdjustMinutes by remember { mutableIntStateOf(0) }
@@ -131,7 +134,7 @@ fun SearchScreen(
                         singleLine = true,
                         shape = AppShapes.pill,
                         colors = OutlinedTextFieldDefaults.colors(),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).dpadMovesFocusVertically(focusManager),
                     )
                     if (voiceSearchAvailable) {
                         IconButton(onClick = { voiceLauncher.launch(voiceIntent) }, modifier = Modifier.padding(start = 4.dp)) {

@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.dpadMovesFocusVertically
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 // Same "wrap own MaterialTheme locally" reasoning as IptvSettingsScreen - reachable from the TV
@@ -51,6 +53,7 @@ fun JellyfinSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
+    val focusManager = LocalFocusManager.current
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -78,14 +81,14 @@ fun JellyfinSettingsScreen(
                     label = { Text("Server URL (e.g. http://host:8096)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
                 OutlinedTextField(
                     value = uiState.username,
                     onValueChange = viewModel::updateUsername,
                     label = { Text("Username") },
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
                 OutlinedTextField(
                     value = uiState.password,
@@ -93,7 +96,7 @@ fun JellyfinSettingsScreen(
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
 
                 Button(onClick = viewModel::signIn, enabled = !uiState.isSigningIn) {

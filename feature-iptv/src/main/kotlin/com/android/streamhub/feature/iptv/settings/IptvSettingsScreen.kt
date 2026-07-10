@@ -26,12 +26,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.dpadMovesFocusVertically
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_DAY_OPTIONS
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_HOUR_OPTIONS
@@ -44,9 +46,11 @@ import com.android.streamhub.feature.iptv.data.AutoUpdateMode
 // an ambient theme they can't count on.
 
 /**
- * Shared across phone and TV - it's a form, and standard Material3 text fields are already
- * D-pad-focusable, so there's no TV-specific idiom worth a second implementation here (unlike
- * the browse/player screens, which genuinely differ by form factor).
+ * Shared across phone and TV - it's a form, so there's no TV-specific idiom worth a second
+ * implementation here (unlike the browse/player screens, which genuinely differ by form factor).
+ * Each field carries dpadMovesFocusVertically so a D-pad's Up/Down actually moves between fields
+ * instead of getting eaten by BasicTextField's own cursor-movement key handling - see that
+ * function's own comment for why plain Material3 text fields get stuck on TV without it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +59,7 @@ fun IptvSettingsScreen(
     viewModel: IptvSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
 
     MaterialTheme(colorScheme = appColorScheme()) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -87,27 +92,27 @@ fun IptvSettingsScreen(
                     onValueChange = viewModel::updateXtreamBaseUrl,
                     label = { Text("Server URL (e.g. http://host:port)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamUsername,
                     onValueChange = viewModel::updateXtreamUsername,
                     label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamPassword,
                     onValueChange = viewModel::updateXtreamPassword,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamXmlTvUrlOverride,
                     onValueChange = viewModel::updateXtreamXmlTvUrlOverride,
                     label = { Text("EPG (XMLTV) URL override - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
             } else {
                 OutlinedTextField(
@@ -115,14 +120,14 @@ fun IptvSettingsScreen(
                     onValueChange = viewModel::updateM3uPlaylistUrl,
                     label = { Text("Playlist URL") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
                 OutlinedTextField(
                     value = uiState.m3uEpgUrl,
                     onValueChange = viewModel::updateM3uEpgUrl,
                     label = { Text("EPG (XMLTV) URL - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
                 )
             }
 
