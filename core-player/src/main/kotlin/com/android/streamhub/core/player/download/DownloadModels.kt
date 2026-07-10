@@ -16,6 +16,12 @@ data class DownloadInfo(
     val progressPercent: Float,
     val bytesDownloaded: Long,
     val totalBytes: Long,
+    // Media3's own DownloadIndex only ever persists Download.failureReason (an int, almost always
+    // FAILURE_REASON_UNKNOWN) - the real exception is only ever handed to
+    // DownloadManager.Listener.onDownloadChanged() at the moment it happens. DownloadTracker
+    // captures it there and threads it through here so Manage Downloads can show *why*, not just
+    // that a download is FAILED.
+    val errorMessage: String? = null,
 )
 
 /**

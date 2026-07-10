@@ -1,15 +1,20 @@
 package com.android.streamhub.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Palette as PaletteIcon
@@ -17,11 +22,14 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Reorder
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -154,46 +162,78 @@ fun SettingsScreen(
             .background(Palette.Background)
             .padding(paddingValues)
             .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
+        Text(
+            text = "Settings",
+            color = Palette.TextPrimary,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 20.dp),
+        )
+        // One flat, bordered card per section (not a box-within-a-box per row) - every section
+        // reads as a single uniform surface with divider-separated rows, the same "grouped list"
+        // convention every platform settings app uses, rather than each row being its own
+        // separately-rounded pill stacked inside the section.
         sections.forEach { section ->
+            Text(
+                text = section.title,
+                color = Palette.TextMuted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            )
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-                    .clip(AppShapes.medium)
+                    .padding(bottom = 24.dp)
+                    .clip(AppShapes.large)
                     .background(Palette.Surface)
-                    .padding(16.dp),
+                    .border(1.dp, Palette.Border, AppShapes.large),
             ) {
-                BasicText(
-                    text = section.title,
-                    style = TextStyle(color = Palette.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                )
                 section.rows.forEachIndexed { index, row ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = if (index == 0) 10.dp else 8.dp)
-                            .clip(AppShapes.small)
-                            .background(Palette.SurfaceElevated)
-                            .clickable(enabled = row.enabled, onClick = row.onClick)
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                    ) {
-                        BasicText(
-                            text = row.label,
-                            style = TextStyle(
-                                color = if (row.enabled) Palette.TextPrimary else Palette.TextMuted,
-                                fontSize = 15.sp,
-                            ),
-                        )
-                        BasicText(
-                            text = row.subtitle,
-                            style = TextStyle(color = Palette.TextMuted, fontSize = 13.sp),
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
+                    SettingsRowItem(row)
+                    if (index != section.rows.lastIndex) {
+                        HorizontalDivider(color = Palette.Border, modifier = Modifier.padding(start = 56.dp))
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsRowItem(row: SettingsRow) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = row.enabled, onClick = row.onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Icon(
+            row.icon,
+            contentDescription = null,
+            tint = if (row.enabled) Palette.Accent else Palette.TextMuted,
+            modifier = Modifier.size(22.dp),
+        )
+        Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+            Text(text = row.label, color = if (row.enabled) Palette.TextPrimary else Palette.TextMuted, fontSize = 15.sp)
+            Text(
+                text = row.subtitle,
+                color = Palette.TextMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        if (row.enabled) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Palette.TextMuted,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

@@ -43,4 +43,5 @@ class DownloadsManagementViewModel @Inject constructor(
     fun pause(id: String) = downloadTracker.pauseDownload(id)
     fun resume(id: String) = downloadTracker.resumeDownload(id)
     fun remove(id: String) = downloadTracker.removeDownload(id)
+    fun retry(id: String) = downloadTracker.retryDownload(id)
 }

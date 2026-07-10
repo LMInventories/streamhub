@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -98,6 +99,7 @@ fun DownloadsManagementScreen(
                                 onPause = { viewModel.pause(download.id) },
                                 onResume = { viewModel.resume(download.id) },
                                 onRemove = { viewModel.remove(download.id) },
+                                onRetry = { viewModel.retry(download.id) },
                             )
                         }
                     }
@@ -113,6 +115,7 @@ private fun DownloadRow(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onRemove: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -138,7 +141,13 @@ private fun DownloadRow(
         }
         Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
             Text(text = download.title, color = Palette.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(text = statusLabel(download), color = Palette.TextMuted, fontSize = 12.sp)
+            Text(
+                text = statusLabel(download),
+                color = if (download.state == DownloadState.FAILED) Palette.Error else Palette.TextMuted,
+                fontSize = 12.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         when (download.state) {
             DownloadState.QUEUED, DownloadState.DOWNLOADING -> {
@@ -151,7 +160,8 @@ private fun DownloadRow(
             }
             DownloadState.PAUSED -> IconButton(onClick = onResume) { Icon(Icons.Filled.PlayArrow, contentDescription = "Resume") }
             DownloadState.REMOVING -> CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-            DownloadState.COMPLETED, DownloadState.FAILED -> Unit
+            DownloadState.FAILED -> IconButton(onClick = onRetry) { Icon(Icons.Filled.Refresh, contentDescription = "Retry") }
+            DownloadState.COMPLETED -> Unit
         }
         IconButton(onClick = onRemove) { Icon(Icons.Filled.Close, contentDescription = "Delete", tint = Palette.Error) }
     }
@@ -162,7 +172,7 @@ private fun statusLabel(download: DownloadInfo): String = when (download.state) 
     DownloadState.DOWNLOADING -> if (download.progressPercent >= 0f) "${download.progressPercent.toInt()}% · ${formatBytes(download.bytesDownloaded)}" else "Downloading"
     DownloadState.PAUSED -> "Paused · ${formatBytes(download.bytesDownloaded)}"
     DownloadState.COMPLETED -> "Downloaded · ${formatBytes(download.bytesDownloaded)}"
-    DownloadState.FAILED -> "Failed"
+    DownloadState.FAILED -> download.errorMessage?.let { "Failed: $it" } ?: "Failed"
     DownloadState.REMOVING -> "Removing…"
 }
 

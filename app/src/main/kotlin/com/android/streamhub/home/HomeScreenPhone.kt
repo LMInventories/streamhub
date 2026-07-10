@@ -1,11 +1,14 @@
 package com.android.streamhub.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,19 +18,25 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.android.streamhub.R
 import com.android.streamhub.core.design.AppShapes
+import com.android.streamhub.core.design.Palette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,18 +47,17 @@ fun HomeScreenPhone(
 ) {
     val dashboardEntries by viewModel.dashboardEntries.collectAsStateWithLifecycle()
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Palette.Background) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            TopAppBar(
-                title = { Text("StreamHub") },
-                modifier = Modifier.statusBarsPadding(),
-            )
+            HomeHeader()
 
+            // Fixed(2) - buildDashboardEntries() is exactly the 4 sources (Live TV/VOD/Jellyfin/
+            // Emby), so this always lands as a 2x2 grid.
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 items(dashboardEntries, key = { it.route }) { entry ->
                     DashboardCard(entry = entry, onClick = { onNavigate(entry.route) })
@@ -59,23 +67,49 @@ fun HomeScreenPhone(
     }
 }
 
+/** Reserves the top of the dashboard for branding - just the app icon + name for now, ahead of a dedicated logo asset. */
+@Composable
+private fun HomeHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 20.dp),
+    ) {
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher),
+            contentDescription = null,
+            modifier = Modifier.size(48.dp).clip(AppShapes.medium),
+        )
+        Column(modifier = Modifier.padding(start = 14.dp)) {
+            Text(text = "StreamHub", color = Palette.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(text = "All your sources in one place", color = Palette.TextMuted, fontSize = 13.sp)
+        }
+    }
+}
+
 @Composable
 private fun DashboardCard(entry: DashboardEntry, onClick: () -> Unit) {
-    // ~75% of the previous square height at the same width (1f -> 1/0.75).
-    Box(
+    Column(
         modifier = Modifier
-            .aspectRatio(4f / 3f)
+            .aspectRatio(1f)
             .fillMaxWidth()
-            .background(entry.accent.copy(alpha = 0.16f), AppShapes.large)
+            .background(Palette.Surface, AppShapes.large)
+            .border(1.dp, Palette.Border, AppShapes.large)
             .clickable(onClick = onClick)
-            .padding(16.dp),
+            .padding(18.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-            Icon(entry.icon, contentDescription = null, tint = entry.accent, modifier = Modifier.size(32.dp))
-            Column {
-                Text(text = entry.title, color = Color.White)
-                Text(text = entry.subtitle, color = entry.accent)
-            }
+        Box(
+            modifier = Modifier.size(52.dp).clip(CircleShape).background(entry.accent.copy(alpha = 0.16f)),
+        ) {
+            Icon(
+                entry.icon,
+                contentDescription = null,
+                tint = entry.accent,
+                modifier = Modifier.size(26.dp).align(Alignment.Center),
+            )
+        }
+        Column {
+            Text(text = entry.title, color = Palette.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = entry.subtitle, color = Palette.TextMuted, fontSize = 13.sp)
         }
     }
 }

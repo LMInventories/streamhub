@@ -7,6 +7,11 @@
     <!-- RecordingCaptureService streams a live channel to a local file for a scheduled window. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Media3's DownloadManager checks current connectivity (Requirements.NETWORK) before
+         running a queued download - without this, that check throws a SecurityException and the
+         download fails before a single byte transfers. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <!-- required=false so the same APK installs on phones (no leanback feature) and TV boxes -->
     <uses-feature

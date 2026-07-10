@@ -35,9 +35,26 @@ class DownloadTracker @Inject constructor(
     private val _downloads = MutableStateFlow<List<DownloadInfo>>(emptyList())
     val downloads: StateFlow<List<DownloadInfo>> = _downloads.asStateFlow()
 
+    // finalException is only ever handed to this listener, never persisted in the DownloadIndex
+    // itself - captured here, keyed by request id, so refresh() (which only ever reads back from
+    // the index) can still attach a real message to a FAILED download. Cleared once a download
+    // isn't in a failed state any more, so a stale message never survives a successful retry.
+    private val lastError = mutableMapOf<String, String?>()
+
     private val listener = object : DownloadManager.Listener {
-        override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) = refresh()
-        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) = refresh()
+        override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
+            if (download.state == Download.STATE_FAILED) {
+                lastError[download.request.id] = finalException?.message ?: download.failureReason.toFailureReasonLabel()
+            } else {
+                lastError.remove(download.request.id)
+            }
+            refresh()
+        }
+
+        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            lastError.remove(download.request.id)
+            refresh()
+        }
     }
 
     init {
@@ -75,7 +92,14 @@ class DownloadTracker @Inject constructor(
             progressPercent = percentDownloaded,
             bytesDownloaded = bytesDownloaded,
             totalBytes = contentLength,
+            errorMessage = if (downloadState == DownloadState.FAILED) lastError[request.id] else null,
         )
+    }
+
+    /** Media3 only defines a handful of these - everything else genuinely is opaque at the library level, hence the generic fallback. */
+    private fun Int.toFailureReasonLabel(): String = when (this) {
+        Download.FAILURE_REASON_NONE -> "Unknown error"
+        else -> "Download failed (reason code $this)"
     }
 
     fun isDownloaded(id: String): Boolean = downloads.value.any { it.id == id && it.state == DownloadState.COMPLETED }
@@ -98,5 +122,18 @@ class DownloadTracker @Inject constructor(
 
     fun removeDownload(id: String) {
         DownloadService.sendRemoveDownload(context, StreamHubDownloadService::class.java, id, false)
+    }
+
+    /**
+     * Re-sends a FAILED download's own already-stored DownloadRequest - Media3 keeps the original
+     * request (uri/data/etc.) in the index regardless of state, so a retry doesn't need the
+     * originating detail screen's ViewModel (which may not even be alive any more) to re-resolve
+     * a fresh stream URL. Media3 resets state back to QUEUED on re-adding the same id.
+     */
+    fun retryDownload(id: String) {
+        // DownloadIndex.getDownload is backed by SQLite and declares IOException - runCatching
+        // rather than letting a transient disk error crash the whole app over a retry tap.
+        val request = runCatching { downloadManager.downloadIndex.getDownload(id) }.getOrNull()?.request ?: return
+        DownloadService.sendAddDownload(context, StreamHubDownloadService::class.java, request, false)
     }
 }
