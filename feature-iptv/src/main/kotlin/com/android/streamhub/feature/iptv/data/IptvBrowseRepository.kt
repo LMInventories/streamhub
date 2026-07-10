@@ -1,7 +1,10 @@
 package com.android.streamhub.feature.iptv.data
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,7 +49,11 @@ class IptvBrowseRepository @Inject constructor(
     // playlist just to filter it client-side by category). Cleared by invalidateCache(), which
     // "Update Playlist" and the auto-update setting both already call through to.
     private var cachedCategories: List<IptvCategoryInfo>? = null
-    private val cachedChannelsByCategory = mutableMapOf<String, List<IptvChannelInfo>>()
+    // ConcurrentHashMap, not a plain map - getAllChannels() below writes into this from many
+    // categories' coroutines running in parallel (genuinely concurrent, not just interleaved -
+    // each getChannels() call suspends on real network I/O), so a plain mutableMapOf() here would
+    // be a real data race.
+    private val cachedChannelsByCategory = ConcurrentHashMap<String, List<IptvChannelInfo>>()
     // The one raw fetch+parse of the M3U playlist that both getCategories() and every
     // getChannels() call now share, instead of each doing its own independent fetch+parse.
     private var cachedM3uChannels: List<M3uChannel>? = null
@@ -94,8 +101,23 @@ class IptvBrowseRepository @Inject constructor(
         return sorted
     }
 
-    /** Every channel across every category, flattened - for Search, which needs a full title-searchable set rather than one category at a time. Reuses the same per-category cache getChannels() already maintains. */
-    suspend fun getAllChannels(): List<IptvChannelInfo> = getCategories().flatMap { getChannels(it.id) }
+    /**
+     * Every channel across every category, flattened - for Search, which needs a full
+     * title-searchable set rather than one category at a time. Reuses the same per-category
+     * cache getChannels() already maintains.
+     *
+     * Fetches every category in parallel (not a sequential flatMap) - a real Xtream provider can
+     * have 50-100+ live categories, and fetching them one at a time made this take long enough
+     * that Search effectively never returned Live TV results in practice. Each category's fetch
+     * is also individually fault-tolerant: one bad/slow/erroring category (a real occurrence on
+     * some providers) used to fail the whole flatMap and silently blank out every other category's
+     * results too, since SearchViewModel wraps this call in runCatching.
+     */
+    suspend fun getAllChannels(): List<IptvChannelInfo> = coroutineScope {
+        getCategories()
+            .map { category -> async { runCatching { getChannels(category.id) }.getOrDefault(emptyList()) } }
+            .let { deferreds -> deferreds.flatMap { it.await() } }
+    }
 
     private suspend fun m3uChannels(playlistUrl: String): List<M3uChannel> {
         cachedM3uChannels?.let { return it }

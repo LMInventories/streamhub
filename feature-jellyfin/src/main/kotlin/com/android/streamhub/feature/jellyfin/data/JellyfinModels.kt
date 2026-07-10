@@ -1,5 +1,7 @@
 package com.android.streamhub.feature.jellyfin.data
 
+import kotlinx.serialization.Serializable
+
 enum class JellyfinLibraryType { MOVIES, TV_SHOWS }
 
 data class JellyfinLibraryInfo(
@@ -8,6 +10,9 @@ data class JellyfinLibraryInfo(
     val type: JellyfinLibraryType,
 )
 
+// @Serializable (not just a plain enum) since JellyfinItemInfo below is persisted as JSON by
+// JellyfinHomeCacheRepository - kotlinx.serialization needs every type in that graph annotated.
+@Serializable
 enum class JellyfinItemType { MOVIE, SERIES, SEASON, EPISODE, OTHER }
 
 enum class JellyfinSortOption(val label: String) {
@@ -18,6 +23,7 @@ enum class JellyfinSortOption(val label: String) {
     RELEASE_DATE_NEWEST("Newest Release"),
 }
 
+@Serializable
 data class JellyfinCastMember(
     val id: String,
     val name: String,
@@ -25,6 +31,7 @@ data class JellyfinCastMember(
     val imageUrl: String?,
 )
 
+@Serializable
 data class JellyfinItemInfo(
     val id: String,
     val name: String,
@@ -46,4 +53,20 @@ data class JellyfinItemInfo(
     val playedPercentage: Float?,
     val resumePositionTicks: Long,
     val cast: List<JellyfinCastMember>,
+)
+
+/**
+ * One renderable "title + row of posters" section - Continue Watching/Next Up/Favourites/each
+ * library's Latest all share this same shape, so JellyfinHomeContent can render them from one
+ * ordered list instead of a hardcoded sequence of near-identical blocks. Lives here (not in
+ * JellyfinHomeViewModel.kt) so JellyfinHomeCacheRepository can persist it as JSON alongside the
+ * other @Serializable models in this file, without home/ and data/ depending on each other in
+ * both directions.
+ */
+@Serializable
+data class JellyfinHomeSection(
+    val key: String,
+    val title: String,
+    val items: List<JellyfinItemInfo>,
+    val hasSeeAll: Boolean,
 )

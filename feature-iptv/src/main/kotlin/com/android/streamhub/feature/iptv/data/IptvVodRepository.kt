@@ -1,6 +1,9 @@
 package com.android.streamhub.feature.iptv.data
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -84,10 +87,12 @@ class IptvVodRepository @Inject constructor(
     // full contents to filter client-side, and would otherwise re-hit the network for the whole
     // catalog on every keystroke-settle. Cleared by invalidateCache(), wired into the same
     // "Update Playlist"/auto-update refresh flow as the other IPTV caches.
+    // ConcurrentHashMap, not a plain map - searchMovies()/searchShows() below fetch every
+    // category in parallel, so these are written from many coroutines concurrently.
     private var cachedMovieCategories: List<VodCategoryInfo>? = null
-    private val cachedMoviesByCategory = mutableMapOf<String, List<VodMovieInfo>>()
+    private val cachedMoviesByCategory = ConcurrentHashMap<String, List<VodMovieInfo>>()
     private var cachedSeriesCategories: List<VodCategoryInfo>? = null
-    private val cachedShowsByCategory = mutableMapOf<String, List<VodShowInfo>>()
+    private val cachedShowsByCategory = ConcurrentHashMap<String, List<VodShowInfo>>()
 
     suspend fun isSupported(): Boolean = configRepository.configFlow.first() is IptvSourceConfig.Xtream
 
@@ -116,10 +121,21 @@ class IptvVodRepository @Inject constructor(
         return result
     }
 
-    /** Client-side filter over every movie in every category - Xtream has no server-side search endpoint. */
+    /**
+     * Client-side filter over every movie in every category - Xtream has no server-side search
+     * endpoint. Categories fetch in parallel (not a sequential flatMap) and each is individually
+     * fault-tolerant - same reasoning as IptvBrowseRepository.getAllChannels(), which this
+     * mirrors: providers with many VOD categories made the sequential version too slow to
+     * meaningfully return Search results, and one bad category used to blank out every other
+     * category's results too.
+     */
     suspend fun searchMovies(query: String): List<VodMovieInfo> {
         if (!isSupported() || query.isBlank()) return emptyList()
-        return getCategories().flatMap { getMovies(it.id) }.filter { it.name.contains(query, ignoreCase = true) }
+        return coroutineScope {
+            getCategories()
+                .map { category -> async { runCatching { getMovies(category.id) }.getOrDefault(emptyList()) } }
+                .flatMap { it.await() }
+        }.filter { it.name.contains(query, ignoreCase = true) }
     }
 
     suspend fun getMovieDetail(playbackId: String): VodDetailInfo? {
@@ -160,10 +176,14 @@ class IptvVodRepository @Inject constructor(
         return result
     }
 
-    /** Client-side filter over every show in every series category - same no-server-search reasoning as searchMovies. */
+    /** Client-side filter over every show in every series category - same parallel/fault-tolerant reasoning as searchMovies. */
     suspend fun searchShows(query: String): List<VodShowInfo> {
         if (!isSupported() || query.isBlank()) return emptyList()
-        return getSeriesCategories().flatMap { getShows(it.id) }.filter { it.name.contains(query, ignoreCase = true) }
+        return coroutineScope {
+            getSeriesCategories()
+                .map { category -> async { runCatching { getShows(category.id) }.getOrDefault(emptyList()) } }
+                .flatMap { it.await() }
+        }.filter { it.name.contains(query, ignoreCase = true) }
     }
 
     /** Drops every cached category/item list - mirrors IptvBrowseRepository.invalidateCache(), called from the same refresh flow. */
