@@ -43,6 +43,7 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.jellyfin.data.JellyfinHomeSectionKeys
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
 import com.android.streamhub.feature.jellyfin.data.JellyfinLibraryInfo
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -174,12 +175,52 @@ private fun PreviewPanel(item: JellyfinItemInfo?, modifier: Modifier = Modifier)
                 ),
         )
         if (item != null) {
+            // For an episode, the series is the recognizable "brand" (its logo/name is what a
+            // viewer actually recognizes at a glance) - the episode's own title becomes a second,
+            // "S2:E5 - Title" line instead, the same way official Jellyfin clients present it.
+            val isEpisode = item.type == JellyfinItemType.EPISODE
+            val heroTitle = if (isEpisode) item.seriesName ?: item.name else item.name
+            val episodeLabel = if (isEpisode) {
+                val seasonEpisode = if (item.parentIndexNumber != null && item.indexNumber != null) {
+                    "S${item.parentIndexNumber}:E${item.indexNumber}"
+                } else {
+                    null
+                }
+                listOfNotNull(seasonEpisode, item.name.takeIf { it.isNotBlank() }).joinToString(" - ").takeIf { it.isNotBlank() }
+            } else {
+                null
+            }
+
             Column(modifier = Modifier.align(Alignment.BottomStart).padding(20.dp).fillMaxWidth(0.6f)) {
-                // Plain white rather than a Palette/theme-derived color - this text always sits on
-                // the dark scrim above, regardless of the app's own light/dark setting, same as
-                // every other "text over a video/image backdrop" spot in this app (PlayerScreenTv,
-                // LiveFullscreenOverlay, EpgGridPanel).
-                Text(text = item.name, style = MaterialTheme.typography.titleLarge, color = Color.White)
+                // Themed wordmark logo when the server has one (movies/series; episodes don't
+                // carry their own) instead of a plain text title - falls back to text either way,
+                // same reasoning as the hero image fallback above.
+                if (item.logoImageUrl != null) {
+                    AsyncImage(
+                        model = item.logoImageUrl,
+                        contentDescription = heroTitle,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart,
+                        modifier = Modifier.fillMaxWidth().height(64.dp),
+                    )
+                } else {
+                    // Plain white rather than a Palette/theme-derived color - this text always
+                    // sits on the dark scrim above, regardless of the app's own light/dark
+                    // setting, same as every other "text over a video/image backdrop" spot in
+                    // this app (PlayerScreenTv, LiveFullscreenOverlay, EpgGridPanel).
+                    Text(text = heroTitle, style = MaterialTheme.typography.titleLarge, color = Color.White)
+                }
+
+                episodeLabel?.let { label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
 
                 val subtitleParts = buildList {
                     item.productionYear?.let { add(it.toString()) }

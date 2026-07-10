@@ -43,6 +43,9 @@ data class JellyfinItemInfo(
     val runtimeMinutes: Int?,
     val primaryImageUrl: String?,
     val backdropImageUrl: String?,
+    // Default null (not just nullable) - JellyfinHomeCacheRepository persists this whole type as
+    // JSON, and a cache written before this field existed needs to still decode successfully.
+    val logoImageUrl: String? = null,
     val seriesId: String?,
     val seriesName: String?,
     val seasonId: String?,

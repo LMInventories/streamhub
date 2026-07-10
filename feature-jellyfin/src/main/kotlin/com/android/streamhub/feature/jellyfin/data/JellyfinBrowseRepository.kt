@@ -284,6 +284,11 @@ class JellyfinBrowseRepository @Inject constructor(
         }
         val backdropImageUrl = backdropImageTags?.firstOrNull()
             ?.let { api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.BACKDROP, tag = it).withApiKey() }
+        // Movies/series carry their own transparent wordmark; episodes don't (no series-level
+        // fallback here the way primaryImageUrl has one above) - the preview panel falls back to
+        // a plain text title when this is null, which is already the common case for episodes.
+        val logoImageUrl = imageTags?.get(ImageType.LOGO)
+            ?.let { tag -> api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.LOGO, tag = tag).withApiKey() }
         return JellyfinItemInfo(
             id = id.toString(),
             name = name.orEmpty(),
@@ -295,6 +300,7 @@ class JellyfinBrowseRepository @Inject constructor(
             runtimeMinutes = runTimeTicks?.let { (it / TICKS_PER_MINUTE).toInt() },
             primaryImageUrl = primaryImageUrl,
             backdropImageUrl = backdropImageUrl,
+            logoImageUrl = logoImageUrl,
             seriesId = seriesId?.toString(),
             seriesName = seriesName,
             seasonId = seasonId?.toString(),

@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.design.tvManualKeyboard
 import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
@@ -82,14 +83,14 @@ fun JellyfinSettingsScreen(
                     label = { Text("Server URL (e.g. http://host:8096)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
                 OutlinedTextField(
                     value = uiState.username,
                     onValueChange = viewModel::updateUsername,
                     label = { Text("Username") },
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
                 OutlinedTextField(
                     value = uiState.password,
@@ -97,7 +98,7 @@ fun JellyfinSettingsScreen(
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
 
                 Button(

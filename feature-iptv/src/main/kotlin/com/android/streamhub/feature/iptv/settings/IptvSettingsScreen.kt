@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.design.tvManualKeyboard
 import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_DAY_OPTIONS
@@ -97,27 +98,27 @@ fun IptvSettingsScreen(
                     onValueChange = viewModel::updateXtreamBaseUrl,
                     label = { Text("Server URL (e.g. http://host:port)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamUsername,
                     onValueChange = viewModel::updateXtreamUsername,
                     label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamPassword,
                     onValueChange = viewModel::updateXtreamPassword,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamXmlTvUrlOverride,
                     onValueChange = viewModel::updateXtreamXmlTvUrlOverride,
                     label = { Text("EPG (XMLTV) URL override - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
             } else {
                 OutlinedTextField(
@@ -125,14 +126,14 @@ fun IptvSettingsScreen(
                     onValueChange = viewModel::updateM3uPlaylistUrl,
                     label = { Text("Playlist URL") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
                 OutlinedTextField(
                     value = uiState.m3uEpgUrl,
                     onValueChange = viewModel::updateM3uEpgUrl,
                     label = { Text("EPG (XMLTV) URL - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(),
                 )
             }
 
