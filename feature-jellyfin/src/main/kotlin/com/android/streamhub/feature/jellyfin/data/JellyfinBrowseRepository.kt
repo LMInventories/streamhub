@@ -259,9 +259,14 @@ class JellyfinBrowseRepository @Inject constructor(
         // episode tiles in poster-shaped contexts, which this now matches. Falls back to the
         // episode's own primary only if the series tag is somehow unavailable.
         val primaryTag = imageTags?.get(ImageType.PRIMARY)
+        // Copied to locals - seriesId/seriesPrimaryImageTag are declared in the SDK module, so
+        // Kotlin won't smart-cast them from a null-check straight to non-null usage below (only
+        // works for vals in the same module); a local val doesn't have that restriction.
+        val episodeSeriesId = seriesId
+        val episodeSeriesPrimaryTag = seriesPrimaryImageTag
         val primaryImageUrl = when {
-            itemType == JellyfinItemType.EPISODE && seriesId != null && seriesPrimaryImageTag != null ->
-                api.imageApi.getItemImageUrl(itemId = seriesId, imageType = ImageType.PRIMARY, tag = seriesPrimaryImageTag).withApiKey()
+            itemType == JellyfinItemType.EPISODE && episodeSeriesId != null && episodeSeriesPrimaryTag != null ->
+                api.imageApi.getItemImageUrl(itemId = episodeSeriesId, imageType = ImageType.PRIMARY, tag = episodeSeriesPrimaryTag).withApiKey()
             primaryTag != null -> api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.PRIMARY, tag = primaryTag).withApiKey()
             else -> null
         }
