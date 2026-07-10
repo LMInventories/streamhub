@@ -64,6 +64,21 @@ class JellyfinItemDetailViewModel @Inject constructor(
         }
     }
 
+    fun toggleWatched() {
+        val item = _uiState.value.item ?: return
+        // Same optimistic-then-reconcile shape as toggleFavorite above.
+        val optimistic = !item.isPlayed
+        _uiState.update { it.copy(item = it.item?.copy(isPlayed = optimistic)) }
+        viewModelScope.launch {
+            val confirmed = browseRepository.toggleWatched(item.id, item.isPlayed)
+            if (confirmed != null) {
+                _uiState.update { it.copy(item = it.item?.copy(isPlayed = confirmed)) }
+            } else {
+                _uiState.update { it.copy(item = it.item?.copy(isPlayed = item.isPlayed)) }
+            }
+        }
+    }
+
     // JellyfinItemInfo (unlike VOD's VodDetailInfo) doesn't carry a resolved stream URL up
     // front - getStreamUrl() involves its own PlaybackInfo/transcode-negotiation round-trip, so
     // it's only ever fetched lazily, right when actually needed (playback, or here).

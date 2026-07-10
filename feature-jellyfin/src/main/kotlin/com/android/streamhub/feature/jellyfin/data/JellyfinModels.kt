@@ -31,6 +31,13 @@ data class JellyfinCastMember(
     val imageUrl: String?,
 )
 
+/** A subtitle stream muxed into the media source - [index] is the stream's own index within it, needed to identify it back to the server (not an ExoPlayer track group index). */
+@Serializable
+data class JellyfinSubtitleTrackInfo(
+    val index: Int,
+    val label: String,
+)
+
 @Serializable
 data class JellyfinItemInfo(
     val id: String,
@@ -50,6 +57,12 @@ data class JellyfinItemInfo(
     // when the caller requested ItemFields.MEDIA_STREAMS (currently just search()) - other callers
     // simply get null here rather than paying for MediaStreams data nothing renders yet.
     val videoHeight: Int? = null,
+    // Human-readable stream summaries (e.g. "1080p H264", "5.1 English AC3") for the detail
+    // screen's Video/Audio rows - same MediaStreams fetch and cache-compatibility reasoning as
+    // videoHeight/logoImageUrl above.
+    val videoLabel: String? = null,
+    val audioLabel: String? = null,
+    val subtitleTracks: List<JellyfinSubtitleTrackInfo> = emptyList(),
     val seriesId: String?,
     val seriesName: String?,
     val seasonId: String?,
@@ -57,6 +70,10 @@ data class JellyfinItemInfo(
     val indexNumber: Int?,
     val parentIndexNumber: Int?,
     val isFavorite: Boolean,
+    // Distinct from playedPercentage below - Jellyfin tracks "fully watched" as its own flag
+    // rather than inferring it from percentage, so a "Mark Watched" toggle needs this directly
+    // rather than checking playedPercentage >= 100.
+    val isPlayed: Boolean = false,
     val playedPercentage: Float?,
     val resumePositionTicks: Long,
     val cast: List<JellyfinCastMember>,

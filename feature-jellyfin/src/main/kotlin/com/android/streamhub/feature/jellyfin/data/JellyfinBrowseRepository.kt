@@ -6,6 +6,7 @@ import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
+import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.api.client.extensions.userViewsApi
@@ -185,10 +186,28 @@ class JellyfinBrowseRepository @Inject constructor(
         JellyfinSortOption.RELEASE_DATE_NEWEST -> ItemSortBy.PREMIERE_DATE to SortOrder.DESCENDING
     }
 
+    // Unlike the plural /Items list endpoint (itemsApi.getItems, used by search() above), this
+    // single-item endpoint doesn't need an explicit `fields` request for MediaStreams - Jellyfin
+    // returns a full detail view (streams, people, overview, etc.) here by default, which is
+    // exactly why every official client uses this same endpoint to build its own detail screen.
     suspend fun getItem(itemId: String): JellyfinItemInfo? {
         val api = apiOrNull() ?: return null
         return runCatching { api.userLibraryApi.getItem(itemId = UUID.fromString(itemId), userId = currentUserId()).content }
             .getOrNull()?.toItemInfo(api)
+    }
+
+    /** Returns the new played state on success, null if the call failed (caller should leave the UI state unchanged) - same "optimistic, reconcile with the server" shape as toggleFavorite above. */
+    suspend fun toggleWatched(itemId: String, currentlyPlayed: Boolean): Boolean? {
+        val api = apiOrNull() ?: return null
+        val uuid = UUID.fromString(itemId)
+        return runCatching {
+            val result = if (currentlyPlayed) {
+                api.playStateApi.markUnplayedItem(itemId = uuid, userId = currentUserId())
+            } else {
+                api.playStateApi.markPlayedItem(itemId = uuid, userId = currentUserId())
+            }
+            result.content.played
+        }.getOrNull()
     }
 
     suspend fun getSeasons(seriesId: String): List<JellyfinItemInfo> {
@@ -294,6 +313,14 @@ class JellyfinBrowseRepository @Inject constructor(
         // a plain text title when this is null, which is already the common case for episodes.
         val logoImageUrl = imageTags?.get(ImageType.LOGO)
             ?.let { tag -> api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.LOGO, tag = tag).withApiKey() }
+        // displayTitle is the server's own pre-formatted summary of a stream (e.g. "1080p H264",
+        // "5.1 English AC3 - Default") - reusing it instead of hand-building one from individual
+        // codec/channel/language fields matches what every official Jellyfin client already shows.
+        val videoLabel = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.displayTitle
+        val audioStreams = mediaStreams?.filter { it.type == MediaStreamType.AUDIO }.orEmpty()
+        val audioLabel = (audioStreams.firstOrNull { it.isDefault == true } ?: audioStreams.firstOrNull())?.displayTitle
+        val subtitleTracks = mediaStreams?.filter { it.type == MediaStreamType.SUBTITLE }.orEmpty()
+            .map { stream -> JellyfinSubtitleTrackInfo(index = stream.index ?: 0, label = stream.displayTitle ?: stream.language ?: "Subtitle") }
         return JellyfinItemInfo(
             id = id.toString(),
             name = name.orEmpty(),
@@ -307,12 +334,16 @@ class JellyfinBrowseRepository @Inject constructor(
             backdropImageUrl = backdropImageUrl,
             logoImageUrl = logoImageUrl,
             videoHeight = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.height,
+            videoLabel = videoLabel,
+            audioLabel = audioLabel,
+            subtitleTracks = subtitleTracks,
             seriesId = seriesId?.toString(),
             seriesName = seriesName,
             seasonId = seasonId?.toString(),
             indexNumber = indexNumber,
             parentIndexNumber = parentIndexNumber,
             isFavorite = userData?.isFavorite ?: false,
+            isPlayed = userData?.played ?: false,
             playedPercentage = userData?.playedPercentage?.toFloat(),
             resumePositionTicks = userData?.playbackPositionTicks ?: 0L,
             cast = people.orEmpty()

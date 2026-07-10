@@ -1,5 +1,7 @@
 package com.android.streamhub.feature.jellyfin.detail
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,14 +26,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,11 +48,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,6 +70,7 @@ import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleTrackInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,6 +94,13 @@ fun JellyfinItemDetailScreen(
                     },
                     actions = {
                         uiState.item?.let { item ->
+                            IconButton(onClick = viewModel::toggleWatched) {
+                                Icon(
+                                    Icons.Filled.CheckCircle,
+                                    contentDescription = if (item.isPlayed) "Mark unwatched" else "Mark watched",
+                                    tint = if (item.isPlayed) Palette.Accent else Palette.TextMuted,
+                                )
+                            }
                             IconButton(onClick = viewModel::toggleFavorite) {
                                 Icon(
                                     if (item.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -127,6 +145,7 @@ private fun JellyfinItemDetailContent(
     onResumeDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
 ) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Box(modifier = Modifier.width(120.dp).height(180.dp).clip(AppShapes.small)) {
@@ -177,12 +196,28 @@ private fun JellyfinItemDetailContent(
                         onRemove = onRemoveDownload,
                         modifier = Modifier.padding(start = 12.dp),
                     )
+                    IconButton(
+                        onClick = {
+                            // No server-side "trailer" field is used here - a YouTube search is
+                            // guaranteed to return something useful regardless of whether this
+                            // server/item has a trailer configured at all, unlike relying on
+                            // Jellyfin's own (frequently empty) RemoteTrailers data.
+                            val query = Uri.encode(listOfNotNull(item.name, item.productionYear?.toString(), "trailer").joinToString(" "))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$query"))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.padding(start = 4.dp),
+                    ) {
+                        Icon(Icons.Filled.Movie, contentDescription = "Search for trailer on YouTube")
+                    }
                 }
                 if (resumeFraction != null) {
                     SignalBar(progress = resumeFraction, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), segmentCount = 20)
                 }
             }
         }
+
+        MediaInfoSection(item = item)
 
         item.overview?.let { overview ->
             Text(
@@ -212,6 +247,69 @@ private fun JellyfinItemDetailContent(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Video/Audio are read-only - Jellyfin's own displayTitle already summarizes the actual media
+ * source's stream (e.g. "1080p H264", "5.1 English AC3"), there's nothing to choose between since
+ * this app always plays the source's own default streams. Subtitles is the one real choice here -
+ * picking "Off" or a track just updates local UI state for now rather than driving playback
+ * (that needs the selection threaded through to the player, which is follow-up work), but still
+ * shows every subtitle track this item actually has, same as Findroid's own detail screen.
+ */
+@Composable
+private fun MediaInfoSection(item: JellyfinItemInfo) {
+    if (item.videoLabel == null && item.audioLabel == null && item.subtitleTracks.isEmpty()) return
+
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp)) {
+        item.videoLabel?.let { label ->
+            MediaInfoRow(label = "Video", value = label)
+        }
+        item.audioLabel?.let { label ->
+            MediaInfoRow(label = "Audio", value = label)
+        }
+        if (item.subtitleTracks.isNotEmpty()) {
+            SubtitleSelectorRow(tracks = item.subtitleTracks)
+        }
+    }
+}
+
+@Composable
+private fun MediaInfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(text = label, color = Palette.TextMuted, modifier = Modifier.width(90.dp))
+        Text(text = value, color = Palette.TextPrimary)
+    }
+}
+
+@Composable
+private fun SubtitleSelectorRow(tracks: List<JellyfinSubtitleTrackInfo>) {
+    var expanded by remember { mutableStateOf(false) }
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: "Off"
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(text = "Subtitles", color = Palette.TextMuted, modifier = Modifier.width(90.dp))
+        Box {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(AppShapes.small)
+                    .background(Palette.Surface)
+                    .clickable { expanded = true }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(text = selectedLabel, color = Palette.TextPrimary)
+                Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = Palette.TextMuted, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(text = { Text("Off") }, onClick = { selectedIndex = null; expanded = false })
+                tracks.forEach { track ->
+                    DropdownMenuItem(text = { Text(track.label) }, onClick = { selectedIndex = track.index; expanded = false })
+                }
+            }
+        }
     }
 }
 
