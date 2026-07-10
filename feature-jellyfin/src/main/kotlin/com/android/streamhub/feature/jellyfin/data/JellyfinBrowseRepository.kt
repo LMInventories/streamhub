@@ -118,6 +118,19 @@ class JellyfinBrowseRepository @Inject constructor(
         ).content.items.map { it.toItemInfo(api) }
     }
 
+    /** Server-side search (Jellyfin's ItemsApi takes a real searchTerm, unlike Xtream) across movies/series/episodes, for Search. */
+    suspend fun search(query: String, limit: Int = 20): List<JellyfinItemInfo> {
+        val api = apiOrNull() ?: return emptyList()
+        if (query.isBlank()) return emptyList()
+        return api.itemsApi.getItems(
+            userId = currentUserId(),
+            searchTerm = query,
+            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES, BaseItemKind.EPISODE),
+            recursive = true,
+            limit = limit,
+        ).content.items.map { it.toItemInfo(api) }
+    }
+
     /** Favorites can be a mix of movies and series (unlike getItems, which is scoped to one library/kind), and span every library rather than one - so this is its own call rather than getItems with an extra flag. */
     suspend fun getFavorites(startIndex: Int, limit: Int): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()

@@ -35,11 +35,13 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
 import com.android.streamhub.home.HomeScreenPhone
 import com.android.streamhub.placeholder.ComingSoonScreen
+import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreen
 import com.android.streamhub.settings.SettingsScreen
 
 private val TAB_ROUTES = setOf(
     Route.HOME_PATTERN,
+    Route.SEARCH_PATTERN,
     Route.LIVE_TV_PATTERN,
     Route.VOD_PATTERN,
     Route.EMBY_HOME_PATTERN,
@@ -83,6 +85,15 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 HomeScreenPhone(
                     paddingValues = paddingValues,
                     onNavigate = navigateToTab,
+                )
+            }
+            composable(Route.SEARCH_PATTERN) {
+                SearchScreen(
+                    paddingValues = paddingValues,
+                    onPlayChannel = { channelId -> navController.navigate(Route.playerRoute(channelId, SourceType.IPTV)) },
+                    onOpenVodMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
+                    onOpenVodShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
+                    onOpenJellyfinItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {

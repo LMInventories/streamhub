@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircleFilled
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
@@ -34,13 +35,14 @@ data class PhoneNavItem(
 
 val phoneNavItems = listOf(
     PhoneNavItem(route = "home", label = "Home", icon = Icons.Filled.Home),
+    PhoneNavItem(route = "search", label = "Search", icon = Icons.Filled.Search),
     PhoneNavItem(route = "live_tv", label = "Live TV", icon = Icons.Filled.LiveTv),
     PhoneNavItem(route = "vod", label = "VOD", icon = Icons.Filled.Movie),
     PhoneNavItem(route = "emby_home", label = "Emby", icon = Icons.Filled.VideoLibrary),
     PhoneNavItem(route = "jellyfin_home", label = "Jellyfin", icon = Icons.Filled.PlayCircleFilled),
     PhoneNavItem(route = "settings", label = "Settings", icon = Icons.Filled.Settings),
-    // Search/Favorites tabs join this list in later milestones - both the bar and the rail below
-    // already render off this same list, so adding an entry is the only change needed there.
+    // Favorites tab joins this list in a later milestone - both the bar and the rail below already
+    // render off this same list, so adding an entry is the only change needed there.
 )
 
 /**

@@ -124,6 +124,20 @@ class EpgGridRepository @Inject constructor(
         }
     }
 
+    /**
+     * Title search across every cached programme, restricted to what's still relevant for
+     * "remind/record" (i.e. not already finished) - the caller supplies [channels] (from
+     * IptvBrowseRepository.getAllChannels()) so a match's raw channelId row (which is whichever
+     * of epgChannelId/id actually has matching xmltv rows, same ambiguity getGrid() resolves) can
+     * be mapped back to the real IptvChannelInfo that scheduleRecording/scheduleReminder need.
+     */
+    suspend fun searchUpcoming(channels: List<IptvChannelInfo>, query: String, limit: Int = 30): List<Pair<IptvChannelInfo, EpgProgram>> {
+        if (query.isBlank()) return emptyList()
+        val rows = dao.searchProgrammes(query, Instant.now().epochSecond, limit)
+        val channelByRawId = channels.flatMap { channel -> listOfNotNull(channel.epgChannelId, channel.id).map { it to channel } }.toMap()
+        return rows.mapNotNull { row -> channelByRawId[row.channelId]?.let { it to row.toEpgProgram() } }
+    }
+
     private fun xmltvUrlFor(config: IptvSourceConfig): String? = when (config) {
         is IptvSourceConfig.Xtream -> config.xmlTvUrlOverride?.takeIf(String::isNotBlank) ?: config.baseUrl.toHttpUrlOrNull()
             ?.newBuilder()

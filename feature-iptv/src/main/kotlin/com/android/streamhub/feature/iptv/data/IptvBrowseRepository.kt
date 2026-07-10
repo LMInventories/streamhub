@@ -94,6 +94,9 @@ class IptvBrowseRepository @Inject constructor(
         return sorted
     }
 
+    /** Every channel across every category, flattened - for Search, which needs a full title-searchable set rather than one category at a time. Reuses the same per-category cache getChannels() already maintains. */
+    suspend fun getAllChannels(): List<IptvChannelInfo> = getCategories().flatMap { getChannels(it.id) }
+
     private suspend fun m3uChannels(playlistUrl: String): List<M3uChannel> {
         cachedM3uChannels?.let { return it }
         val fetched = m3uRemoteDataSource.fetchChannels(playlistUrl)

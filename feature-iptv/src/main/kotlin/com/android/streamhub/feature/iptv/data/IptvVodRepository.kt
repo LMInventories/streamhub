@@ -79,16 +79,30 @@ class IptvVodRepository @Inject constructor(
     private val configRepository: IptvSourceConfigRepository,
     private val xtreamRemoteDataSource: XtreamRemoteDataSource,
 ) {
+    // Same reasoning as IptvBrowseRepository's category/channel caches - added specifically for
+    // Search, which (with no server-side search endpoint to call) has to fetch every category's
+    // full contents to filter client-side, and would otherwise re-hit the network for the whole
+    // catalog on every keystroke-settle. Cleared by invalidateCache(), wired into the same
+    // "Update Playlist"/auto-update refresh flow as the other IPTV caches.
+    private var cachedMovieCategories: List<VodCategoryInfo>? = null
+    private val cachedMoviesByCategory = mutableMapOf<String, List<VodMovieInfo>>()
+    private var cachedSeriesCategories: List<VodCategoryInfo>? = null
+    private val cachedShowsByCategory = mutableMapOf<String, List<VodShowInfo>>()
+
     suspend fun isSupported(): Boolean = configRepository.configFlow.first() is IptvSourceConfig.Xtream
 
     suspend fun getCategories(): List<VodCategoryInfo> {
+        cachedMovieCategories?.let { return it }
         val config = configRepository.configFlow.first() as? IptvSourceConfig.Xtream ?: return emptyList()
-        return xtreamRemoteDataSource.getVodCategories(config).map { VodCategoryInfo(it.categoryId, it.categoryName) }
+        val result = xtreamRemoteDataSource.getVodCategories(config).map { VodCategoryInfo(it.categoryId, it.categoryName) }
+        cachedMovieCategories = result
+        return result
     }
 
     suspend fun getMovies(categoryId: String): List<VodMovieInfo> {
+        cachedMoviesByCategory[categoryId]?.let { return it }
         val config = configRepository.configFlow.first() as? IptvSourceConfig.Xtream ?: return emptyList()
-        return xtreamRemoteDataSource.getVodStreams(config, categoryId).map {
+        val result = xtreamRemoteDataSource.getVodStreams(config, categoryId).map {
             VodMovieInfo(
                 // Must match IptvMediaSource.vodPlaybackId's scheme - the id navigated with here
                 // is what PlayerViewModel/resolvePlayback looks up later.
@@ -98,6 +112,14 @@ class IptvVodRepository @Inject constructor(
                 streamUrl = config.vodStreamUrl(it.streamId, it.containerExtension ?: "mp4"),
             )
         }
+        cachedMoviesByCategory[categoryId] = result
+        return result
+    }
+
+    /** Client-side filter over every movie in every category - Xtream has no server-side search endpoint. */
+    suspend fun searchMovies(query: String): List<VodMovieInfo> {
+        if (!isSupported() || query.isBlank()) return emptyList()
+        return getCategories().flatMap { getMovies(it.id) }.filter { it.name.contains(query, ignoreCase = true) }
     }
 
     suspend fun getMovieDetail(playbackId: String): VodDetailInfo? {
@@ -123,13 +145,33 @@ class IptvVodRepository @Inject constructor(
     }
 
     suspend fun getSeriesCategories(): List<VodCategoryInfo> {
+        cachedSeriesCategories?.let { return it }
         val config = configRepository.configFlow.first() as? IptvSourceConfig.Xtream ?: return emptyList()
-        return xtreamRemoteDataSource.getSeriesCategories(config).map { VodCategoryInfo(it.categoryId, it.categoryName) }
+        val result = xtreamRemoteDataSource.getSeriesCategories(config).map { VodCategoryInfo(it.categoryId, it.categoryName) }
+        cachedSeriesCategories = result
+        return result
     }
 
     suspend fun getShows(categoryId: String): List<VodShowInfo> {
+        cachedShowsByCategory[categoryId]?.let { return it }
         val config = configRepository.configFlow.first() as? IptvSourceConfig.Xtream ?: return emptyList()
-        return xtreamRemoteDataSource.getSeries(config, categoryId).map { VodShowInfo(it.seriesId, it.name, it.cover) }
+        val result = xtreamRemoteDataSource.getSeries(config, categoryId).map { VodShowInfo(it.seriesId, it.name, it.cover) }
+        cachedShowsByCategory[categoryId] = result
+        return result
+    }
+
+    /** Client-side filter over every show in every series category - same no-server-search reasoning as searchMovies. */
+    suspend fun searchShows(query: String): List<VodShowInfo> {
+        if (!isSupported() || query.isBlank()) return emptyList()
+        return getSeriesCategories().flatMap { getShows(it.id) }.filter { it.name.contains(query, ignoreCase = true) }
+    }
+
+    /** Drops every cached category/item list - mirrors IptvBrowseRepository.invalidateCache(), called from the same refresh flow. */
+    fun invalidateCache() {
+        cachedMovieCategories = null
+        cachedMoviesByCategory.clear()
+        cachedSeriesCategories = null
+        cachedShowsByCategory.clear()
     }
 
     suspend fun getSeriesDetail(seriesId: String): VodSeriesDetailInfo? {

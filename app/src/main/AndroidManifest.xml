@@ -16,6 +16,18 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Package-visibility (Android 11+): without this, Search's PackageManager.resolveActivity()
+         check for a voice-search handler (Google app etc.) returns null even when one is
+         installed, silently hiding the mic button on every device running API 30+. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <application
         android:name=".StreamHubApplication"
         android:allowBackup="true"

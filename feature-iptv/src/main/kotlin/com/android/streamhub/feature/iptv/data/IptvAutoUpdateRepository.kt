@@ -27,6 +27,7 @@ class IptvAutoUpdateRepository @Inject constructor(
     private val json: Json,
     private val configRepository: IptvSourceConfigRepository,
     private val browseRepository: IptvBrowseRepository,
+    private val vodRepository: IptvVodRepository,
     private val epgGridRepository: EpgGridRepository,
     private val mediaSource: IptvMediaSource,
 ) {
@@ -45,6 +46,7 @@ class IptvAutoUpdateRepository @Inject constructor(
     suspend fun forceRefreshNow() {
         mediaSource.invalidateCache()
         browseRepository.invalidateCache()
+        vodRepository.invalidateCache()
         runCatching { epgGridRepository.ensureFresh(forceRefresh = true) }
         configRepository.requestRefresh()
         dataStore.edit { it[lastRefreshKey] = Instant.now().epochSecond }

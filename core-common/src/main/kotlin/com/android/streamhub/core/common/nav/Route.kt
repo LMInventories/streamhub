@@ -9,6 +9,8 @@ import com.android.streamhub.core.common.domain.SourceType
 sealed class Route {
     data object Home : Route()
 
+    data object Search : Route()
+
     data object LiveTv : Route()
 
     data object Vod : Route()
@@ -41,6 +43,7 @@ sealed class Route {
 
     companion object {
         const val HOME_PATTERN = "home"
+        const val SEARCH_PATTERN = "search"
         const val LIVE_TV_PATTERN = "live_tv"
         const val VOD_PATTERN = "vod"
         const val EMBY_HOME_PATTERN = "emby_home"
