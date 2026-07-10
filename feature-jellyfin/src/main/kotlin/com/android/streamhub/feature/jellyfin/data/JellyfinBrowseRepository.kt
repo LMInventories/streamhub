@@ -250,9 +250,21 @@ class JellyfinBrowseRepository @Inject constructor(
             BaseItemKind.EPISODE -> JellyfinItemType.EPISODE
             else -> JellyfinItemType.OTHER
         }
+        // An episode's own "Primary" image is a screen-grab by Jellyfin's own data model, not a
+        // poster - correct for a 16:9 scene thumbnail, but every place this app renders
+        // primaryImageUrl does so as a 2:3 poster (Continue Watching/Next Up rows, poster grids,
+        // detail screens), where showing that screen-grab reads as broken/wrong art even though
+        // it's technically the right field. BaseItemDto separately carries seriesPrimaryImageTag
+        // (the actual series poster's tag) for exactly this - official Jellyfin clients use it for
+        // episode tiles in poster-shaped contexts, which this now matches. Falls back to the
+        // episode's own primary only if the series tag is somehow unavailable.
         val primaryTag = imageTags?.get(ImageType.PRIMARY)
-        val primaryImageUrl = primaryTag
-            ?.let { api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.PRIMARY, tag = it).withApiKey() }
+        val primaryImageUrl = when {
+            itemType == JellyfinItemType.EPISODE && seriesId != null && seriesPrimaryImageTag != null ->
+                api.imageApi.getItemImageUrl(itemId = seriesId, imageType = ImageType.PRIMARY, tag = seriesPrimaryImageTag).withApiKey()
+            primaryTag != null -> api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.PRIMARY, tag = primaryTag).withApiKey()
+            else -> null
+        }
         val backdropImageUrl = backdropImageTags?.firstOrNull()
             ?.let { api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.BACKDROP, tag = it).withApiKey() }
         return JellyfinItemInfo(

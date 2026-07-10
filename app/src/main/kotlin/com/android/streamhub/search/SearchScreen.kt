@@ -35,6 +35,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,6 +62,8 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
+import com.android.streamhub.feature.iptv.data.VodMovieInfo
+import com.android.streamhub.feature.iptv.data.VodShowInfo
 import com.android.streamhub.feature.iptv.livetv.ReminderProgramDialog
 import com.android.streamhub.feature.iptv.livetv.RecordProgramDialog
 import com.android.streamhub.feature.iptv.livetv.dayTimeFormatter
@@ -143,7 +147,7 @@ fun SearchScreen(
                             CircularProgressIndicator()
                         }
                         uiState.hasSearched && uiState.isEmpty -> EmptyPrompt("No results for \"${uiState.query}\"")
-                        else -> SearchResultsList(
+                        else -> SearchResultsTabs(
                             uiState = uiState,
                             onPlayChannel = onPlayChannel,
                             onOpenVodMovie = onOpenVodMovie,
@@ -201,8 +205,20 @@ private fun EmptyPrompt(message: String) {
     }
 }
 
+private enum class SearchTab(val label: String) {
+    LIVE_TV("Live TV"),
+    VOD("VOD"),
+    JELLYFIN("Jellyfin"),
+    EMBY("Emby"),
+}
+
+/**
+ * Results grouped into a top TabRow (one tab per source) rather than one long scrolling list -
+ * requested explicitly so each source reads as its own focused list instead of having to scroll
+ * past every other source to reach the one you actually want.
+ */
 @Composable
-private fun SearchResultsList(
+private fun SearchResultsTabs(
     uiState: SearchUiState,
     onPlayChannel: (String) -> Unit,
     onOpenVodMovie: (String) -> Unit,
@@ -211,66 +227,128 @@ private fun SearchResultsList(
     onRecord: (IptvChannelInfo, EpgProgram) -> Unit,
     onReminder: (IptvChannelInfo, EpgProgram) -> Unit,
 ) {
+    var selectedTab by remember { mutableStateOf(SearchTab.LIVE_TV) }
     val use24Hour = rememberUse24HourTime()
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        if (uiState.epgResults.isNotEmpty()) {
-            item { SectionHeader("Live TV · Upcoming") }
-            items(uiState.epgResults, key = { "epg:${it.channel.id}:${it.program.startAt}" }) { result ->
-                EpgResultRow(
-                    result = result,
-                    use24Hour = use24Hour,
-                    onClick = { onPlayChannel(result.channel.id) },
-                    onRecord = { onRecord(result.channel, result.program) },
-                    onReminder = { onReminder(result.channel, result.program) },
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedTab.ordinal) {
+            SearchTab.entries.forEach { tab ->
+                Tab(
+                    selected = tab == selectedTab,
+                    onClick = { selectedTab = tab },
+                    text = { Text(tabLabel(tab, uiState)) },
                 )
             }
         }
-        if (uiState.vodMovies.isNotEmpty()) {
+        when (selectedTab) {
+            SearchTab.LIVE_TV -> LiveTvResultsTab(
+                results = uiState.epgResults,
+                use24Hour = use24Hour,
+                onPlayChannel = onPlayChannel,
+                onRecord = onRecord,
+                onReminder = onReminder,
+            )
+            SearchTab.VOD -> VodResultsTab(
+                movies = uiState.vodMovies,
+                shows = uiState.vodShows,
+                onOpenMovie = onOpenVodMovie,
+                onOpenShow = onOpenVodShow,
+            )
+            SearchTab.JELLYFIN -> JellyfinResultsTab(results = uiState.jellyfinResults, onOpenItem = onOpenJellyfinItem)
+            SearchTab.EMBY -> EmptyPrompt("Emby integration isn't wired up yet.")
+        }
+    }
+}
+
+private fun tabLabel(tab: SearchTab, uiState: SearchUiState): String {
+    if (tab == SearchTab.EMBY) return tab.label
+    val count = when (tab) {
+        SearchTab.LIVE_TV -> uiState.epgResults.size
+        SearchTab.VOD -> uiState.vodMovies.size + uiState.vodShows.size
+        SearchTab.JELLYFIN -> uiState.jellyfinResults.size
+        SearchTab.EMBY -> 0
+    }
+    return "${tab.label} ($count)"
+}
+
+@Composable
+private fun LiveTvResultsTab(
+    results: List<EpgSearchResult>,
+    use24Hour: Boolean,
+    onPlayChannel: (String) -> Unit,
+    onRecord: (IptvChannelInfo, EpgProgram) -> Unit,
+    onReminder: (IptvChannelInfo, EpgProgram) -> Unit,
+) {
+    if (results.isEmpty()) {
+        EmptyPrompt("No upcoming Live TV matches.")
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        items(results, key = { "epg:${it.channel.id}:${it.program.startAt}" }) { result ->
+            EpgResultRow(
+                result = result,
+                use24Hour = use24Hour,
+                onClick = { onPlayChannel(result.channel.id) },
+                onRecord = { onRecord(result.channel, result.program) },
+                onReminder = { onReminder(result.channel, result.program) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun VodResultsTab(
+    movies: List<VodMovieInfo>,
+    shows: List<VodShowInfo>,
+    onOpenMovie: (String) -> Unit,
+    onOpenShow: (String) -> Unit,
+) {
+    if (movies.isEmpty() && shows.isEmpty()) {
+        EmptyPrompt("No VOD matches.")
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        if (movies.isNotEmpty()) {
             item { SectionHeader("Movies") }
-            items(uiState.vodMovies, key = { "movie:${it.id}" }) { movie ->
+            items(movies, key = { "movie:${it.id}" }) { movie ->
                 ResultRow(
                     title = movie.name,
                     subtitle = null,
                     posterUrl = movie.posterUrl,
                     badgeColor = Palette.SourceIptv,
-                    onClick = { onOpenVodMovie(movie.id) },
+                    onClick = { onOpenMovie(movie.id) },
                 )
             }
         }
-        if (uiState.vodShows.isNotEmpty()) {
+        if (shows.isNotEmpty()) {
             item { SectionHeader("TV Shows") }
-            items(uiState.vodShows, key = { "show:${it.id}" }) { show ->
+            items(shows, key = { "show:${it.id}" }) { show ->
                 ResultRow(
                     title = show.name,
                     subtitle = null,
                     posterUrl = show.posterUrl,
                     badgeColor = Palette.SourceIptv,
-                    onClick = { onOpenVodShow(show.id) },
+                    onClick = { onOpenShow(show.id) },
                 )
             }
         }
-        if (uiState.jellyfinResults.isNotEmpty()) {
-            item { SectionHeader("Jellyfin") }
-            items(uiState.jellyfinResults, key = { "jf:${it.id}" }) { jfItem ->
-                ResultRow(
-                    title = jfItem.name,
-                    subtitle = jfItem.seriesName,
-                    posterUrl = jfItem.primaryImageUrl,
-                    badgeColor = Palette.SourceJellyfin,
-                    onClick = { onOpenJellyfinItem(jfItem) },
-                )
-            }
-        }
-        // Emby has no backend integration yet (see Route.EmbyHome's ComingSoonScreen) - shown as
-        // a clearly-labelled empty section rather than silently missing, so the category list
-        // still reads as complete once Emby search lands.
-        item {
-            SectionHeader("Emby")
-            Text(
-                text = "Emby integration isn't wired up yet.",
-                color = Palette.TextMuted,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(bottom = 12.dp),
+    }
+}
+
+@Composable
+private fun JellyfinResultsTab(results: List<JellyfinItemInfo>, onOpenItem: (JellyfinItemInfo) -> Unit) {
+    if (results.isEmpty()) {
+        EmptyPrompt("No Jellyfin matches.")
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        items(results, key = { "jf:${it.id}" }) { item ->
+            ResultRow(
+                title = item.name,
+                subtitle = item.seriesName,
+                posterUrl = item.primaryImageUrl,
+                badgeColor = Palette.SourceJellyfin,
+                onClick = { onOpenItem(item) },
             )
         }
     }
