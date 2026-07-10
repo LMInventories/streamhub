@@ -86,9 +86,11 @@ fun LiveTvScreenTv(
             nowProgram = uiState.nowProgram,
             nextProgram = uiState.nextProgram,
             recentChannels = recentChannels,
+            multiviewPickerCandidates = multiviewPickerCandidates,
             onSwitchChannel = viewModel::switchFullscreenChannel,
             onPlayPause = viewModel::toggleMiniPlayerPlayback,
             onToggleMute = viewModel::toggleMiniPlayerMute,
+            onStartMultiview = viewModel::startMultiviewFromFullscreen,
             onCollapse = viewModel::exitFullscreen,
             modifier = Modifier.fillMaxSize(),
         )
@@ -115,13 +117,6 @@ fun LiveTvScreenTv(
                 nextProgram = uiState.nextProgram,
                 modifier = Modifier.padding(16.dp),
             )
-            if (uiState.multiviewTiles.size >= 2) {
-                MultiviewButton(
-                    tileCount = uiState.multiviewTiles.size,
-                    onClick = viewModel::openMultiview,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
         }
 
         uiState.errorMessage?.let { error ->
@@ -188,9 +183,6 @@ fun LiveTvScreenTv(
                             onFocusChannel = viewModel::focusChannel,
                             onScheduleRecording = viewModel::scheduleRecording,
                             onScheduleReminder = viewModel::scheduleReminder,
-                            multiviewChannelIds = uiState.multiviewTiles.map { it.channel.id }.toSet(),
-                            onAddToMultiview = viewModel::addToMultiview,
-                            onRemoveFromMultiview = viewModel::removeFromMultiview,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         )
                     }

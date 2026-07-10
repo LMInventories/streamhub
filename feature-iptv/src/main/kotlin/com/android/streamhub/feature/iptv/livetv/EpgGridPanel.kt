@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -85,15 +86,11 @@ fun EpgGridPanel(
     onFocusChannel: (IptvChannelInfo) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
-    multiviewChannelIds: Set<String> = emptySet(),
-    onAddToMultiview: (IptvChannelInfo) -> Unit = {},
-    onRemoveFromMultiview: (channelId: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val use24Hour = rememberUse24HourTime()
     val sharedScrollState = rememberScrollState()
     var menuState by remember { mutableStateOf<ProgramMenuState?>(null) }
-    var multiviewMenuChannel by remember { mutableStateOf<IptvChannelInfo?>(null) }
     var startAdjustMinutes by remember { mutableIntStateOf(0) }
     var endAdjustMinutes by remember { mutableIntStateOf(0) }
     var leadMinutes by remember { mutableIntStateOf(10) }
@@ -143,7 +140,6 @@ fun EpgGridPanel(
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
                     onClick = { onFocusChannel(channel) },
-                    onLongClickLabel = { multiviewMenuChannel = channel },
                     onLongPressProgram = { program -> menuState = ProgramMenuState.ContextMenu(channel, program) },
                 )
                 HorizontalDivider(color = Palette.Border)
@@ -190,18 +186,6 @@ fun EpgGridPanel(
         )
         null -> Unit
     }
-
-    multiviewMenuChannel?.let { channel ->
-        val isStaged = channel.id in multiviewChannelIds
-        ChannelMultiviewMenu(
-            isStaged = isStaged,
-            onDismiss = { multiviewMenuChannel = null },
-            onToggle = {
-                if (isStaged) onRemoveFromMultiview(channel.id) else onAddToMultiview(channel)
-                multiviewMenuChannel = null
-            },
-        )
-    }
 }
 
 @Composable
@@ -239,7 +223,6 @@ private fun TimeHeader(windowStart: Instant, windowEnd: Instant, use24Hour: Bool
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GridChannelRow(
     channel: IptvChannelInfo,
@@ -248,14 +231,13 @@ private fun GridChannelRow(
     windowEnd: Instant,
     sharedScrollState: ScrollState,
     onClick: () -> Unit,
-    onLongClickLabel: () -> Unit,
     onLongPressProgram: (EpgProgram) -> Unit,
 ) {
     Row(modifier = Modifier.height(ROW_HEIGHT)) {
         Box(
             modifier = Modifier.width(CHANNEL_LABEL_WIDTH).fillMaxHeight()
                 .background(Palette.Surface)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClickLabel)
+                .clickable(onClick = onClick)
                 .padding(8.dp),
             contentAlignment = Alignment.CenterStart,
         ) {

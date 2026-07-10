@@ -115,9 +115,11 @@ fun LiveTvScreenPhone(
             nowProgram = uiState.nowProgram,
             nextProgram = uiState.nextProgram,
             recentChannels = recentChannels,
+            multiviewPickerCandidates = multiviewPickerCandidates,
             onSwitchChannel = viewModel::switchFullscreenChannel,
             onPlayPause = viewModel::toggleMiniPlayerPlayback,
             onToggleMute = viewModel::toggleMiniPlayerMute,
+            onStartMultiview = viewModel::startMultiviewFromFullscreen,
             onCollapse = viewModel::exitFullscreen,
             modifier = Modifier.fillMaxSize(),
         )
@@ -172,13 +174,6 @@ fun LiveTvScreenPhone(
                     }
                 }
                 CastButton(isAvailable = viewModel.isCastAvailable, modifier = Modifier.align(Alignment.TopEnd))
-                if (uiState.multiviewTiles.size >= 2) {
-                    MultiviewButton(
-                        tileCount = uiState.multiviewTiles.size,
-                        onClick = viewModel::openMultiview,
-                        modifier = Modifier.align(Alignment.TopStart),
-                    )
-                }
             }
 
             LiveTvBrowseContent(
@@ -192,9 +187,6 @@ fun LiveTvScreenPhone(
                 onScheduleRecording = viewModel::scheduleRecording,
                 onScheduleReminder = viewModel::scheduleReminder,
                 onOpenRecordings = onOpenRecordings,
-                onAddToMultiview = viewModel::addToMultiview,
-                onRemoveFromMultiview = viewModel::removeFromMultiview,
-                multiviewChannelIds = uiState.multiviewTiles.map { it.channel.id }.toSet(),
                 // Without this, this content competes for height with the fixed-size mini-player
                 // row/header above it under Column's default (unbounded) child measurement,
                 // which is what made the grid/list silently fail to render in landscape - there's
@@ -254,9 +246,6 @@ private fun LiveTvBrowseContent(
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
     onOpenRecordings: () -> Unit,
-    onAddToMultiview: (IptvChannelInfo) -> Unit,
-    onRemoveFromMultiview: (channelId: String) -> Unit,
-    multiviewChannelIds: Set<String>,
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
@@ -330,9 +319,6 @@ private fun LiveTvBrowseContent(
                         onFocusChannel = onFocusChannel,
                         onScheduleRecording = onScheduleRecording,
                         onScheduleReminder = onScheduleReminder,
-                        multiviewChannelIds = multiviewChannelIds,
-                        onAddToMultiview = onAddToMultiview,
-                        onRemoveFromMultiview = onRemoveFromMultiview,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
                     else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -392,20 +378,6 @@ private fun LiveTvBrowseContent(
                                         },
                                         onClick = {
                                             onToggleFavorite(channel)
-                                            contextMenuChannel = null
-                                        },
-                                    )
-                                    val isStaged = channel.id in multiviewChannelIds
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                if (isStaged) "Remove from Multiview" else "Add to Multiview",
-                                                fontSize = 16.sp,
-                                                color = Palette.ContextMenuText,
-                                            )
-                                        },
-                                        onClick = {
-                                            if (isStaged) onRemoveFromMultiview(channel.id) else onAddToMultiview(channel)
                                             contextMenuChannel = null
                                         },
                                     )

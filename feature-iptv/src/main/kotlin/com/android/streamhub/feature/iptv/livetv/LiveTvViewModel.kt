@@ -80,9 +80,8 @@ data class LiveTvUiState(
     // need to rebuffer the same stream from scratch.
     val isFullscreen: Boolean = false,
     val previewPlayerSize: PreviewPlayerSize = PreviewPlayerSize.MEDIUM,
-    // Staged multiview channels persist across opening/closing the grid (their controllers keep
-    // playing muted in the background, same "why stop it" reasoning as the main mini-player) -
-    // only explicitly removing a tile or leaving Live TV entirely releases its controller.
+    // A transient session, not persistent background staging - see closeMultiview()'s own
+    // comment for why every tile's controller is released rather than kept alive once closed.
     val multiviewTiles: List<MultiviewTile> = emptyList(),
     val isMultiviewActive: Boolean = false,
     val multiviewAudioFocusChannelId: String? = null,
@@ -390,13 +389,19 @@ class LiveTvViewModel @Inject constructor(
     }
 
     /**
-     * No-op past MAX_MULTIVIEW_TILES or if the channel's already staged, rather than erroring -
-     * the "Add to Multiview" menu item simply won't do anything further, which reads clearly
-     * enough on its own. Auto-opens the grid the moment a second channel is staged - requiring a
-     * separate manual "open" step after adding gave no visible feedback that anything had
-     * happened, since nothing about a background-staged tile is visible until the grid itself is
-     * showing.
+     * Entry point from the fullscreen player's own "Multiview" button - exits the single-channel
+     * fullscreen view and starts a session with whatever was playing there plus the newly picked
+     * channel, opening straight into the grid rather than requiring a separate "now open it"
+     * step.
      */
+    fun startMultiviewFromFullscreen(secondChannel: IptvChannelInfo) {
+        val current = _uiState.value.focusedChannel ?: return
+        exitFullscreen()
+        addToMultiview(current)
+        addToMultiview(secondChannel)
+    }
+
+    /** No-op past MAX_MULTIVIEW_TILES or if the channel's already staged. Auto-opens the grid the moment a second channel is added to the session. */
     fun addToMultiview(channel: IptvChannelInfo) {
         val current = _uiState.value.multiviewTiles
         if (current.size >= MAX_MULTIVIEW_TILES || current.any { it.channel.id == channel.id }) return
@@ -424,33 +429,35 @@ class LiveTvViewModel @Inject constructor(
                 multiviewAudioFocusChannelId = if (isFirstTile) channel.id else it.multiviewAudioFocusChannelId,
             )
         }
-        if (updatedTiles.size >= 2) openMultiview()
-    }
-
-    fun removeFromMultiview(channelId: String) {
-        val wasFocused = _uiState.value.multiviewAudioFocusChannelId == channelId
-        val tile = _uiState.value.multiviewTiles.firstOrNull { it.channel.id == channelId } ?: return
-        tile.controller.release()
-        val remaining = _uiState.value.multiviewTiles.filterNot { it.channel.id == channelId }
-        _uiState.update { it.copy(multiviewTiles = remaining, isMultiviewActive = it.isMultiviewActive && remaining.size >= 2) }
-        // Falls back to whatever's now first rather than leaving every remaining tile muted if
-        // the removed one happened to be the audio-focused tile.
-        if (wasFocused) {
-            remaining.firstOrNull()?.let { setMultiviewAudioFocus(it.channel.id) }
-                ?: _uiState.update { it.copy(multiviewAudioFocusChannelId = null) }
+        if (updatedTiles.size >= 2) {
+            _uiState.update { it.copy(isMultiviewActive = true) }
+            fullscreenOverlayState.setActive(true)
         }
     }
 
-    /** Requires 2+ staged tiles - the entry point (button/menu) is only ever shown once that's true, so this is a safety check, not user-facing validation. */
-    fun openMultiview() {
-        if (_uiState.value.multiviewTiles.size < 2) return
-        _uiState.update { it.copy(isMultiviewActive = true) }
-        fullscreenOverlayState.setActive(true)
+    /** Multiview doesn't mean anything with fewer than 2 streams - dropping to 1 via "Dismiss Focused" tears the whole session down rather than leaving one tile alone with no way back to it. */
+    fun removeFromMultiview(channelId: String) {
+        val tile = _uiState.value.multiviewTiles.firstOrNull { it.channel.id == channelId } ?: return
+        val remaining = _uiState.value.multiviewTiles.filterNot { it.channel.id == channelId }
+        if (remaining.size < 2) {
+            closeMultiview()
+            return
+        }
+        val wasFocused = _uiState.value.multiviewAudioFocusChannelId == channelId
+        tile.controller.release()
+        _uiState.update { it.copy(multiviewTiles = remaining) }
+        if (wasFocused) setMultiviewAudioFocus(remaining.first().channel.id)
     }
 
-    /** Leaves every tile's controller alive (see multiviewTiles' own doc comment) - only visually collapses the grid. */
+    /**
+     * A transient session, not persistent background staging - closing (the grid's own back
+     * arrow, or "Dismiss Focused" dropping below 2 streams) releases every tile's controller
+     * rather than leaving them playing muted with no way back to them. Starting multiview again
+     * re-buffers from scratch, which is the simpler, more predictable trade-off.
+     */
     fun closeMultiview() {
-        _uiState.update { it.copy(isMultiviewActive = false) }
+        _uiState.value.multiviewTiles.forEach { it.controller.release() }
+        _uiState.update { it.copy(multiviewTiles = emptyList(), isMultiviewActive = false, multiviewAudioFocusChannelId = null) }
         fullscreenOverlayState.setActive(false)
     }
 

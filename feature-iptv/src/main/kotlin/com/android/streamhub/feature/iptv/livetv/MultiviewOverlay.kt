@@ -1,8 +1,10 @@
 package com.android.streamhub.feature.iptv.livetv
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -155,9 +157,14 @@ private fun MultiviewToolbarAction(label: String, enabled: Boolean, onClick: () 
     )
 }
 
-/** Recent + favourite channels rather than a full category browser - see LiveTvViewModel.multiviewPickerCandidates' own comment for why. */
+/**
+ * Recent + favourite channels rather than a full category browser - see
+ * LiveTvViewModel.multiviewPickerCandidates' own comment for why. Shared by both entry points -
+ * the fullscreen player's "Multiview" button (starting a new session) and the grid's own "Add
+ * Channel" toolbar action (extending one already running) - same picker either way.
+ */
 @Composable
-private fun MultiviewAddChannelPicker(candidates: List<IptvChannelInfo>, onPick: (IptvChannelInfo) -> Unit, onDismiss: () -> Unit) {
+fun MultiviewAddChannelPicker(candidates: List<IptvChannelInfo>, onPick: (IptvChannelInfo) -> Unit, onDismiss: () -> Unit) {
     Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -220,6 +227,7 @@ private fun MultiviewGridCell(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MultiviewTileView(
     tile: MultiviewTile,
@@ -229,12 +237,17 @@ private fun MultiviewTileView(
     modifier: Modifier = Modifier,
 ) {
     val uiState by tile.controller.uiState.collectAsStateWithLifecycle()
+    var showCloseMenu by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
             .padding(1.dp)
             .background(Color.Black)
             .border(width = if (isFocused) 3.dp else 0.dp, color = Palette.Accent)
-            .clickable(onClick = onTap),
+            // Tap gives this tile audio focus (the common case, done often); long-press offers to
+            // close it instead - two different gestures for two very different-weight actions,
+            // same reasoning as everywhere else in this app that a long-press opens a menu rather
+            // than acting immediately.
+            .combinedClickable(onClick = onTap, onLongClick = { showCloseMenu = true }),
     ) {
         VideoSurface(exoPlayer = tile.controller.exoPlayer, aspectMode = VideoAspectMode.FIT, modifier = Modifier.fillMaxSize())
 
@@ -257,17 +270,21 @@ private fun MultiviewTileView(
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center).size(24.dp), color = Color.White)
         }
     }
-}
 
-/** Only ever shown once 2+ channels are staged (the caller checks this) - opens the grid built from whatever's already been added via long-press "Add to Multiview". */
-@Composable
-fun MultiviewButton(tileCount: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    BasicText(
-        text = "Multiview ($tileCount)",
-        style = TextStyle(color = Color.White, fontSize = 13.sp),
-        modifier = modifier
-            .background(Palette.Accent, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
+    if (showCloseMenu) {
+        Popup(alignment = Alignment.Center, onDismissRequest = { showCloseMenu = false }) {
+            Column(modifier = Modifier.contextMenuSurface(AppShapes.small).padding(vertical = 4.dp)) {
+                BasicText(
+                    text = "Close Stream",
+                    style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                    modifier = Modifier
+                        .clickable {
+                            onRemove()
+                            showCloseMenu = false
+                        }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
+        }
+    }
 }

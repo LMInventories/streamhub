@@ -65,9 +65,11 @@ fun LiveFullscreenOverlay(
     nowProgram: EpgProgram?,
     nextProgram: EpgProgram?,
     recentChannels: List<IptvChannelInfo>,
+    multiviewPickerCandidates: List<IptvChannelInfo>,
     onSwitchChannel: (IptvChannelInfo) -> Unit,
     onPlayPause: () -> Unit,
     onToggleMute: () -> Unit,
+    onStartMultiview: (IptvChannelInfo) -> Unit,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -75,6 +77,7 @@ fun LiveFullscreenOverlay(
     HideSystemBarsWhileFullscreen()
 
     var controlsVisible by remember { mutableStateOf(true) }
+    var showMultiviewPicker by remember { mutableStateOf(false) }
     LaunchedEffect(controlsVisible, playerUiState.isPlaying) {
         if (controlsVisible && playerUiState.isPlaying) {
             delay(4000)
@@ -114,6 +117,8 @@ fun LiveFullscreenOverlay(
                         OverlayTextButton(if (playerUiState.isPlaying) "Pause" else "Play", onClick = onPlayPause)
                         Spacer(modifier = Modifier.width(12.dp))
                         OverlayTextButton(if (playerUiState.isMuted) "Unmute" else "Mute", onClick = onToggleMute)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        OverlayTextButton("Multiview", onClick = { showMultiviewPicker = true })
                     }
 
                     if (recentChannels.isNotEmpty()) {
@@ -135,6 +140,17 @@ fun LiveFullscreenOverlay(
                 }
             }
         }
+    }
+
+    if (showMultiviewPicker) {
+        MultiviewAddChannelPicker(
+            candidates = multiviewPickerCandidates.filterNot { it.id == channel.id },
+            onPick = { picked ->
+                onStartMultiview(picked)
+                showMultiviewPicker = false
+            },
+            onDismiss = { showMultiviewPicker = false },
+        )
     }
 }
 

@@ -70,20 +70,6 @@ fun ProgramContextMenu(
     }
 }
 
-/** Same popup pattern as ProgramContextMenu - shown on long-pressing a channel's label (not a program block) in the EPG grid, where a silent toggle would give no feedback that anything happened. */
-@Composable
-fun ChannelMultiviewMenu(isStaged: Boolean, onDismiss: () -> Unit, onToggle: () -> Unit) {
-    Popup(alignment = Alignment.Center, onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .contextMenuSurface(AppShapes.small)
-                .padding(vertical = 4.dp),
-        ) {
-            MenuRow(if (isStaged) "Remove from Multiview" else "Add to Multiview", onClick = onToggle)
-        }
-    }
-}
-
 @Composable
 private fun MenuRow(label: String, onClick: () -> Unit) {
     // No fillMaxWidth() here - that was stretching the row (and with it, the Column/Popup that
