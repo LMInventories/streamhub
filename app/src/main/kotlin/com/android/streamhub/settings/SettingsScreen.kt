@@ -9,9 +9,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Palette as PaletteIcon
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Reorder
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +31,7 @@ import com.android.streamhub.core.design.Palette
 data class SettingsRow(
     val label: String,
     val subtitle: String,
+    val icon: ImageVector,
     val enabled: Boolean = true,
     val onClick: () -> Unit,
 )
@@ -29,6 +39,78 @@ data class SettingsRow(
 data class SettingsSection(
     val title: String,
     val rows: List<SettingsRow>,
+)
+
+/**
+ * Shared by both SettingsScreen (phone) and SettingsScreenTv so the two form factors' section/row
+ * definitions can never drift apart from each other - only how they're laid out differs.
+ */
+fun buildSettingsSections(
+    onIptvClick: () -> Unit,
+    onJellyfinClick: () -> Unit,
+    onJellyfinPlaybackClick: () -> Unit,
+    onJellyfinLibrariesClick: () -> Unit,
+    onJellyfinHomeOrderClick: () -> Unit,
+    onAppearanceClick: () -> Unit,
+    onIptvPlaybackClick: () -> Unit,
+    onScheduledManagementClick: () -> Unit,
+    onDownloadsManagementClick: () -> Unit,
+): List<SettingsSection> = listOf(
+    SettingsSection(
+        title = "App",
+        rows = listOf(
+            SettingsRow(label = "Appearance", subtitle = "Theme, text size", icon = Icons.Filled.PaletteIcon, onClick = onAppearanceClick),
+            SettingsRow(label = "Downloads", subtitle = "Manage offline downloads and storage", icon = Icons.Filled.Download, onClick = onDownloadsManagementClick),
+        ),
+    ),
+    SettingsSection(
+        title = "Live TV & VOD",
+        rows = listOf(
+            SettingsRow(label = "Source", subtitle = "Xtream Codes or M3U playlist sign-in", icon = Icons.Filled.Cloud, onClick = onIptvClick),
+            SettingsRow(
+                label = "Playback",
+                subtitle = "Resume channel, sort order, EPG format, preview size",
+                icon = Icons.Filled.PlayCircle,
+                onClick = onIptvPlaybackClick,
+            ),
+            SettingsRow(
+                label = "Scheduled",
+                subtitle = "Manage reminders and pending recordings",
+                icon = Icons.Filled.Schedule,
+                onClick = onScheduledManagementClick,
+            ),
+        ),
+    ),
+    SettingsSection(
+        title = "Jellyfin",
+        rows = listOf(
+            SettingsRow(label = "Source", subtitle = "Server sign-in", icon = Icons.Filled.Cloud, onClick = onJellyfinClick),
+            SettingsRow(
+                label = "Playback",
+                subtitle = "Preferred audio/subtitle language, max bitrate",
+                icon = Icons.Filled.PlayCircle,
+                onClick = onJellyfinPlaybackClick,
+            ),
+            SettingsRow(
+                label = "Libraries",
+                subtitle = "Choose which libraries show up in the app",
+                icon = Icons.Filled.VideoLibrary,
+                onClick = onJellyfinLibrariesClick,
+            ),
+            SettingsRow(
+                label = "Home screen order",
+                subtitle = "Reorder Continue Watching, Next Up, and the rest",
+                icon = Icons.Filled.Reorder,
+                onClick = onJellyfinHomeOrderClick,
+            ),
+        ),
+    ),
+    SettingsSection(
+        title = "Emby",
+        rows = listOf(
+            SettingsRow(label = "Source", subtitle = "Not set up yet", icon = Icons.Filled.Cloud, enabled = false, onClick = {}),
+        ),
+    ),
 )
 
 /**
@@ -54,37 +136,16 @@ fun SettingsScreen(
     onScheduledManagementClick: () -> Unit,
     onDownloadsManagementClick: () -> Unit,
 ) {
-    val sections = listOf(
-        SettingsSection(
-            title = "App",
-            rows = listOf(
-                SettingsRow(label = "Appearance", subtitle = "Theme, text size", onClick = onAppearanceClick),
-                SettingsRow(label = "Downloads", subtitle = "Manage offline downloads and storage", onClick = onDownloadsManagementClick),
-            ),
-        ),
-        SettingsSection(
-            title = "Live TV & VOD",
-            rows = listOf(
-                SettingsRow(label = "Source", subtitle = "Xtream Codes or M3U playlist sign-in", onClick = onIptvClick),
-                SettingsRow(label = "Playback", subtitle = "Resume channel, sort order, EPG format, preview size", onClick = onIptvPlaybackClick),
-                SettingsRow(label = "Scheduled", subtitle = "Manage reminders and pending recordings", onClick = onScheduledManagementClick),
-            ),
-        ),
-        SettingsSection(
-            title = "Jellyfin",
-            rows = listOf(
-                SettingsRow(label = "Source", subtitle = "Server sign-in", onClick = onJellyfinClick),
-                SettingsRow(label = "Playback", subtitle = "Preferred audio/subtitle language, max bitrate", onClick = onJellyfinPlaybackClick),
-                SettingsRow(label = "Libraries", subtitle = "Choose which libraries show up in the app", onClick = onJellyfinLibrariesClick),
-                SettingsRow(label = "Home screen order", subtitle = "Reorder Continue Watching, Next Up, and the rest", onClick = onJellyfinHomeOrderClick),
-            ),
-        ),
-        SettingsSection(
-            title = "Emby",
-            rows = listOf(
-                SettingsRow(label = "Source", subtitle = "Not set up yet", enabled = false, onClick = {}),
-            ),
-        ),
+    val sections = buildSettingsSections(
+        onIptvClick = onIptvClick,
+        onJellyfinClick = onJellyfinClick,
+        onJellyfinPlaybackClick = onJellyfinPlaybackClick,
+        onJellyfinLibrariesClick = onJellyfinLibrariesClick,
+        onJellyfinHomeOrderClick = onJellyfinHomeOrderClick,
+        onAppearanceClick = onAppearanceClick,
+        onIptvPlaybackClick = onIptvPlaybackClick,
+        onScheduledManagementClick = onScheduledManagementClick,
+        onDownloadsManagementClick = onDownloadsManagementClick,
     )
 
     Column(

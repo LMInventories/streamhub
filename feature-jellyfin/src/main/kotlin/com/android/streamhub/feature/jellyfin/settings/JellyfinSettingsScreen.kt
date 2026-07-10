@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 // Same "wrap own MaterialTheme locally" reasoning as IptvSettingsScreen - reachable from the TV
@@ -81,14 +82,14 @@ fun JellyfinSettingsScreen(
                     label = { Text("Server URL (e.g. http://host:8096)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = uiState.username,
                     onValueChange = viewModel::updateUsername,
                     label = { Text("Username") },
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = uiState.password,
@@ -96,10 +97,14 @@ fun JellyfinSettingsScreen(
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
                     enabled = !uiState.isSigningIn,
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
 
-                Button(onClick = viewModel::signIn, enabled = !uiState.isSigningIn) {
+                Button(
+                    onClick = viewModel::signIn,
+                    enabled = !uiState.isSigningIn,
+                    modifier = Modifier.tvScrollsIntoViewOnFocus(),
+                ) {
                     if (uiState.isSigningIn) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         Text("Signing in…", modifier = Modifier.padding(start = 8.dp))
@@ -129,12 +134,16 @@ fun JellyfinSettingsScreen(
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp))
                                 Text("Waiting for approval…", color = Palette.TextMuted)
                             }
-                            OutlinedButton(onClick = viewModel::cancelQuickConnect) {
+                            OutlinedButton(onClick = viewModel::cancelQuickConnect, modifier = Modifier.tvScrollsIntoViewOnFocus()) {
                                 Text("Cancel")
                             }
                         }
                     } else {
-                        OutlinedButton(onClick = viewModel::startQuickConnect, enabled = !uiState.isQuickConnecting) {
+                        OutlinedButton(
+                            onClick = viewModel::startQuickConnect,
+                            enabled = !uiState.isQuickConnecting,
+                            modifier = Modifier.tvScrollsIntoViewOnFocus(),
+                        ) {
                             if (uiState.isQuickConnecting) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp))
                                 Text("Starting…", modifier = Modifier.padding(start = 8.dp))
@@ -160,7 +169,7 @@ fun JellyfinSettingsScreen(
 
                 if (uiState.signedIn) {
                     Text("Signed in as ${uiState.username}.", color = Palette.TextMuted)
-                    OutlinedButton(onClick = { viewModel.signOut() }) {
+                    OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.tvScrollsIntoViewOnFocus()) {
                         Text("Sign out")
                     }
                 }

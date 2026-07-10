@@ -41,7 +41,7 @@ import com.android.streamhub.home.HomeScreenTv
 import com.android.streamhub.placeholder.ComingSoonScreen
 import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreen
-import com.android.streamhub.settings.SettingsScreen
+import com.android.streamhub.settings.SettingsScreenTv
 
 private val TAB_ROUTES = setOf(
     Route.HOME_PATTERN,
@@ -188,8 +188,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.SETTINGS_PATTERN) {
-                SettingsScreen(
-                    paddingValues = PaddingValues(24.dp),
+                SettingsScreenTv(
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onJellyfinClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
                     onJellyfinPlaybackClick = { navController.navigate(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) },

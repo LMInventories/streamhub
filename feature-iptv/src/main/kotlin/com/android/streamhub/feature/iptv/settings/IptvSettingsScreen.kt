@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
+import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_DAY_OPTIONS
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_HOUR_OPTIONS
@@ -48,9 +49,11 @@ import com.android.streamhub.feature.iptv.data.AutoUpdateMode
 /**
  * Shared across phone and TV - it's a form, so there's no TV-specific idiom worth a second
  * implementation here (unlike the browse/player screens, which genuinely differ by form factor).
- * Each field carries dpadMovesFocusVertically so a D-pad's Up/Down actually moves between fields
- * instead of getting eaten by BasicTextField's own cursor-movement key handling - see that
- * function's own comment for why plain Material3 text fields get stuck on TV without it.
+ * Every field/button/chip carries dpadMovesFocusVertically (Up/Down moves between fields instead
+ * of getting eaten by BasicTextField's own cursor-movement key handling) and
+ * tvScrollsIntoViewOnFocus (this form's nested horizontal chip rows otherwise break the implicit
+ * focus-follows-scroll chain, leaving focus move past the visible area with nothing scrolling to
+ * follow it) - see those functions' own comments for the full why.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,11 +81,13 @@ fun IptvSettingsScreen(
                     selected = uiState.providerType == IptvProviderType.XTREAM,
                     onClick = { viewModel.selectProviderType(IptvProviderType.XTREAM) },
                     label = { Text("Xtream Codes") },
+                    modifier = Modifier.tvScrollsIntoViewOnFocus(),
                 )
                 FilterChip(
                     selected = uiState.providerType == IptvProviderType.M3U,
                     onClick = { viewModel.selectProviderType(IptvProviderType.M3U) },
                     label = { Text("M3U playlist") },
+                    modifier = Modifier.tvScrollsIntoViewOnFocus(),
                 )
             }
 
@@ -92,27 +97,27 @@ fun IptvSettingsScreen(
                     onValueChange = viewModel::updateXtreamBaseUrl,
                     label = { Text("Server URL (e.g. http://host:port)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamUsername,
                     onValueChange = viewModel::updateXtreamUsername,
                     label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamPassword,
                     onValueChange = viewModel::updateXtreamPassword,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = uiState.xtreamXmlTvUrlOverride,
                     onValueChange = viewModel::updateXtreamXmlTvUrlOverride,
                     label = { Text("EPG (XMLTV) URL override - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
             } else {
                 OutlinedTextField(
@@ -120,18 +125,18 @@ fun IptvSettingsScreen(
                     onValueChange = viewModel::updateM3uPlaylistUrl,
                     label = { Text("Playlist URL") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
                 OutlinedTextField(
                     value = uiState.m3uEpgUrl,
                     onValueChange = viewModel::updateM3uEpgUrl,
                     label = { Text("EPG (XMLTV) URL - optional") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager),
+                    modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus(),
                 )
             }
 
-            Button(onClick = { viewModel.save(); onDone() }) {
+            Button(onClick = { viewModel.save(); onDone() }, modifier = Modifier.tvScrollsIntoViewOnFocus()) {
                 Text("Save")
             }
 
@@ -144,7 +149,11 @@ fun IptvSettingsScreen(
 
                 Text("Playlist not showing everything it should? Refetch it without re-entering your details.", color = Palette.TextMuted)
 
-                OutlinedButton(onClick = viewModel::updatePlaylist, enabled = !uiState.isUpdating) {
+                OutlinedButton(
+                    onClick = viewModel::updatePlaylist,
+                    enabled = !uiState.isUpdating,
+                    modifier = Modifier.tvScrollsIntoViewOnFocus(),
+                ) {
                     if (uiState.isUpdating) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         Text("Updating…", modifier = Modifier.padding(start = 8.dp))
@@ -168,21 +177,25 @@ fun IptvSettingsScreen(
                         selected = uiState.autoUpdate.mode == AutoUpdateMode.OFF,
                         onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.OFF) },
                         label = { Text("Off") },
+                        modifier = Modifier.tvScrollsIntoViewOnFocus(),
                     )
                     FilterChip(
                         selected = uiState.autoUpdate.mode == AutoUpdateMode.ON_APP_OPEN,
                         onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.ON_APP_OPEN) },
                         label = { Text("On App Open") },
+                        modifier = Modifier.tvScrollsIntoViewOnFocus(),
                     )
                     FilterChip(
                         selected = uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_DAYS,
                         onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.EVERY_N_DAYS) },
                         label = { Text("Every few days") },
+                        modifier = Modifier.tvScrollsIntoViewOnFocus(),
                     )
                     FilterChip(
                         selected = uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_HOURS,
                         onClick = { viewModel.selectAutoUpdateMode(AutoUpdateMode.EVERY_N_HOURS) },
                         label = { Text("Every few hours") },
+                        modifier = Modifier.tvScrollsIntoViewOnFocus(),
                     )
                 }
 
@@ -196,6 +209,7 @@ fun IptvSettingsScreen(
                                 selected = uiState.autoUpdate.days == days,
                                 onClick = { viewModel.setAutoUpdateDays(days) },
                                 label = { Text(if (days == 1) "1 day" else "$days days") },
+                                modifier = Modifier.tvScrollsIntoViewOnFocus(),
                             )
                         }
                     }
@@ -211,6 +225,7 @@ fun IptvSettingsScreen(
                                 selected = uiState.autoUpdate.hours == hours,
                                 onClick = { viewModel.setAutoUpdateHours(hours) },
                                 label = { Text("$hours hours") },
+                                modifier = Modifier.tvScrollsIntoViewOnFocus(),
                             )
                         }
                     }
