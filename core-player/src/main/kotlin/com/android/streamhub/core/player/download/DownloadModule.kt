@@ -10,9 +10,7 @@ import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
-import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
 import androidx.media3.exoplayer.offline.DownloadManager
-import androidx.media3.exoplayer.offline.DownloaderFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -78,20 +76,17 @@ object DownloadModule {
             .setUpstreamDataSourceFactory(httpDataSourceFactory)
             .setCacheWriteDataSinkFactory(null)
 
-    @Provides
-    @Singleton
-    fun provideDownloaderFactory(downloaderCacheDataSourceFactory: CacheDataSource.Factory): DownloaderFactory =
-        DefaultDownloaderFactory(downloaderCacheDataSourceFactory, Executors.newFixedThreadPool(3))
-
+    // DownloadManager's own constructor builds a DefaultDownloaderFactory internally from this
+    // DataSource.Factory - no need to construct one explicitly ourselves.
     @Provides
     @Singleton
     fun provideDownloadManager(
         @ApplicationContext context: Context,
         databaseProvider: DatabaseProvider,
         cache: Cache,
-        downloaderFactory: DownloaderFactory,
+        downloaderCacheDataSourceFactory: CacheDataSource.Factory,
     ): DownloadManager =
-        DownloadManager(context, databaseProvider, cache, downloaderFactory, Executors.newFixedThreadPool(3)).apply {
+        DownloadManager(context, databaseProvider, cache, downloaderCacheDataSourceFactory, Executors.newFixedThreadPool(3)).apply {
             maxParallelDownloads = 3
         }
 }

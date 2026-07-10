@@ -10,9 +10,9 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.exoplayer.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.player.download.PlaybackCacheDataSource
 import dagger.hilt.android.qualifiers.ApplicationContext
