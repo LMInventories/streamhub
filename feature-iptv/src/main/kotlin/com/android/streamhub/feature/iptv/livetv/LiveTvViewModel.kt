@@ -185,14 +185,8 @@ class LiveTvViewModel @Inject constructor(
                 _uiState.update { it.copy(previewPlayerSize = settings.previewPlayerSize) }
             }
         }
-        // Runs once, at creation - checked against focusedChannel so it never clobbers a channel
-        // the user already picked (e.g. from a fast tap before this suspend read resolves).
-        viewModelScope.launch {
-            val settings = appSettingsRepository.settingsFlow.first()
-            if (settings.resumeLastChannel && _uiState.value.focusedChannel == null) {
-                recentChannelsRepository.observeRecent().first().firstOrNull()?.let(::focusChannel)
-            }
-        }
+        // "Resume last channel" itself is handled by resumeMiniPlayer(), called by the screen on
+        // every entry (including this first one) rather than only here - see its own comment.
     }
 
     private fun castCurrentChannel() {
@@ -382,9 +376,26 @@ class LiveTvViewModel @Inject constructor(
         viewModelScope.launch { recentChannelsRepository.recordViewed(channel) }
     }
 
-    /** Called when the Live TV screen re-enters composition (including the first time) - resumes whatever channel was already focused. */
+    /**
+     * Called when the Live TV screen re-enters composition (including the first time it's ever
+     * composed) - resumes whatever channel was already focused, or falls back to the most
+     * recently-viewed one (when the "resume last channel" setting is on) if nothing is. Checking
+     * on every entry rather than only once at ViewModel creation (which is where this used to
+     * live) makes "resume last channel" actually mean what it says - reported as failing whenever
+     * this screen was left and come back to, which a one-shot check can't recover from if this
+     * ViewModel instance's state didn't survive that round trip for any reason, whereas re-deriving
+     * it here does regardless of why.
+     */
     fun resumeMiniPlayer() {
-        if (_uiState.value.focusedChannel != null) miniPlayerController.play()
+        if (_uiState.value.focusedChannel != null) {
+            miniPlayerController.play()
+            return
+        }
+        viewModelScope.launch {
+            if (appSettingsRepository.settingsFlow.first().resumeLastChannel) {
+                recentChannelsRepository.observeRecent().first().firstOrNull()?.let(::focusChannel)
+            }
+        }
     }
 
     /** Called when the Live TV screen leaves composition for a different section of the app - no point decoding/buffering a channel the user can no longer see. */
