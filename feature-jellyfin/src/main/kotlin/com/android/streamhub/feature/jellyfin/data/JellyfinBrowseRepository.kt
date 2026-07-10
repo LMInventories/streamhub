@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.jellyfin.data
 
+import com.android.streamhub.core.common.search.FuzzyMatch
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
@@ -118,17 +119,28 @@ class JellyfinBrowseRepository @Inject constructor(
         ).content.items.map { it.toItemInfo(api) }
     }
 
-    /** Server-side search (Jellyfin's ItemsApi takes a real searchTerm, unlike Xtream) across movies/series/episodes, for Search. */
+    /**
+     * Server-side search (Jellyfin's ItemsApi takes a real searchTerm, unlike Xtream) across
+     * movies/series/episodes, for Search. Jellyfin's own searchTerm match is a plain substring
+     * match that doesn't treat spacing/hyphen differences as equivalent - "spider man" won't find
+     * "Spider-Man" server-side. Sending just the query's first word casts a deliberately broader
+     * net (an exact single-word match reliably finds titles Jellyfin's own matching would've
+     * missed on the full phrase), then FuzzyMatch narrows the results back down client-side the
+     * same way Search's other sources (EPG/VOD) do - so the server call's own limit is raised to
+     * compensate for that broader, noisier net before the real limit is re-applied after filtering.
+     */
     suspend fun search(query: String, limit: Int = 20): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
         if (query.isBlank()) return emptyList()
-        return api.itemsApi.getItems(
+        val broadTerm = query.trim().substringBefore(' ')
+        val results = api.itemsApi.getItems(
             userId = currentUserId(),
-            searchTerm = query,
+            searchTerm = broadTerm,
             includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES, BaseItemKind.EPISODE),
             recursive = true,
-            limit = limit,
+            limit = limit * 4,
         ).content.items.map { it.toItemInfo(api) }
+        return results.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
 
     /** Favorites can be a mix of movies and series (unlike getItems, which is scoped to one library/kind), and span every library rather than one - so this is its own call rather than getItems with an extra flag. */

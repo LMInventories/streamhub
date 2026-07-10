@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import com.android.streamhub.core.common.search.FuzzyMatch
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfig
@@ -133,9 +134,13 @@ class EpgGridRepository @Inject constructor(
      */
     suspend fun searchUpcoming(channels: List<IptvChannelInfo>, query: String, limit: Int = 30): List<Pair<IptvChannelInfo, EpgProgram>> {
         if (query.isBlank()) return emptyList()
-        val rows = dao.searchProgrammes(query, Instant.now().epochSecond, limit)
         val channelByRawId = channels.flatMap { channel -> listOfNotNull(channel.epgChannelId, channel.id).map { it to channel } }.toMap()
-        return rows.mapNotNull { row -> channelByRawId[row.channelId]?.let { it to row.toEpgProgram() } }
+        return dao.getUpcomingProgrammes(Instant.now().epochSecond)
+            .asSequence()
+            .filter { FuzzyMatch.matches(it.title, query) }
+            .mapNotNull { row -> channelByRawId[row.channelId]?.let { it to row.toEpgProgram() } }
+            .take(limit)
+            .toList()
     }
 
     private fun xmltvUrlFor(config: IptvSourceConfig): String? = when (config) {

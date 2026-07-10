@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.iptv.data
 
+import com.android.streamhub.core.common.search.FuzzyMatch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
@@ -135,7 +136,7 @@ class IptvVodRepository @Inject constructor(
             getCategories()
                 .map { category -> async { runCatching { getMovies(category.id) }.getOrDefault(emptyList()) } }
                 .flatMap { it.await() }
-        }.filter { it.name.contains(query, ignoreCase = true) }
+        }.filter { FuzzyMatch.matches(it.name, query) }
     }
 
     suspend fun getMovieDetail(playbackId: String): VodDetailInfo? {
@@ -183,7 +184,7 @@ class IptvVodRepository @Inject constructor(
             getSeriesCategories()
                 .map { category -> async { runCatching { getShows(category.id) }.getOrDefault(emptyList()) } }
                 .flatMap { it.await() }
-        }.filter { it.name.contains(query, ignoreCase = true) }
+        }.filter { FuzzyMatch.matches(it.name, query) }
     }
 
     /** Drops every cached category/item list - mirrors IptvBrowseRepository.invalidateCache(), called from the same refresh flow. */
