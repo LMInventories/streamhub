@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,6 +100,16 @@ fun EpgGridPanel(
     var endAdjustMinutes by remember { mutableIntStateOf(0) }
     var leadMinutes by remember { mutableIntStateOf(10) }
 
+    // Closing the context menu/dialog chain (dismiss, Record, Reminder, Cancel) disposes whichever
+    // row inside it currently holds D-pad focus with nothing left to take over, so without this
+    // TV's focus system falls back to its own default target (the nav rail) instead of landing
+    // back on the channel row that was long-pressed. Restored by channel id (not the exact program
+    // block) since that's the one part of the row guaranteed to still be composed - the program
+    // block itself can scroll out of ChannelTimeline's render window while a dialog is open.
+    val rowFocusRequester = remember { FocusRequester() }
+    var focusRestoreChannelId by remember { mutableStateOf<String?>(null) }
+    val restoreFocus: () -> Unit = { runCatching { rowFocusRequester.requestFocus() } }
+
     Column(modifier = modifier) {
         // isLoading alone (no real progress yet) covers the gap loadProgress leaves - a Room
         // read, a cache hit, or a download too fast to catch a callback - where the grid would
@@ -143,7 +155,11 @@ fun EpgGridPanel(
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
                     onClick = { onFocusChannel(channel) },
-                    onLongPressProgram = { program -> menuState = ProgramMenuState.ContextMenu(channel, program) },
+                    onLongPressProgram = { program ->
+                        focusRestoreChannelId = channel.id
+                        menuState = ProgramMenuState.ContextMenu(channel, program)
+                    },
+                    rowFocusRequester = if (channel.id == focusRestoreChannelId) rowFocusRequester else null,
                 )
                 HorizontalDivider(color = Palette.Border)
             }
@@ -152,7 +168,7 @@ fun EpgGridPanel(
 
     when (val state = menuState) {
         is ProgramMenuState.ContextMenu -> ProgramContextMenu(
-            onDismiss = { menuState = null },
+            onDismiss = { menuState = null; restoreFocus() },
             onRecord = {
                 startAdjustMinutes = 0
                 endAdjustMinutes = 0
@@ -170,10 +186,11 @@ fun EpgGridPanel(
             endAdjustMinutes = endAdjustMinutes,
             onStartAdjustChange = { startAdjustMinutes = it },
             onEndAdjustChange = { endAdjustMinutes = it },
-            onDismiss = { menuState = null },
+            onDismiss = { menuState = null; restoreFocus() },
             onConfirm = {
                 onScheduleRecording(state.channel, state.program, startAdjustMinutes, endAdjustMinutes)
                 menuState = null
+                restoreFocus()
             },
         )
         is ProgramMenuState.ReminderDialog -> ReminderProgramDialog(
@@ -181,10 +198,11 @@ fun EpgGridPanel(
             program = state.program,
             leadMinutes = leadMinutes,
             onLeadMinutesChange = { leadMinutes = it },
-            onDismiss = { menuState = null },
+            onDismiss = { menuState = null; restoreFocus() },
             onConfirm = {
                 onScheduleReminder(state.channel, state.program, leadMinutes)
                 menuState = null
+                restoreFocus()
             },
         )
         null -> Unit
@@ -235,6 +253,7 @@ private fun GridChannelRow(
     sharedScrollState: ScrollState,
     onClick: () -> Unit,
     onLongPressProgram: (EpgProgram) -> Unit,
+    rowFocusRequester: FocusRequester? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(modifier = Modifier.height(ROW_HEIGHT)) {
@@ -242,6 +261,7 @@ private fun GridChannelRow(
             modifier = Modifier.width(CHANNEL_LABEL_WIDTH).fillMaxHeight()
                 .background(Palette.Surface)
                 .tvFocusBorder(interactionSource)
+                .let { if (rowFocusRequester != null) it.focusRequester(rowFocusRequester) else it }
                 .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
                 .padding(8.dp),
             contentAlignment = Alignment.CenterStart,

@@ -31,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -352,11 +355,17 @@ private fun MultiviewTileView(
 ) {
     val uiState by tile.controller.uiState.collectAsStateWithLifecycle()
     var showCloseMenu by remember { mutableStateOf(false) }
+    // Closing the popup disposes whichever item currently holds D-pad focus with nothing left to
+    // take over, so without this TV's focus system falls back to its own default target (the nav
+    // rail, or whatever else is focusable) instead of landing back on this tile.
+    val tileFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { showCloseMenu = false; runCatching { tileFocusRequester.requestFocus() } }
     Box(
         modifier = modifier
             .padding(1.dp)
             .background(Color.Black)
             .border(width = if (isFocused) 3.dp else 0.dp, color = Palette.Accent)
+            .focusRequester(tileFocusRequester)
             // Tap gives this tile audio focus (the common case, done often); long-press offers to
             // close it instead - two different gestures for two very different-weight actions,
             // same reasoning as everywhere else in this app that a long-press opens a menu rather
@@ -386,15 +395,20 @@ private fun MultiviewTileView(
     }
 
     if (showCloseMenu) {
-        Popup(alignment = Alignment.Center, onDismissRequest = { showCloseMenu = false }) {
+        // A plain Popup never moves D-pad focus into itself on TV - without this, the remote's
+        // presses kept hitting the tile underneath, not this menu.
+        val firstItemFocusRequester = remember { FocusRequester() }
+        LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+        Popup(alignment = Alignment.Center, onDismissRequest = closeMenu) {
             Column(modifier = Modifier.contextMenuSurface(AppShapes.small).padding(vertical = 4.dp)) {
                 BasicText(
                     text = "Close Stream",
                     style = TextStyle(color = Palette.ContextMenuText, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                     modifier = Modifier
+                        .focusRequester(firstItemFocusRequester)
                         .clickable {
                             onRemove()
-                            showCloseMenu = false
+                            closeMenu()
                         }
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                 )

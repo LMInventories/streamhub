@@ -47,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -289,6 +292,14 @@ private fun SubtitleSelectorRow(tracks: List<JellyfinSubtitleTrackInfo>) {
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
     val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: "Off"
 
+    // Same two-part TV D-pad fix as every other DropdownMenu in the app: grab focus into the menu
+    // when it opens (a plain Popup never does this on its own), and hand focus back to the row
+    // that opened it when it closes (otherwise the disposed, previously-focused item leaves
+    // nothing focused and TV's focus system falls back to its own default target - the nav rail -
+    // instead of landing back here).
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
+
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(text = "Subtitles", color = Palette.TextMuted, modifier = Modifier.width(90.dp))
         Box {
@@ -297,16 +308,23 @@ private fun SubtitleSelectorRow(tracks: List<JellyfinSubtitleTrackInfo>) {
                 modifier = Modifier
                     .clip(AppShapes.small)
                     .background(Palette.Surface)
+                    .focusRequester(anchorFocusRequester)
                     .clickable { expanded = true }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text(text = selectedLabel, color = Palette.TextPrimary)
                 Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = Palette.TextMuted, modifier = Modifier.padding(start = 6.dp).size(18.dp))
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                DropdownMenuItem(text = { Text("Off") }, onClick = { selectedIndex = null; expanded = false })
+            DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+                DropdownMenuItem(
+                    text = { Text("Off") },
+                    modifier = Modifier.focusRequester(firstItemFocusRequester),
+                    onClick = { selectedIndex = null; closeMenu() },
+                )
                 tracks.forEach { track ->
-                    DropdownMenuItem(text = { Text(track.label) }, onClick = { selectedIndex = track.index; expanded = false })
+                    DropdownMenuItem(text = { Text(track.label) }, onClick = { selectedIndex = track.index; closeMenu() })
                 }
             }
         }

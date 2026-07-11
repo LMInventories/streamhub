@@ -103,11 +103,16 @@ fun JellyfinLibraryScreen(
 @Composable
 private fun SortMenuButton(selected: JellyfinSortOption, onSelect: (JellyfinSortOption) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    // Closing the menu disposes whichever item currently holds D-pad focus with nothing left to
+    // take over, so without this TV's focus system falls back to its own default target (the nav
+    // rail) instead of landing back on the button that opened the menu.
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
     Box {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.focusRequester(anchorFocusRequester)) {
             Icon(Icons.Filled.Sort, contentDescription = "Sort")
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
             // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
             // remote's presses kept hitting whatever was focused underneath, not this menu.
             val firstItemFocusRequester = remember { FocusRequester() }
@@ -116,7 +121,7 @@ private fun SortMenuButton(selected: JellyfinSortOption, onSelect: (JellyfinSort
                 DropdownMenuItem(
                     text = { Text(option.label, color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
                     modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
-                    onClick = { onSelect(option); expanded = false },
+                    onClick = { onSelect(option); closeMenu() },
                 )
             }
         }

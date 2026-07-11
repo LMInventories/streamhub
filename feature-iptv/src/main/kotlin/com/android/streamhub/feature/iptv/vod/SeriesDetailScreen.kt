@@ -171,10 +171,16 @@ private fun SeasonDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
+    // Closing the menu disposes whichever item currently holds D-pad focus with nothing left to
+    // take over, so without this TV's focus system falls back to its own default target (the nav
+    // rail) instead of landing back on the row that opened the menu.
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
     Box(modifier = modifier) {
         Row(
             modifier = Modifier
                 .tvFocusBorder(interactionSource, AppShapes.small)
+                .focusRequester(anchorFocusRequester)
                 .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { expanded = true },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -184,7 +190,7 @@ private fun SeasonDropdown(
             )
             Icon(Icons.Filled.ArrowDropDown, contentDescription = "Filter by season", tint = Palette.TextPrimary)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
             // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
             // remote's presses kept hitting whatever was focused underneath, not this menu.
             val firstItemFocusRequester = remember { FocusRequester() }
@@ -192,10 +198,10 @@ private fun SeasonDropdown(
             DropdownMenuItem(
                 text = { Text("All Seasons") },
                 modifier = Modifier.focusRequester(firstItemFocusRequester),
-                onClick = { onSelect(null); expanded = false },
+                onClick = { onSelect(null); closeMenu() },
             )
             seasons.forEach { season ->
-                DropdownMenuItem(text = { Text("Season $season") }, onClick = { onSelect(season); expanded = false })
+                DropdownMenuItem(text = { Text("Season $season") }, onClick = { onSelect(season); closeMenu() })
             }
         }
     }

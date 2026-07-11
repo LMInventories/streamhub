@@ -129,6 +129,11 @@ private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>
     val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: options.first().second
 
     val interactionSource = remember { MutableInteractionSource() }
+    // Closing the DropdownMenu (select or dismiss) disposes whichever item currently holds D-pad
+    // focus with nothing left to take over, so without this TV's focus system falls back to its
+    // own default target (the nav rail) instead of landing back on the row that opened the menu.
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = label, color = Palette.TextMuted, fontSize = 13.sp)
         Box(modifier = Modifier.padding(top = 4.dp)) {
@@ -138,12 +143,13 @@ private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>
                     .clip(AppShapes.small)
                     .background(Palette.Surface)
                     .tvFocusBorder(interactionSource, AppShapes.small)
+                    .focusRequester(anchorFocusRequester)
                     .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { expanded = true }
                     .padding(16.dp),
             ) {
                 Text(text = selectedLabel, color = Palette.TextPrimary)
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
                 // A DropdownMenu never moves D-pad focus into itself on TV - without this, the
                 // remote's presses kept hitting whatever was focused underneath, not this menu.
                 val firstItemFocusRequester = remember { FocusRequester() }
@@ -152,7 +158,7 @@ private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>
                     DropdownMenuItem(
                         text = { Text(optionLabel) },
                         modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
-                        onClick = { onSelect(value); expanded = false },
+                        onClick = { onSelect(value); closeMenu() },
                     )
                 }
             }

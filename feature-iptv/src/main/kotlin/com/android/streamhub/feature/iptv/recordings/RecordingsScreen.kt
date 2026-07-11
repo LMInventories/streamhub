@@ -132,11 +132,17 @@ private fun RecordingTile(
 ) {
     val use24Hour = rememberUse24HourTime()
     val interactionSource = remember { MutableInteractionSource() }
+    // Closing the context menu disposes whichever item currently holds D-pad focus with nothing
+    // left to take over, so without this TV's focus system falls back to its own default target
+    // (the nav rail) instead of landing back on the tile that opened the menu.
+    val tileFocusRequester = remember { FocusRequester() }
+    val restoreFocus: () -> Unit = { runCatching { tileFocusRequester.requestFocus() } }
     Box {
         Column(
             modifier = Modifier
                 .padding(4.dp)
                 .tvFocusBorder(interactionSource, AppShapes.small)
+                .focusRequester(tileFocusRequester)
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
@@ -181,7 +187,7 @@ private fun RecordingTile(
         }
         DropdownMenu(
             expanded = showContextMenu,
-            onDismissRequest = onDismissContextMenu,
+            onDismissRequest = { onDismissContextMenu(); restoreFocus() },
             containerColor = Palette.ContextMenuSurface,
             shadowElevation = 10.dp,
         ) {
@@ -196,6 +202,7 @@ private fun RecordingTile(
                 onClick = {
                     onClick()
                     onDismissContextMenu()
+                    restoreFocus()
                 },
             )
             DropdownMenuItem(
@@ -204,6 +211,7 @@ private fun RecordingTile(
                 onClick = {
                     onDelete()
                     onDismissContextMenu()
+                    restoreFocus()
                 },
             )
         }
