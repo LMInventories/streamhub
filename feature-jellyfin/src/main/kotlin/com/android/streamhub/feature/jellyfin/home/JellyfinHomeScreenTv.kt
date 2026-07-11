@@ -1,13 +1,10 @@
 package com.android.streamhub.feature.jellyfin.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,12 +35,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
-import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.jellyfin.data.JellyfinHomeSectionKeys
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
@@ -271,33 +270,56 @@ private fun JellyfinItemRowTv(
     onItemFocused: (JellyfinItemInfo) -> Unit,
 ) {
     Column {
-        Row(
+        Text(
+            text = title,
+            color = Palette.TextPrimary,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(text = title, color = Palette.TextPrimary)
-            if (onSeeAll != null) {
-                val interactionSource = remember { MutableInteractionSource() }
-                Text(
-                    text = "See All",
-                    color = Palette.Accent,
-                    modifier = Modifier
-                        .tvFocusBorder(interactionSource, AppShapes.small)
-                        .clickable(interactionSource = interactionSource, indication = null, onClick = onSeeAll)
-                        .padding(4.dp),
-                )
-            }
-        }
+        )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // A poster-sized tile at the start of the row reads as part of the same shelf of
+            // content rather than a separate text button off to the side - same affordance as the
+            // "See All" text it replaces, just placed where the row itself is being browsed.
+            if (onSeeAll != null) {
+                item(key = "see_all") {
+                    SeeAllTileTv(onClick = onSeeAll)
+                }
+            }
             items(items, key = { it.id }) { item ->
                 JellyfinPosterTv(
                     item = item,
                     onClick = { onOpenItem(item) },
                     onFocused = { focused -> if (focused) onItemFocused(item) },
                 )
+            }
+        }
+    }
+}
+
+// Placeholder look (icon + label on a plain surface) rather than real art - "See All" has no
+// natural poster image of its own, so this is a deliberate stand-in until this gets a proper
+// visual design pass, at which point it'll likely become a styled image instead. Same
+// width/scale as JellyfinPosterTv so it sits in the row like any other poster.
+@Composable
+private fun SeeAllTileTv(onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        scale = CardDefaults.scale(focusedScale = 1.05f),
+        modifier = Modifier.width(94.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(2f / 3f)
+                .fillMaxWidth()
+                .clip(AppShapes.small)
+                .background(Palette.Surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Palette.Accent)
+                Text(text = "See All", color = Palette.Accent, style = MaterialTheme.typography.labelSmall)
             }
         }
     }

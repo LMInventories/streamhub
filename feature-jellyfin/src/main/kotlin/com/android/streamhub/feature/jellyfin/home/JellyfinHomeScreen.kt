@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,8 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -141,29 +143,47 @@ private fun JellyfinItemRow(
     onSeeAll: (() -> Unit)? = null,
 ) {
     Column {
-        Row(
+        Text(
+            text = title,
+            color = Palette.TextPrimary,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = title, color = Palette.TextPrimary)
-            // Titles used to be tappable with no visible sign of it - a "See All" button reads
-            // as an actual affordance instead of something you'd only discover by poking at text.
-            if (onSeeAll != null) {
-                Text(
-                    text = "See All",
-                    color = Palette.Accent,
-                    modifier = Modifier.clickable(onClick = onSeeAll).padding(4.dp),
-                )
-            }
-        }
+        )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // A poster-sized tile at the start of the row reads as part of the same shelf of
+            // content rather than a separate text button off to the side - same affordance as the
+            // "See All" text it replaces, just placed where the row itself is being browsed.
+            if (onSeeAll != null) {
+                item(key = "see_all") {
+                    SeeAllTile(onClick = onSeeAll)
+                }
+            }
             items(items, key = { it.id }) { item ->
                 JellyfinPoster(item = item, onClick = { onOpenItem(item) })
             }
+        }
+    }
+}
+
+// Placeholder look (icon + label on a plain surface) rather than real art - "See All" has no
+// natural poster image of its own, so this is a deliberate stand-in until this gets a proper
+// visual design pass, at which point it'll likely become a styled image instead.
+@Composable
+private fun SeeAllTile(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(120.dp)
+            .aspectRatio(2f / 3f)
+            .clip(AppShapes.small)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Palette.Accent)
+            Text(text = "See All", color = Palette.Accent, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
