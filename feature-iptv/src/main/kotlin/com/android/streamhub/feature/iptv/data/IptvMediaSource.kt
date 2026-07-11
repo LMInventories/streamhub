@@ -152,7 +152,7 @@ private fun XtreamEpisode.toPlaybackItem(config: IptvSourceConfig.Xtream, playba
     sourceType = SourceType.IPTV,
     title = title?.takeIf(String::isNotBlank) ?: "Episode",
     posterUrl = info?.movieImage,
-    streamUri = config.vodStreamUrl(id, containerExtension ?: "mp4"),
+    streamUri = config.seriesStreamUrl(id, containerExtension ?: "mp4"),
     isLive = false,
 )
 

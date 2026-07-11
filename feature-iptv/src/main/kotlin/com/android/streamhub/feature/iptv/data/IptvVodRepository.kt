@@ -233,7 +233,7 @@ class IptvVodRepository @Inject constructor(
         val episodeNum = episode.episodeNum.toIntOrNull()
         return VodDetailInfo(
             playbackId = playbackId,
-            streamUrl = config.vodStreamUrl(episodeId, episode.containerExtension ?: "mp4"),
+            streamUrl = config.seriesStreamUrl(episodeId, episode.containerExtension ?: "mp4"),
             title = episode.title?.takeIf(String::isNotBlank) ?: "Episode",
             posterUrl = episodeInfo?.movieImage ?: response.info?.cover,
             plot = episodeInfo?.plot?.takeIf(String::isNotBlank),

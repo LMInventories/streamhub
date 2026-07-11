@@ -35,3 +35,9 @@ fun IptvSourceConfig.Xtream.liveStreamUrl(streamId: String, extension: String = 
 
 fun IptvSourceConfig.Xtream.vodStreamUrl(streamId: String, extension: String = "mp4"): String =
     "${baseUrl.trimEnd('/')}/movie/$username/$password/$streamId.$extension"
+
+// Xtream Codes serves series episodes from a distinct /series/ path, not /movie/ - a movie
+// stream_id and a series episode_id are separate numbering spaces server-side, so requesting an
+// episode under /movie/ 404s even though the URL shape looks identical otherwise.
+fun IptvSourceConfig.Xtream.seriesStreamUrl(episodeId: String, extension: String = "mp4"): String =
+    "${baseUrl.trimEnd('/')}/series/$username/$password/$episodeId.$extension"
