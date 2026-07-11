@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -100,7 +106,36 @@ fun PlayerScreenTv(
         if (controlsVisible) runCatching { backButtonFocusRequester.requestFocus() }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    // Same "OK brings hidden TV controls back" fix as LiveFullscreenOverlay (this screen's own
+    // equivalent gap - it's what every VOD/Jellyfin/downloaded item actually plays through). Once
+    // controls auto-hide above, every focusable button in them is removed from composition -
+    // without a focusable node behind them to catch the key event, a D-pad OK/Enter press had
+    // nothing to land on at all and just did nothing, which is exactly what read as "the pause/
+    // stop buttons don't work" - they weren't unresponsive, there was nothing left on screen to
+    // receive the press in the first place.
+    val boxFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(controlsVisible) {
+        if (!controlsVisible) runCatching { boxFocusRequester.requestFocus() }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .focusRequester(boxFocusRequester)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (!controlsVisible &&
+                    event.type == KeyEventType.KeyDown &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
+                ) {
+                    controlsVisible = true
+                    true
+                } else {
+                    false
+                }
+            },
+    ) {
         VideoSurface(
             exoPlayer = viewModel.exoPlayer,
             aspectMode = uiState.aspectMode,
