@@ -70,11 +70,11 @@ class JellyfinHomeViewModel @Inject constructor(
                 val byKey = buildMap {
                     put(
                         JellyfinHomeSectionKeys.CONTINUE_WATCHING,
-                        JellyfinHomeSection(JellyfinHomeSectionKeys.CONTINUE_WATCHING, "Continue Watching", browseRepository.getResumeItems(), hasSeeAll = false),
+                        JellyfinHomeSection(JellyfinHomeSectionKeys.CONTINUE_WATCHING, "Continue Watching", browseRepository.getResumeItems(), hasSeeAll = true),
                     )
                     put(
                         JellyfinHomeSectionKeys.NEXT_UP,
-                        JellyfinHomeSection(JellyfinHomeSectionKeys.NEXT_UP, "Next Up", browseRepository.getNextUp(), hasSeeAll = false),
+                        JellyfinHomeSection(JellyfinHomeSectionKeys.NEXT_UP, "Next Up", browseRepository.getNextUp(), hasSeeAll = true),
                     )
                     put(
                         JellyfinHomeSectionKeys.FAVOURITES,

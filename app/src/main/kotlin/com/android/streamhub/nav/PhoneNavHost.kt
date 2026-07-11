@@ -29,6 +29,7 @@ import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
 import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinFavoritesScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
+import com.android.streamhub.feature.jellyfin.library.JellyfinSeeAllScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibilityScreen
 import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreen
@@ -154,6 +155,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     },
                     onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
                     onOpenFavorites = { navController.navigate(Route.JELLYFIN_FAVORITES_PATTERN) },
+                    onOpenSeeAll = { kind -> navController.navigate(Route.jellyfinSeeAllRoute(kind)) },
                 )
             }
             composable(
@@ -170,6 +172,15 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
             }
             composable(Route.JELLYFIN_FAVORITES_PATTERN) {
                 JellyfinFavoritesScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
+                )
+            }
+            composable(
+                route = Route.JELLYFIN_SEE_ALL_PATTERN,
+                arguments = listOf(navArgument("kind") { type = NavType.StringType }),
+            ) {
+                JellyfinSeeAllScreen(
                     onBack = { navController.popBackStack() },
                     onOpenItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
                 )

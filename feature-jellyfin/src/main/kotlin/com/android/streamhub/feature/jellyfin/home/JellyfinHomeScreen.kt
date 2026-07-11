@@ -54,6 +54,7 @@ fun JellyfinHomeScreen(
     onOpenLibrary: (JellyfinLibraryInfo) -> Unit,
     onOpenItem: (JellyfinItemInfo) -> Unit,
     onOpenFavorites: () -> Unit,
+    onOpenSeeAll: (kind: String) -> Unit,
     viewModel: JellyfinHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -75,6 +76,7 @@ fun JellyfinHomeScreen(
                         onOpenLibrary = onOpenLibrary,
                         onOpenItem = onOpenItem,
                         onOpenFavorites = onOpenFavorites,
+                        onOpenSeeAll = onOpenSeeAll,
                     )
                 }
             }
@@ -102,6 +104,7 @@ private fun JellyfinHomeContent(
     onOpenLibrary: (JellyfinLibraryInfo) -> Unit,
     onOpenItem: (JellyfinItemInfo) -> Unit,
     onOpenFavorites: () -> Unit,
+    onOpenSeeAll: (kind: String) -> Unit,
 ) {
     val librariesById = uiState.libraries.associateBy { it.id }
 
@@ -124,6 +127,8 @@ private fun JellyfinHomeContent(
             val onSeeAll: (() -> Unit)? = when {
                 !section.hasSeeAll -> null
                 section.key == JellyfinHomeSectionKeys.FAVOURITES -> onOpenFavorites
+                section.key == JellyfinHomeSectionKeys.CONTINUE_WATCHING || section.key == JellyfinHomeSectionKeys.NEXT_UP ->
+                    section.key.let { key -> { onOpenSeeAll(key) } }
                 section.key.startsWith("library:") -> {
                     val libraryId = section.key.removePrefix("library:")
                     librariesById[libraryId]?.let { library -> { onOpenLibrary(library) } }

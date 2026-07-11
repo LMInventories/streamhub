@@ -33,6 +33,8 @@ sealed class Route {
 
     data object JellyfinFavorites : Route()
 
+    data class JellyfinSeeAll(val kind: String) : Route()
+
     data class JellyfinItemDetail(val itemId: String) : Route()
 
     data class JellyfinSeriesDetail(val seriesId: String) : Route()
@@ -64,6 +66,7 @@ sealed class Route {
         const val VOD_SERIES_DETAIL_PATTERN = "vod_series_detail/{seriesId}"
         const val JELLYFIN_LIBRARY_PATTERN = "jellyfin_library/{libraryId}/{itemType}"
         const val JELLYFIN_FAVORITES_PATTERN = "jellyfin_favorites"
+        const val JELLYFIN_SEE_ALL_PATTERN = "jellyfin_see_all/{kind}"
         const val JELLYFIN_ITEM_DETAIL_PATTERN = "jellyfin_item_detail/{itemId}"
         const val JELLYFIN_SERIES_DETAIL_PATTERN = "jellyfin_series_detail/{seriesId}"
         const val RECORDINGS_PATTERN = "recordings"
@@ -85,6 +88,11 @@ sealed class Route {
         // as a raw path segment. The library's display name isn't passed here - the screen looks
         // it up itself, same reasoning as vodItemDetailRoute not carrying a title either.
         fun jellyfinLibraryRoute(libraryId: String, itemType: String): String = "jellyfin_library/$libraryId/$itemType"
+
+        // kind is one of JellyfinHomeSectionKeys.CONTINUE_WATCHING/NEXT_UP (plain snake_case
+        // constants, safe as a raw path segment) - core-common can't depend on feature-jellyfin
+        // to reference that type directly, so callers pass the raw string.
+        fun jellyfinSeeAllRoute(kind: String): String = "jellyfin_see_all/$kind"
 
         fun jellyfinItemDetailRoute(itemId: String): String = "jellyfin_item_detail/$itemId"
 
