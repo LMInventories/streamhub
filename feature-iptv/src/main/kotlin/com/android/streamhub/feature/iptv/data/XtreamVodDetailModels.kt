@@ -23,6 +23,8 @@ data class XtreamVodInfoResponse(
 @Serializable
 data class XtreamVodMovieData(
     val name: String? = null,
+    @SerialName("container_extension")
+    val containerExtension: String? = null,
 )
 
 @Serializable

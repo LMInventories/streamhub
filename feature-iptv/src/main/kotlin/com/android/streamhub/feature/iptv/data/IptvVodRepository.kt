@@ -146,7 +146,7 @@ class IptvVodRepository @Inject constructor(
         val info = response.info
         return VodDetailInfo(
             playbackId = playbackId,
-            streamUrl = config.vodStreamUrl(streamId),
+            streamUrl = config.vodStreamUrl(streamId, response.movieData?.containerExtension ?: "mp4"),
             title = response.movieData?.name?.takeIf(String::isNotBlank) ?: "Movie",
             posterUrl = info?.movieImage,
             plot = info?.plot?.takeIf(String::isNotBlank),
