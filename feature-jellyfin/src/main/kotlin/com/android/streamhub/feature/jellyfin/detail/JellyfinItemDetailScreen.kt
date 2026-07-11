@@ -126,6 +126,9 @@ fun JellyfinItemDetailScreen(
                     else -> JellyfinItemDetailContent(
                         item = uiState.item!!,
                         downloadInfo = downloadInfo,
+                        selectedSubtitleIndex = uiState.selectedSubtitleIndex,
+                        subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
+                        onSelectSubtitle = viewModel::selectSubtitle,
                         onPlay = onPlay,
                         onStartDownload = viewModel::startDownload,
                         onPauseDownload = viewModel::pauseDownload,
@@ -142,6 +145,9 @@ fun JellyfinItemDetailScreen(
 private fun JellyfinItemDetailContent(
     item: JellyfinItemInfo,
     downloadInfo: DownloadInfo?,
+    selectedSubtitleIndex: Int?,
+    subtitlesExplicitlyOff: Boolean,
+    onSelectSubtitle: (Int?) -> Unit,
     onPlay: () -> Unit,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
@@ -220,7 +226,12 @@ private fun JellyfinItemDetailContent(
             }
         }
 
-        MediaInfoSection(item = item)
+        MediaInfoSection(
+            item = item,
+            selectedSubtitleIndex = selectedSubtitleIndex,
+            subtitlesExplicitlyOff = subtitlesExplicitlyOff,
+            onSelectSubtitle = onSelectSubtitle,
+        )
 
         item.overview?.let { overview ->
             Text(
@@ -257,12 +268,17 @@ private fun JellyfinItemDetailContent(
  * Video/Audio are read-only - Jellyfin's own displayTitle already summarizes the actual media
  * source's stream (e.g. "1080p H264", "5.1 English AC3"), there's nothing to choose between since
  * this app always plays the source's own default streams. Subtitles is the one real choice here -
- * picking "Off" or a track just updates local UI state for now rather than driving playback
- * (that needs the selection threaded through to the player, which is follow-up work), but still
- * shows every subtitle track this item actually has, same as Findroid's own detail screen.
+ * picking "Off" or a track is threaded through JellyfinSubtitlePreferenceStore to the actual
+ * player (see that class's doc), so the choice made here is what plays when Play is tapped, not
+ * just a local display value.
  */
 @Composable
-private fun MediaInfoSection(item: JellyfinItemInfo) {
+private fun MediaInfoSection(
+    item: JellyfinItemInfo,
+    selectedSubtitleIndex: Int?,
+    subtitlesExplicitlyOff: Boolean,
+    onSelectSubtitle: (Int?) -> Unit,
+) {
     if (item.videoLabel == null && item.audioLabel == null && item.subtitleTracks.isEmpty()) return
 
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp)) {
@@ -273,7 +289,12 @@ private fun MediaInfoSection(item: JellyfinItemInfo) {
             MediaInfoRow(label = "Audio", value = label)
         }
         if (item.subtitleTracks.isNotEmpty()) {
-            SubtitleSelectorRow(tracks = item.subtitleTracks)
+            SubtitleSelectorRow(
+                tracks = item.subtitleTracks,
+                selectedIndex = selectedSubtitleIndex,
+                explicitlyOff = subtitlesExplicitlyOff,
+                onSelect = onSelectSubtitle,
+            )
         }
     }
 }
@@ -287,9 +308,13 @@ private fun MediaInfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun SubtitleSelectorRow(tracks: List<JellyfinSubtitleTrackInfo>) {
+private fun SubtitleSelectorRow(
+    tracks: List<JellyfinSubtitleTrackInfo>,
+    selectedIndex: Int?,
+    explicitlyOff: Boolean,
+    onSelect: (Int?) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
     val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: "Off"
 
     // Same two-part TV D-pad fix as every other DropdownMenu in the app: grab focus into the menu
@@ -319,12 +344,15 @@ private fun SubtitleSelectorRow(tracks: List<JellyfinSubtitleTrackInfo>) {
                 val firstItemFocusRequester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
                 DropdownMenuItem(
-                    text = { Text("Off") },
+                    text = { Text(if (explicitlyOff) "Off ✓" else "Off") },
                     modifier = Modifier.focusRequester(firstItemFocusRequester),
-                    onClick = { selectedIndex = null; closeMenu() },
+                    onClick = { onSelect(null); closeMenu() },
                 )
                 tracks.forEach { track ->
-                    DropdownMenuItem(text = { Text(track.label) }, onClick = { selectedIndex = track.index; closeMenu() })
+                    DropdownMenuItem(
+                        text = { Text(if (track.index == selectedIndex) "${track.label} ✓" else track.label) },
+                        onClick = { onSelect(track.index); closeMenu() },
+                    )
                 }
             }
         }

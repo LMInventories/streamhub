@@ -136,10 +136,14 @@ class PlayerController @Inject constructor(
         // Sets ExoPlayer's own preferred-language track selection parameters rather than manually
         // scanning onTracksChanged for a matching group - null clears the preference, which is
         // exactly "use the player's default selection", so this needs no branching for the
-        // no-preference case either.
+        // no-preference case either. setTrackTypeDisabled is explicitly set (not just left alone)
+        // on every prepare() call - without that, an explicit Off chosen for a previous item in
+        // this same PlayerController instance (e.g. via clearTextTrack()) would otherwise silently
+        // carry over and suppress subtitles for a new item that never asked for that.
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
             .setPreferredAudioLanguage(item.preferredAudioLanguage)
             .setPreferredTextLanguage(item.preferredSubtitleLanguage)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, item.subtitlesOff)
             .build()
 
         exoPlayer.setMediaItem(mediaItem, item.startPositionMs)

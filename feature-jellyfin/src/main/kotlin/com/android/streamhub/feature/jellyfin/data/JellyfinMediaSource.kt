@@ -20,6 +20,7 @@ private const val TICKS_PER_MS = 10_000L
 class JellyfinMediaSource @Inject constructor(
     private val browseRepository: JellyfinBrowseRepository,
     private val appSettingsRepository: JellyfinAppSettingsRepository,
+    private val subtitlePreferenceStore: JellyfinSubtitlePreferenceStore,
 ) : MediaSource {
 
     override val sourceType: SourceType = SourceType.JELLYFIN
@@ -35,17 +36,26 @@ class JellyfinMediaSource @Inject constructor(
                 JellyfinLibraryType.TV_SHOWS -> JellyfinItemType.SERIES
             }
             browseRepository.getItems(library.id, itemType, startIndex = 0, limit = 500)
-        }.map { it.toPlaybackItem(streamUri = "", preferredAudio = null, preferredSubtitle = null) }
+        }.map { it.toPlaybackItem(streamUri = "", preferredAudio = null, preferredSubtitle = null, subtitlesOff = false) }
     }
 
     override suspend fun resolvePlayback(itemId: String): PlaybackItem {
         val item = browseRepository.getItem(itemId) ?: error("Jellyfin item not found: $itemId")
         val streamUrl = browseRepository.getStreamUrl(itemId) ?: error("No Jellyfin stream URL for: $itemId")
         val settings = appSettingsRepository.settingsFlow.first()
+        // An explicit per-item choice from the detail page's subtitle dropdown (if any) overrides
+        // the app-wide language preference below - that's the whole point of offering a per-item
+        // picker at all. No choice recorded for this item just falls through to the app-wide
+        // setting, same behavior as before this existed.
+        val subtitleChoice = subtitlePreferenceStore.get(itemId)
         return item.toPlaybackItem(
             streamUri = streamUrl,
             preferredAudio = settings.preferredAudioLanguage,
-            preferredSubtitle = settings.preferredSubtitleLanguage,
+            preferredSubtitle = when (subtitleChoice) {
+                is JellyfinSubtitleChoice.Track -> subtitleChoice.language
+                else -> settings.preferredSubtitleLanguage
+            },
+            subtitlesOff = subtitleChoice is JellyfinSubtitleChoice.Off,
         )
     }
 
@@ -53,6 +63,7 @@ class JellyfinMediaSource @Inject constructor(
         streamUri: String,
         preferredAudio: String?,
         preferredSubtitle: String?,
+        subtitlesOff: Boolean,
     ): PlaybackItem = PlaybackItem(
         id = id,
         sourceType = SourceType.JELLYFIN,
@@ -64,5 +75,6 @@ class JellyfinMediaSource @Inject constructor(
         isLive = false,
         preferredAudioLanguage = preferredAudio,
         preferredSubtitleLanguage = preferredSubtitle,
+        subtitlesOff = subtitlesOff,
     )
 }

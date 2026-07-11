@@ -38,6 +38,11 @@ data class PlaybackItem(
     // track selection parameters, so there's no manual track-scanning logic to keep in sync here.
     val preferredAudioLanguage: String? = null,
     val preferredSubtitleLanguage: String? = null,
+    // Explicit "start with subtitles off" override - distinct from preferredSubtitleLanguage
+    // being null, which just means "no language preference" and still lets the player's default
+    // track selector auto-pick a forced/default-flagged embedded track. This is a hard disable,
+    // for the case where a source's own per-item picker was explicitly set to Off.
+    val subtitlesOff: Boolean = false,
 )
 
 data class LiveProgramInfo(

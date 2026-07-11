@@ -31,11 +31,18 @@ data class JellyfinCastMember(
     val imageUrl: String?,
 )
 
-/** A subtitle stream muxed into the media source - [index] is the stream's own index within it, needed to identify it back to the server (not an ExoPlayer track group index). */
+/**
+ * A subtitle stream muxed into the media source - [index] is the stream's own index within it,
+ * needed to identify it back to the server (not an ExoPlayer track group index). [language] is
+ * the raw ISO code (e.g. "eng"), separate from the human-readable [label] - playback selects a
+ * track by feeding this straight into ExoPlayer's own preferred-text-language mechanism, the same
+ * one the app-wide subtitle language setting already uses.
+ */
 @Serializable
 data class JellyfinSubtitleTrackInfo(
     val index: Int,
     val label: String,
+    val language: String? = null,
 )
 
 @Serializable

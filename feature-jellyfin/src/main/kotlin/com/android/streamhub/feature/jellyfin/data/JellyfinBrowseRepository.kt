@@ -320,7 +320,13 @@ class JellyfinBrowseRepository @Inject constructor(
         val audioStreams = mediaStreams?.filter { it.type == MediaStreamType.AUDIO }.orEmpty()
         val audioLabel = (audioStreams.firstOrNull { it.isDefault == true } ?: audioStreams.firstOrNull())?.displayTitle
         val subtitleTracks = mediaStreams?.filter { it.type == MediaStreamType.SUBTITLE }.orEmpty()
-            .map { stream -> JellyfinSubtitleTrackInfo(index = stream.index ?: 0, label = stream.displayTitle ?: stream.language ?: "Subtitle") }
+            .map { stream ->
+                JellyfinSubtitleTrackInfo(
+                    index = stream.index ?: 0,
+                    label = stream.displayTitle ?: stream.language ?: "Subtitle",
+                    language = stream.language,
+                )
+            }
         return JellyfinItemInfo(
             id = id.toString(),
             name = name.orEmpty(),

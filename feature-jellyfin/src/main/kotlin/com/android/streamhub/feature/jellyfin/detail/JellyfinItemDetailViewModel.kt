@@ -8,6 +8,8 @@ import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadTracker
 import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleChoice
+import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitlePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,12 +24,19 @@ data class JellyfinItemDetailUiState(
     val isLoading: Boolean = true,
     val item: JellyfinItemInfo? = null,
     val errorMessage: String? = null,
+    // null = no explicit choice made yet this visit - displayed as "Off" but, unlike an actual
+    // Off tap, doesn't force-disable subtitles at playback time (falls through to the app-wide
+    // language preference instead). See JellyfinSubtitlePreferenceStore's own doc for why this
+    // needs to be threaded to a different screen entirely rather than just local UI state.
+    val selectedSubtitleIndex: Int? = null,
+    val subtitlesExplicitlyOff: Boolean = false,
 )
 
 @HiltViewModel
 class JellyfinItemDetailViewModel @Inject constructor(
     private val browseRepository: JellyfinBrowseRepository,
     private val downloadTracker: DownloadTracker,
+    private val subtitlePreferenceStore: JellyfinSubtitlePreferenceStore,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -88,6 +97,18 @@ class JellyfinItemDetailViewModel @Inject constructor(
             val streamUrl = runCatching { browseRepository.getStreamUrl(item.id) }.getOrNull() ?: return@launch
             downloadTracker.startDownload(itemId, SourceType.JELLYFIN, item.name, item.primaryImageUrl, streamUrl)
         }
+    }
+
+    /** null selects "Off" (hard-disables subtitles at playback); a track's own index selects that track by its language. */
+    fun selectSubtitle(index: Int?) {
+        if (index == null) {
+            _uiState.update { it.copy(selectedSubtitleIndex = null, subtitlesExplicitlyOff = true) }
+            subtitlePreferenceStore.set(itemId, JellyfinSubtitleChoice.Off)
+            return
+        }
+        val track = _uiState.value.item?.subtitleTracks?.firstOrNull { it.index == index } ?: return
+        _uiState.update { it.copy(selectedSubtitleIndex = index, subtitlesExplicitlyOff = false) }
+        subtitlePreferenceStore.set(itemId, JellyfinSubtitleChoice.Track(track.language))
     }
 
     fun pauseDownload() = downloadTracker.pauseDownload(itemId)
