@@ -383,7 +383,7 @@ private fun JellyfinResultsTab(results: List<JellyfinItemInfo>, onOpenItem: (Jel
                 subtitle = item.seriesName,
                 posterUrl = item.primaryImageUrl,
                 badgeColor = Palette.SourceJellyfin,
-                qualityLabel = item.videoHeight?.let(::resolutionLabel)?.takeIf { it.isNotBlank() },
+                qualityLabel = item.videoHeight?.let { resolutionLabel(item.videoWidth ?: 0, it) }?.takeIf { it.isNotBlank() },
                 onClick = { onOpenItem(item) },
             )
         }

@@ -333,6 +333,7 @@ class JellyfinBrowseRepository @Inject constructor(
             primaryImageUrl = primaryImageUrl,
             backdropImageUrl = backdropImageUrl,
             logoImageUrl = logoImageUrl,
+            videoWidth = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.width,
             videoHeight = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.height,
             videoLabel = videoLabel,
             audioLabel = audioLabel,

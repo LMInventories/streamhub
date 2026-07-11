@@ -160,7 +160,7 @@ fun LiveFullscreenOverlay(
                     EpgInfoPanel(channelName = channel.name, nowProgram = nowProgram, nextProgram = nextProgram)
                     Row(modifier = Modifier.padding(top = 8.dp)) {
                         StatBadge(aspectRatioLabel(playerUiState.videoWidth, playerUiState.videoHeight))
-                        StatBadge(resolutionLabel(playerUiState.videoHeight))
+                        StatBadge(resolutionLabel(playerUiState.videoWidth, playerUiState.videoHeight))
                         StatBadge(frameRateLabel(playerUiState.videoFrameRate))
                         StatBadge(audioChannelsLabel(playerUiState.audioChannelCount))
                     }

@@ -275,7 +275,7 @@ private fun TvLiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiStat
             Row(modifier = Modifier.padding(top = 4.dp)) {
                 listOf(
                     aspectRatioLabel(uiState.videoWidth, uiState.videoHeight),
-                    resolutionLabel(uiState.videoHeight),
+                    resolutionLabel(uiState.videoWidth, uiState.videoHeight),
                     frameRateLabel(uiState.videoFrameRate),
                     audioChannelsLabel(uiState.audioChannelCount),
                 ).filter { it.isNotBlank() }.forEach { label ->

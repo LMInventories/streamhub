@@ -398,7 +398,7 @@ private fun LiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiState)
             )
             Row(modifier = Modifier.padding(top = 4.dp)) {
                 StatBadge(aspectRatioLabel(uiState.videoWidth, uiState.videoHeight))
-                StatBadge(resolutionLabel(uiState.videoHeight))
+                StatBadge(resolutionLabel(uiState.videoWidth, uiState.videoHeight))
                 StatBadge(frameRateLabel(uiState.videoFrameRate))
                 StatBadge(audioChannelsLabel(uiState.audioChannelCount))
             }

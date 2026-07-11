@@ -55,7 +55,10 @@ data class JellyfinItemInfo(
     val logoImageUrl: String? = null,
     // Default null for the same cache-compatibility reason as logoImageUrl above. Only populated
     // when the caller requested ItemFields.MEDIA_STREAMS (currently just search()) - other callers
-    // simply get null here rather than paying for MediaStreams data nothing renders yet.
+    // simply get null here rather than paying for MediaStreams data nothing renders yet. Both
+    // width and height are needed (not just height) since resolutionLabel checks either dimension
+    // - a true 4K source cropped to a cinematic aspect ratio can have a height well under 2160.
+    val videoWidth: Int? = null,
     val videoHeight: Int? = null,
     // Human-readable stream summaries (e.g. "1080p H264", "5.1 English AC3") for the detail
     // screen's Video/Audio rows - same MediaStreams fetch and cache-compatibility reasoning as

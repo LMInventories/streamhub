@@ -22,12 +22,18 @@ fun formatPositionMs(positionMs: Long): String {
     }
 }
 
-/** SD/HD/FHD/4K as explicitly requested - not the "1080p"-style label some reference apps use. */
-fun resolutionLabel(height: Int): String = when {
-    height >= 2160 -> "4K"
-    height >= 1080 -> "FHD"
-    height >= 720 -> "HD"
-    height > 0 -> "SD"
+/**
+ * SD/HD/FHD/4K as explicitly requested - not the "1080p"-style label some reference apps use.
+ * Checked against width as well as height (either crossing a tier's threshold qualifies) because
+ * a true 4K/UHD source (3840+ wide) mastered at a cinematic aspect ratio (2.35:1, 2.39:1, etc.)
+ * is commonly cropped to a height well under 2160 - height alone would misclassify those as FHD
+ * despite the source genuinely being 4K.
+ */
+fun resolutionLabel(width: Int, height: Int): String = when {
+    width >= 3840 || height >= 2160 -> "4K"
+    width >= 1920 || height >= 1080 -> "FHD"
+    width >= 1280 || height >= 720 -> "HD"
+    width > 0 || height > 0 -> "SD"
     else -> ""
 }
 
