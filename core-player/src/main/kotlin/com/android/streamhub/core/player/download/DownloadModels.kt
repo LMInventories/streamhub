@@ -22,6 +22,11 @@ data class DownloadInfo(
     // captures it there and threads it through here so Manage Downloads can show *why*, not just
     // that a download is FAILED.
     val errorMessage: String? = null,
+    // The exact URI the download was made from - CacheDataSource resolves its cache key from
+    // this, so playback has to request this same URI (not a freshly re-resolved one that could
+    // differ, e.g. Jellyfin's api_key changing) to actually hit the downloaded bytes rather than
+    // silently falling through to the network.
+    val streamUri: String,
 )
 
 /**

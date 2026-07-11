@@ -245,7 +245,10 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 IptvPlaybackSettingsScreen(onDone = { navController.popBackStack() })
             }
             composable(Route.DOWNLOADS_MANAGEMENT_PATTERN) {
-                DownloadsManagementScreen(onBack = { navController.popBackStack() })
+                DownloadsManagementScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDownload = { itemId, sourceType -> navController.navigate(Route.playerRoute(itemId, sourceType)) },
+                )
             }
             composable(Route.SCHEDULED_MANAGEMENT_PATTERN) {
                 ScheduledManagementScreen(onBack = { navController.popBackStack() })

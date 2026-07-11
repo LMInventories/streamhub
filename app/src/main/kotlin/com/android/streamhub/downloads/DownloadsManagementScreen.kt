@@ -57,6 +57,7 @@ import kotlin.math.pow
 @Composable
 fun DownloadsManagementScreen(
     onBack: () -> Unit,
+    onOpenDownload: (itemId: String, sourceType: SourceType) -> Unit,
     viewModel: DownloadsManagementViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -100,6 +101,7 @@ fun DownloadsManagementScreen(
                                 onResume = { viewModel.resume(download.id) },
                                 onRemove = { viewModel.remove(download.id) },
                                 onRetry = { viewModel.retry(download.id) },
+                                onOpen = { onOpenDownload(download.id, download.sourceType) },
                             )
                         }
                     }
@@ -116,10 +118,15 @@ private fun DownloadRow(
     onResume: () -> Unit,
     onRemove: () -> Unit,
     onRetry: () -> Unit,
+    onOpen: () -> Unit,
 ) {
+    val isPlayable = download.state == DownloadState.COMPLETED
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = isPlayable, onClick = onOpen)
+            .padding(vertical = 8.dp),
     ) {
         Box(modifier = Modifier.width(48.dp).aspectRatio(2f / 3f).clip(AppShapes.small).background(Palette.Surface)) {
             if (download.posterUrl != null) {

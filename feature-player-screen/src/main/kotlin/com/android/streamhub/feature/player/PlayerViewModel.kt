@@ -12,6 +12,8 @@ import com.android.streamhub.core.player.ExternalPlayerLauncher
 import com.android.streamhub.core.player.PlayerController
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.VideoAspectMode
+import com.android.streamhub.core.player.download.DownloadState
+import com.android.streamhub.core.player.download.DownloadTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +32,7 @@ class PlayerViewModel @Inject constructor(
     private val externalPlayerLauncher: ExternalPlayerLauncher,
     private val mediaSources: Set<@JvmSuppressWildcards MediaSource>,
     private val watchProgressRepository: WatchProgressRepository,
+    private val downloadTracker: DownloadTracker,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -68,8 +71,25 @@ class PlayerViewModel @Inject constructor(
 
     private suspend fun loadAndPrepare(id: String, applyResumePoint: Boolean) {
         runCatching {
-            val source = mediaSource ?: error("No MediaSource registered for $sourceType")
-            val item = source.resolvePlayback(id)
+            val downloaded = downloadTracker.downloads.value
+                .firstOrNull { it.id == id && it.sourceType == sourceType && it.state == DownloadState.COMPLETED }
+            // A completed download already has everything needed to play it - going through the
+            // normal MediaSource.resolvePlayback() here would mean a genuinely offline device
+            // (no network at all) can't play back content it already has sitting on disk, since
+            // that call still needs to reach Jellyfin/Xtream just to resolve metadata/URLs.
+            val item = if (downloaded != null) {
+                PlaybackItem(
+                    id = downloaded.id,
+                    sourceType = downloaded.sourceType,
+                    title = downloaded.title,
+                    posterUrl = downloaded.posterUrl,
+                    streamUri = downloaded.streamUri,
+                    isLive = false,
+                )
+            } else {
+                val source = mediaSource ?: error("No MediaSource registered for $sourceType")
+                source.resolvePlayback(id)
+            }
             // Resume point is a cross-source concern applied once here, rather than by every
             // MediaSource implementation - resolvePlayback only needs to answer "what to
             // play", not "where the user left off".

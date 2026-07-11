@@ -93,6 +93,7 @@ class DownloadTracker @Inject constructor(
             bytesDownloaded = bytesDownloaded,
             totalBytes = contentLength,
             errorMessage = if (downloadState == DownloadState.FAILED) lastError[request.id] else null,
+            streamUri = request.uri.toString(),
         )
     }
 
