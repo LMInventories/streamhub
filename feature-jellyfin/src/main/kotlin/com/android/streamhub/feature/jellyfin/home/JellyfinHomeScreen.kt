@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,7 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.feature.jellyfin.data.JellyfinHomeSection
 import com.android.streamhub.feature.jellyfin.data.JellyfinHomeSectionKeys
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinLibraryInfo
@@ -119,26 +121,56 @@ private fun JellyfinHomeContent(
             }
         }
 
+        item(key = "media") {
+            val mediaEntries = uiState.sections.mapNotNull { section ->
+                if (section.key == JellyfinHomeSectionKeys.CONTINUE_WATCHING || section.key == JellyfinHomeSectionKeys.NEXT_UP) return@mapNotNull null
+                val action = sectionSeeAllAction(section, librariesById, onOpenFavorites, onOpenSeeAll, onOpenLibrary) ?: return@mapNotNull null
+                MediaEntry(label = sectionMediaLabel(section, librariesById), onClick = action)
+            }
+            if (mediaEntries.isNotEmpty()) {
+                JellyfinMediaRow(entries = mediaEntries)
+            }
+        }
+
         items(uiState.sections, key = { it.key }) { section ->
             // Each section only knows its own key/hasSeeAll (set once in the ViewModel, alongside
             // every other section's, regardless of user-chosen order) - mapping a key back to the
             // actual navigation callback stays here, since the ViewModel layer shouldn't carry
             // UI-bound lambdas.
-            val onSeeAll: (() -> Unit)? = when {
-                !section.hasSeeAll -> null
-                section.key == JellyfinHomeSectionKeys.FAVOURITES -> onOpenFavorites
-                section.key == JellyfinHomeSectionKeys.CONTINUE_WATCHING || section.key == JellyfinHomeSectionKeys.NEXT_UP ->
-                    section.key.let { key -> { onOpenSeeAll(key) } }
-                section.key.startsWith("library:") -> {
-                    val libraryId = section.key.removePrefix("library:")
-                    librariesById[libraryId]?.let { library -> { onOpenLibrary(library) } }
-                }
-                else -> null
-            }
+            val onSeeAll = sectionSeeAllAction(section, librariesById, onOpenFavorites, onOpenSeeAll, onOpenLibrary)
             JellyfinItemRow(title = section.title, items = section.items, onOpenItem = onOpenItem, onSeeAll = onSeeAll)
         }
     }
 }
+
+private fun sectionSeeAllAction(
+    section: JellyfinHomeSection,
+    librariesById: Map<String, JellyfinLibraryInfo>,
+    onOpenFavorites: () -> Unit,
+    onOpenSeeAll: (kind: String) -> Unit,
+    onOpenLibrary: (JellyfinLibraryInfo) -> Unit,
+): (() -> Unit)? = when {
+    !section.hasSeeAll -> null
+    section.key == JellyfinHomeSectionKeys.FAVOURITES -> onOpenFavorites
+    section.key == JellyfinHomeSectionKeys.CONTINUE_WATCHING || section.key == JellyfinHomeSectionKeys.NEXT_UP ->
+        section.key.let { key -> { onOpenSeeAll(key) } }
+    section.key.startsWith("library:") -> {
+        val libraryId = section.key.removePrefix("library:")
+        librariesById[libraryId]?.let { library -> { onOpenLibrary(library) } }
+    }
+    else -> null
+}
+
+// The row's own title reads as "Latest in <library>" (see JellyfinHomeViewModel) - fine for a
+// content shelf, but the Media row represents the section/library itself, not "what's newest in
+// it", so library entries use the library's own name instead. Favourites has no such mismatch.
+private fun sectionMediaLabel(section: JellyfinHomeSection, librariesById: Map<String, JellyfinLibraryInfo>): String {
+    if (!section.key.startsWith("library:")) return section.title
+    val libraryId = section.key.removePrefix("library:")
+    return librariesById[libraryId]?.name ?: section.title
+}
+
+private data class MediaEntry(val label: String, val onClick: () -> Unit)
 
 @Composable
 private fun JellyfinItemRow(
@@ -157,16 +189,16 @@ private fun JellyfinItemRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // A poster-sized tile at the start of the row reads as part of the same shelf of
+            items(items, key = { it.id }) { item ->
+                JellyfinPoster(item = item, onClick = { onOpenItem(item) })
+            }
+            // A poster-sized tile at the end of the row reads as part of the same shelf of
             // content rather than a separate text button off to the side - same affordance as the
             // "See All" text it replaces, just placed where the row itself is being browsed.
             if (onSeeAll != null) {
                 item(key = "see_all") {
                     SeeAllTile(onClick = onSeeAll)
                 }
-            }
-            items(items, key = { it.id }) { item ->
-                JellyfinPoster(item = item, onClick = { onOpenItem(item) })
             }
         }
     }
@@ -190,6 +222,46 @@ private fun SeeAllTile(onClick: () -> Unit) {
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Palette.Accent)
             Text(text = "See All", color = Palette.Accent, modifier = Modifier.padding(top = 4.dp))
         }
+    }
+}
+
+// One double-wide card per section (Favourites + each library) as a quick jump-off point,
+// separate from the content shelves below it - Continue Watching/Next Up are excluded since
+// they're per-item queues, not a "section" in the same sense as a library/Favourites is.
+@Composable
+private fun JellyfinMediaRow(entries: List<MediaEntry>) {
+    Column {
+        Text(
+            text = "Media",
+            color = Palette.TextPrimary,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(entries, key = { it.label }) { entry ->
+                MediaCard(label = entry.label, onClick = entry.onClick)
+            }
+        }
+    }
+}
+
+// Double-wide (2x a normal poster's width, same height - not a taller 2:3 card) since there's no
+// single poster image that represents a whole section - placeholder text card for now, per
+// direct feedback that this becomes a styled image once art is picked for each section.
+@Composable
+private fun MediaCard(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(240.dp)
+            .height(80.dp)
+            .clip(AppShapes.small)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, color = Palette.TextPrimary)
     }
 }
 
