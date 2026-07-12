@@ -5,7 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -48,6 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.android.streamhub.core.common.domain.LiveProgramInfo
@@ -68,6 +78,12 @@ import kotlinx.coroutines.delay
 
 private const val SEEK_STEP_MS = 10_000L
 
+/** HIDDEN: nothing on screen but the video itself - D-pad Up/Down/Left/Right/OK act as direct
+ * shortcuts (see the key handler below). CONTROLS: the full transport bar, back button and seek
+ * bar - normal D-pad focus navigation between buttons takes over, same as any other screen.
+ * INFO: a lightweight glance panel (title/stream stats), dismissed the same way it's shown. */
+private enum class TvOverlayMode { HIDDEN, CONTROLS, INFO }
+
 @Composable
 fun PlayerScreenTv(
     onBack: () -> Unit,
@@ -80,42 +96,52 @@ fun PlayerScreenTv(
 
     KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
 
-    var controlsVisible by remember { mutableStateOf(true) }
+    var overlayMode by remember { mutableStateOf(TvOverlayMode.CONTROLS) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showSubtitlePicker by remember { mutableStateOf(false) }
     var showAspectPicker by remember { mutableStateOf(false) }
-    val backButtonFocusRequester = remember { FocusRequester() }
+    // Defaults to Play/Pause (not Back) - Back used to be the button that grabbed initial focus,
+    // so the very first OK press on entering this screen (a completely natural first thing to
+    // try) closed playback instead of doing anything play-related. Play/Pause is both the most
+    // expected default target and harmless to hit by accident.
+    val playPauseFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(controlsVisible, uiState.isPlaying) {
-        if (controlsVisible && uiState.isPlaying) {
+    val onPlayPause: () -> Unit = { overlayMode = TvOverlayMode.CONTROLS; viewModel.togglePlayPause() }
+    val onSeekBack: () -> Unit = { viewModel.seekTo((uiState.positionMs - SEEK_STEP_MS).coerceAtLeast(0L)) }
+    val onSeekForward: () -> Unit = { viewModel.seekTo((uiState.positionMs + SEEK_STEP_MS).coerceAtMost(uiState.durationMs)) }
+
+    LaunchedEffect(overlayMode, uiState.isPlaying) {
+        if (overlayMode != TvOverlayMode.HIDDEN && uiState.isPlaying) {
             delay(6000)
-            controlsVisible = false
+            overlayMode = TvOverlayMode.HIDDEN
         }
     }
 
     // AnimatedVisibility tears the controls' whole focus tree down and rebuilds it every time
-    // they auto-hide/reappear (they auto-hide after 6s while playing, above) - Compose's focus
-    // system doesn't automatically pick a new focused node when that happens, so without this,
-    // D-pad input goes nowhere at all once the controls come back until something else claims
-    // focus, which reads as the remote being stuck. runCatching guards a real race: this effect
-    // and AnimatedVisibility mounting the Back button it targets are both triggered by the same
-    // controlsVisible flip, with no guaranteed ordering between them - if the effect runs first,
-    // requestFocus() throws IllegalStateException (target not attached yet) and, uncaught, would
-    // crash the whole player rather than just skip a focus request that'll succeed next time.
-    LaunchedEffect(controlsVisible) {
-        if (controlsVisible) runCatching { backButtonFocusRequester.requestFocus() }
+    // they auto-hide/reappear - Compose's focus system doesn't automatically pick a new focused
+    // node when that happens, so without this, D-pad input goes nowhere at all once the controls
+    // come back until something else claims focus, which reads as the remote being stuck.
+    // runCatching guards a real race: this effect and AnimatedVisibility mounting the button it
+    // targets are both triggered by the same overlayMode flip, with no guaranteed ordering between
+    // them - if the effect runs first, requestFocus() throws IllegalStateException (target not
+    // attached yet) and, uncaught, would crash the whole player rather than just skip a focus
+    // request that'll succeed next time.
+    LaunchedEffect(overlayMode) {
+        if (overlayMode == TvOverlayMode.CONTROLS) runCatching { playPauseFocusRequester.requestFocus() }
     }
 
-    // Same "OK brings hidden TV controls back" fix as LiveFullscreenOverlay (this screen's own
-    // equivalent gap - it's what every VOD/Jellyfin/downloaded item actually plays through). Once
-    // controls auto-hide above, every focusable button in them is removed from composition -
-    // without a focusable node behind them to catch the key event, a D-pad OK/Enter press had
-    // nothing to land on at all and just did nothing, which is exactly what read as "the pause/
-    // stop buttons don't work" - they weren't unresponsive, there was nothing left on screen to
-    // receive the press in the first place.
+    // Same "OK/Down brings hidden TV controls back" fix as LiveFullscreenOverlay (this screen's
+    // own equivalent gap - it's what every VOD/Jellyfin/downloaded item actually plays through).
+    // Once controls auto-hide, every focusable button in them is removed from composition -
+    // without a focusable node behind them to catch the key event, a D-pad press had nothing to
+    // land on at all. Up/Left/Right/Down/OK are only intercepted while NOT showing the full
+    // controls - once CONTROLS is up, normal D-pad focus navigation between its buttons takes
+    // over instead, so these don't fight with e.g. using Left/Right to move between buttons in
+    // the row. MediaPlayPause is the one binding that always works regardless of mode, matching a
+    // physical remote's dedicated play/pause key.
     val boxFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(controlsVisible) {
-        if (!controlsVisible) runCatching { boxFocusRequester.requestFocus() }
+    LaunchedEffect(overlayMode) {
+        if (overlayMode == TvOverlayMode.HIDDEN) runCatching { boxFocusRequester.requestFocus() }
     }
 
     Box(
@@ -125,14 +151,53 @@ fun PlayerScreenTv(
             .focusRequester(boxFocusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
-                if (!controlsVisible &&
-                    event.type == KeyEventType.KeyDown &&
-                    (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
-                ) {
-                    controlsVisible = true
-                    true
-                } else {
-                    false
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                        onPlayPause()
+                        true
+                    }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                        if (overlayMode != TvOverlayMode.CONTROLS) {
+                            overlayMode = TvOverlayMode.CONTROLS
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionDown -> {
+                        if (overlayMode != TvOverlayMode.CONTROLS) {
+                            overlayMode = TvOverlayMode.CONTROLS
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionUp -> {
+                        if (overlayMode != TvOverlayMode.CONTROLS) {
+                            overlayMode = TvOverlayMode.INFO
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionLeft -> {
+                        if (overlayMode != TvOverlayMode.CONTROLS) {
+                            onSeekBack()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Key.DirectionRight -> {
+                        if (overlayMode != TvOverlayMode.CONTROLS) {
+                            onSeekForward()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
                 }
             },
     ) {
@@ -146,16 +211,20 @@ fun PlayerScreenTv(
             CircularProgressIndicator(color = Palette.Accent, modifier = Modifier.align(Alignment.Center))
         }
 
-        AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible = overlayMode == TvOverlayMode.INFO, enter = fadeIn(), exit = fadeOut()) {
+            TvMediaInfoPanel(uiState = uiState, currentItem = currentItem)
+        }
+
+        AnimatedVisibility(visible = overlayMode == TvOverlayMode.CONTROLS, enter = fadeIn(), exit = fadeOut()) {
             TvPlayerControls(
                 uiState = uiState,
                 currentItem = currentItem,
                 recentChannels = recentChannels,
-                backButtonFocusRequester = backButtonFocusRequester,
+                playPauseFocusRequester = playPauseFocusRequester,
                 onBack = onBack,
-                onPlayPause = { controlsVisible = true; viewModel.togglePlayPause() },
-                onSeekBack = { viewModel.seekTo((uiState.positionMs - SEEK_STEP_MS).coerceAtLeast(0L)) },
-                onSeekForward = { viewModel.seekTo((uiState.positionMs + SEEK_STEP_MS).coerceAtMost(uiState.durationMs)) },
+                onPlayPause = onPlayPause,
+                onSeekBack = onSeekBack,
+                onSeekForward = onSeekForward,
                 onAudioTrackClick = { showAudioPicker = true },
                 onSubtitleTrackClick = { showSubtitlePicker = true },
                 onAspectModeClick = { showAspectPicker = true },
@@ -208,12 +277,47 @@ fun PlayerScreenTv(
     }
 }
 
+/** Up's lightweight glance panel - title/episode plus stream stats, no buttons of its own (dismissed the same way it's shown: Down/OK for the full controls, or it just times out). Live content reuses the existing now/next header since that's a strict superset of what this would otherwise show. */
+@Composable
+private fun TvMediaInfoPanel(uiState: PlayerUiState, currentItem: PlaybackItem?) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(32.dp),
+    ) {
+        val liveInfo = currentItem?.liveProgramInfo
+        if (liveInfo != null) {
+            TvLiveProgramHeader(liveInfo = liveInfo, uiState = uiState)
+        } else if (currentItem != null) {
+            Column {
+                Text(text = currentItem.title, color = Color.White)
+                currentItem.subtitle?.let { subtitle ->
+                    Text(text = subtitle, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 2.dp))
+                }
+                Row(modifier = Modifier.padding(top = 8.dp)) {
+                    listOf(
+                        aspectRatioLabel(uiState.videoWidth, uiState.videoHeight),
+                        resolutionLabel(uiState.videoWidth, uiState.videoHeight),
+                        frameRateLabel(uiState.videoFrameRate),
+                        audioChannelsLabel(uiState.audioChannelCount),
+                    ).filter { it.isNotBlank() }.forEach { label ->
+                        Box(modifier = Modifier.padding(end = 8.dp).background(Color.White.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Text(text = label, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TvPlayerControls(
     uiState: PlayerUiState,
     currentItem: PlaybackItem?,
     recentChannels: List<PlaybackItem>,
-    backButtonFocusRequester: FocusRequester,
+    playPauseFocusRequester: FocusRequester,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
     onSeekBack: () -> Unit,
@@ -232,7 +336,9 @@ private fun TvPlayerControls(
             .background(Color.Black.copy(alpha = 0.55f))
             .padding(32.dp),
     ) {
-        Button(onClick = onBack, modifier = Modifier.focusRequester(backButtonFocusRequester)) { Text("Back") }
+        Button(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -255,17 +361,24 @@ private fun TvPlayerControls(
 
         Spacer(modifier = Modifier.padding(top = 12.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-        ) {
-            Button(onClick = onSeekBack) { Text("-10s") }
-            Button(onClick = onPlayPause) { Text(if (uiState.isPlaying) "Pause" else "Play") }
-            Button(onClick = onSeekForward) { Text("+10s") }
-            Button(onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty()) { Text("Audio") }
-            Button(onClick = onSubtitleTrackClick) { Text("Subtitles") }
-            Button(onClick = onAspectModeClick) { Text("Aspect ratio") }
-            Button(onClick = onOpenExternally) { Text("Open externally") }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TvIconButton(Icons.Filled.Replay10, "Back 10 seconds", onClick = onSeekBack)
+                TvIconButton(
+                    icon = if (uiState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = "Play/Pause",
+                    onClick = onPlayPause,
+                    modifier = Modifier.focusRequester(playPauseFocusRequester),
+                )
+                TvIconButton(Icons.Filled.Forward10, "Forward 10 seconds", onClick = onSeekForward)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TvIconButton(Icons.Filled.Audiotrack, "Audio track", onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty())
+                TvIconButton(Icons.Filled.ClosedCaption, "Subtitles", onClick = onSubtitleTrackClick)
+                TvIconButton(Icons.Filled.AspectRatio, "Aspect ratio", onClick = onAspectModeClick)
+                TvIconButton(Icons.Filled.OpenInNew, "Open externally", onClick = onOpenExternally)
+            }
         }
 
         if (currentItem?.isLive == true && recentChannels.isNotEmpty()) {
@@ -282,6 +395,19 @@ private fun TvPlayerControls(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TvIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Button(onClick = onClick, enabled = enabled, modifier = modifier) {
+        Icon(icon, contentDescription = contentDescription)
     }
 }
 

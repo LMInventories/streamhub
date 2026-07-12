@@ -55,4 +55,12 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    // Cast-to-device button on the phone player overlay, matching feature-iptv's own Live TV
+    // mini-player cast button (same dependency set, see that module's build.gradle.kts comment).
+    // Phone-only feature - makes sense from a handheld to a TV, not from an Android TV device to
+    // itself.
+    implementation(libs.play.services.cast.framework)
+    implementation(libs.androidx.mediarouter)
+    implementation(libs.androidx.appcompat)
 }

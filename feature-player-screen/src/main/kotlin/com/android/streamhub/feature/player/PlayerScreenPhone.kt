@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,9 +32,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -85,6 +88,7 @@ import com.android.streamhub.core.player.aspectRatioLabel
 import com.android.streamhub.core.player.formatPositionMs
 import com.android.streamhub.core.player.frameRateLabel
 import com.android.streamhub.core.player.resolutionLabel
+import com.android.streamhub.feature.player.cast.CastButton
 import kotlinx.coroutines.delay
 
 // Hardcoded for now, not read from anywhere - this becomes a real setting once general player
@@ -183,9 +187,11 @@ fun PlayerScreenPhone(
                 uiState = uiState,
                 currentItem = currentItem,
                 recentChannels = recentChannels,
+                isCastAvailable = viewModel.isCastAvailable,
                 onBack = onBack,
                 onPlayPause = viewModel::togglePlayPause,
                 onSeek = viewModel::seekTo,
+                onSeekBy = { delta -> viewModel.seekTo((uiState.positionMs + delta).coerceIn(0L, uiState.durationMs.coerceAtLeast(0L))) },
                 onAudioTrackClick = { showAudioPicker = true },
                 onSubtitleTrackClick = { showSubtitlePicker = true },
                 onAspectModeSelected = viewModel::setAspectMode,
@@ -254,9 +260,11 @@ private fun PhonePlayerControls(
     uiState: PlayerUiState,
     currentItem: PlaybackItem?,
     recentChannels: List<PlaybackItem>,
+    isCastAvailable: Boolean,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
+    onSeekBy: (Long) -> Unit,
     onAudioTrackClick: () -> Unit,
     onSubtitleTrackClick: () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
@@ -271,17 +279,28 @@ private fun PhonePlayerControls(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f)),
     ) {
+        // Title/cast row - matches the official Jellyfin app's player top bar. No group/person
+        // icon (explicitly out of scope per feedback); cast is phone-only, same reasoning
+        // CastButton's own call site in Live TV already established (casting makes sense from a
+        // handheld to a TV, not from a TV device to itself).
         Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
             }
-            Spacer(modifier = Modifier.weight(1f))
-            uiState.errorMessage?.let {
-                Text(text = it, color = Palette.Error)
-            }
+            Text(
+                text = listOfNotNull(currentItem?.subtitle, currentItem?.title).joinToString(" - "),
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+            )
+            CastButton(isAvailable = isCastAvailable)
+        }
+        uiState.errorMessage?.let {
+            Text(text = it, color = Palette.Error, modifier = Modifier.padding(horizontal = 16.dp))
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -307,22 +326,32 @@ private fun PhonePlayerControls(
                         inactiveTrackColor = Palette.Border,
                     ),
                 )
-                Text(
-                    text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
-                    color = Color.White,
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(text = formatPositionMs(uiState.positionMs), color = Color.White)
+                    Text(text = "-${formatPositionMs((uiState.durationMs - uiState.positionMs).coerceAtLeast(0L))}", color = Color.White)
+                }
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (liveInfo == null) {
+                    IconButton(onClick = { onSeekBy(-DOUBLE_TAP_SEEK_MS) }) {
+                        Icon(Icons.Filled.Replay10, contentDescription = "Back 10 seconds", tint = Color.White)
+                    }
+                }
                 IconButton(onClick = onPlayPause) {
                     Icon(
                         imageVector = if (uiState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                         contentDescription = "Play/Pause",
                         tint = Color.White,
                     )
+                }
+                if (liveInfo == null) {
+                    IconButton(onClick = { onSeekBy(DOUBLE_TAP_SEEK_MS) }) {
+                        Icon(Icons.Filled.Forward10, contentDescription = "Forward 10 seconds", tint = Color.White)
+                    }
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty()) {

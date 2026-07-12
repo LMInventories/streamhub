@@ -14,6 +14,7 @@ import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.player.download.DownloadTracker
+import com.android.streamhub.feature.player.cast.PlayerCastController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,11 +34,16 @@ class PlayerViewModel @Inject constructor(
     private val mediaSources: Set<@JvmSuppressWildcards MediaSource>,
     private val watchProgressRepository: WatchProgressRepository,
     private val downloadTracker: DownloadTracker,
+    private val castController: PlayerCastController,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     val uiState: StateFlow<PlayerUiState> = playerController.uiState
     val exoPlayer get() = playerController.exoPlayer
+
+    // Phone-only surface (see CastButton's own call site) - exposed here regardless so
+    // PlayerViewModel stays the single source of truth for this screen's state either way.
+    val isCastAvailable: Boolean = castController.isAvailable
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"]) { "itemId is required" }
     private val sourceType: SourceType = SourceType.valueOf(
@@ -61,6 +67,16 @@ class PlayerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { loadAndPrepare(itemId, applyResumePoint = true) }
+        // A session can connect after playback has already started (the common case - the user
+        // taps Cast mid-watch), not just before, so this has to be reactive rather than a one-shot
+        // check at load time. Same shape as LiveTvViewModel's own "collect isCasting -> load"
+        // wiring for its mini-player.
+        viewModelScope.launch { castController.isCasting.collect { casting -> if (casting) castCurrentItem() } }
+    }
+
+    private fun castCurrentItem() {
+        val item = _currentItem.value ?: return
+        castController.loadStream(item.streamUri, item.title, item.subtitle, item.isLive)
     }
 
     /** Switches playback to a different live channel without leaving this screen - used by the overlay's recently-viewed strip. */
