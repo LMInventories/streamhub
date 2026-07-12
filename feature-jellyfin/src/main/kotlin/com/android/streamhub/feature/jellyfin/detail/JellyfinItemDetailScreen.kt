@@ -155,6 +155,11 @@ private fun JellyfinItemDetailContent(
     onRemoveDownload: () -> Unit,
 ) {
     val context = LocalContext.current
+    // Grabs initial D-pad focus on entry so a TV remote's first OK press does the obvious thing
+    // (start playback) instead of landing wherever the focus system defaults to - harmless on
+    // touch devices, which have no focus ring to show.
+    val playFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { playFocusRequester.requestFocus() }
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Box(modifier = Modifier.width(120.dp).height(180.dp).clip(AppShapes.small)) {
@@ -193,7 +198,7 @@ private fun JellyfinItemDetailContent(
 
                 val resumeFraction = item.playedPercentage?.takeIf { it > 0f }?.div(100f)
                 Row(modifier = Modifier.padding(top = 16.dp)) {
-                    Button(onClick = onPlay) {
+                    Button(onClick = onPlay, modifier = Modifier.focusRequester(playFocusRequester)) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(text = if (resumeFraction != null) "Resume" else "Play", modifier = Modifier.padding(start = 6.dp))
                     }

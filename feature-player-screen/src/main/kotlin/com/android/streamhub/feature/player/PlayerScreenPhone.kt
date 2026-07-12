@@ -2,6 +2,7 @@ package com.android.streamhub.feature.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -115,9 +117,23 @@ fun PlayerScreenPhone(
     HideSystemBarsWhilePlaying()
     KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
 
-    LaunchedEffect(controlsVisible, uiState.isPlaying) {
+    // Back closes the control overlay rather than leaving playback whenever the overlay is up -
+    // mirrors PlayerScreenTv's remote Back behavior; only falls through to onBack (leaving
+    // playback) once the controls are already hidden.
+    BackHandler(enabled = controlsVisible) {
+        controlsVisible = false
+    }
+
+    // Bumped by every tap/click inside the controls and included below as a LaunchedEffect key -
+    // reassigning controlsVisible to the value it already holds (e.g. tapping Play/Pause again
+    // while controls are showing) doesn't recompose on its own since Compose state skips no-op
+    // writes, so without this the hide countdown would keep ticking from when the controls first
+    // appeared instead of resetting on continued use.
+    var interactionTick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(controlsVisible, uiState.isPlaying, interactionTick) {
         if (controlsVisible && uiState.isPlaying) {
-            delay(4000)
+            delay(3000)
             controlsVisible = false
         }
     }
@@ -143,7 +159,7 @@ fun PlayerScreenPhone(
             .background(Color.Black)
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { controlsVisible = !controlsVisible },
+                    onTap = { controlsVisible = !controlsVisible; interactionTick++ },
                     onDoubleTap = { offset ->
                         // Live TV isn't meaningfully seekable (its slider above is a read-only
                         // wall-clock progress bar, not a scrubber) - VOD/Jellyfin playback is
@@ -189,14 +205,14 @@ fun PlayerScreenPhone(
                 recentChannels = recentChannels,
                 isCastAvailable = viewModel.isCastAvailable,
                 onBack = onBack,
-                onPlayPause = viewModel::togglePlayPause,
-                onSeek = viewModel::seekTo,
-                onSeekBy = { delta -> viewModel.seekTo((uiState.positionMs + delta).coerceIn(0L, uiState.durationMs.coerceAtLeast(0L))) },
-                onAudioTrackClick = { showAudioPicker = true },
-                onSubtitleTrackClick = { showSubtitlePicker = true },
-                onAspectModeSelected = viewModel::setAspectMode,
-                onOpenExternally = { viewModel.openExternally(context) },
-                onSwitchChannel = viewModel::switchChannel,
+                onPlayPause = { interactionTick++; viewModel.togglePlayPause() },
+                onSeek = { interactionTick++; viewModel.seekTo(it) },
+                onSeekBy = { delta -> interactionTick++; viewModel.seekTo((uiState.positionMs + delta).coerceIn(0L, uiState.durationMs.coerceAtLeast(0L))) },
+                onAudioTrackClick = { interactionTick++; showAudioPicker = true },
+                onSubtitleTrackClick = { interactionTick++; showSubtitlePicker = true },
+                onAspectModeSelected = { interactionTick++; viewModel.setAspectMode(it) },
+                onOpenExternally = { interactionTick++; viewModel.openExternally(context) },
+                onSwitchChannel = { interactionTick++; viewModel.switchChannel(it) },
             )
         }
     }

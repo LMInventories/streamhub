@@ -34,11 +34,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -114,6 +117,11 @@ private fun ItemDetailContent(
     onResumeDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
 ) {
+    // Grabs initial D-pad focus on entry so a TV remote's first OK press does the obvious thing
+    // (start playback) instead of landing wherever the focus system defaults to - harmless on
+    // touch devices, which have no focus ring to show.
+    val playFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { playFocusRequester.requestFocus() }
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Box(
@@ -150,7 +158,7 @@ private fun ItemDetailContent(
 
                 val resumeFraction = uiState.resumeFractionComplete
                 Row(modifier = Modifier.padding(top = 16.dp)) {
-                    Button(onClick = onPlay) {
+                    Button(onClick = onPlay, modifier = Modifier.focusRequester(playFocusRequester)) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(text = if (resumeFraction != null) "Resume" else "Play", modifier = Modifier.padding(start = 6.dp))
                     }

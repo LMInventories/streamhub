@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -110,9 +112,24 @@ fun PlayerScreenTv(
     val onSeekBack: () -> Unit = { viewModel.seekTo((uiState.positionMs - SEEK_STEP_MS).coerceAtLeast(0L)) }
     val onSeekForward: () -> Unit = { viewModel.seekTo((uiState.positionMs + SEEK_STEP_MS).coerceAtMost(uiState.durationMs)) }
 
-    LaunchedEffect(overlayMode, uiState.isPlaying) {
+    // Back closes the overlay, not the player, whenever there's an overlay up to close - only
+    // falls through to onBack (leaving playback) once we're already HIDDEN. Disabled rather than
+    // omitted so the popBackStack from onBack doesn't fire on the same press that dismisses INFO
+    // or CONTROLS.
+    BackHandler(enabled = overlayMode != TvOverlayMode.HIDDEN) {
+        overlayMode = TvOverlayMode.HIDDEN
+    }
+
+    // Bumped on every key press while an overlay is up, and included below as a LaunchedEffect
+    // key - reassigning overlayMode to the value it already holds (e.g. pressing Play/Pause again
+    // while CONTROLS is showing) doesn't recompose on its own since Compose state skips
+    // no-op writes, so without this the hide countdown would keep ticking down from when the
+    // overlay first appeared instead of resetting on continued use.
+    var interactionTick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(overlayMode, uiState.isPlaying, interactionTick) {
         if (overlayMode != TvOverlayMode.HIDDEN && uiState.isPlaying) {
-            delay(6000)
+            delay(3000)
             overlayMode = TvOverlayMode.HIDDEN
         }
     }
@@ -152,6 +169,7 @@ fun PlayerScreenTv(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (overlayMode != TvOverlayMode.HIDDEN) interactionTick++
                 when (event.key) {
                     Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
                         onPlayPause()
