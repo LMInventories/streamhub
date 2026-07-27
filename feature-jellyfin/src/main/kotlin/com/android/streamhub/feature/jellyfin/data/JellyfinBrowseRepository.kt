@@ -19,10 +19,13 @@ import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PersonKind
+import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.PlaybackInfoDto
+import org.jellyfin.sdk.model.api.PlaybackOrder
 import org.jellyfin.sdk.model.api.PlaybackProgressInfo
 import org.jellyfin.sdk.model.api.PlaybackStartInfo
 import org.jellyfin.sdk.model.api.PlaybackStopInfo
+import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SortOrder
 import kotlinx.coroutines.flow.first
 import java.util.UUID
@@ -231,7 +234,19 @@ class JellyfinBrowseRepository @Inject constructor(
     suspend fun reportPlaybackStart(itemId: String) {
         val api = apiOrNull() ?: return
         val uuid = UUID.fromString(itemId)
-        runCatching { api.playStateApi.reportPlaybackStart(data = PlaybackStartInfo(itemId = uuid, canSeek = true)) }
+        runCatching {
+            api.playStateApi.reportPlaybackStart(
+                data = PlaybackStartInfo(
+                    itemId = uuid,
+                    canSeek = true,
+                    isPaused = false,
+                    isMuted = false,
+                    playMethod = PlayMethod.DIRECT_PLAY,
+                    repeatMode = RepeatMode.REPEAT_NONE,
+                    playbackOrder = PlaybackOrder.DEFAULT,
+                ),
+            )
+        }
     }
 
     suspend fun reportPlaybackProgress(itemId: String, positionMs: Long, isPaused: Boolean) {
@@ -244,6 +259,10 @@ class JellyfinBrowseRepository @Inject constructor(
                     positionTicks = positionMs * TICKS_PER_MS,
                     isPaused = isPaused,
                     canSeek = true,
+                    isMuted = false,
+                    playMethod = PlayMethod.DIRECT_PLAY,
+                    repeatMode = RepeatMode.REPEAT_NONE,
+                    playbackOrder = PlaybackOrder.DEFAULT,
                 ),
             )
         }
@@ -261,7 +280,7 @@ class JellyfinBrowseRepository @Inject constructor(
         val positionTicks = positionMs * TICKS_PER_MS
         runCatching {
             api.playStateApi.reportPlaybackStopped(
-                data = PlaybackStopInfo(itemId = uuid, positionTicks = positionTicks),
+                data = PlaybackStopInfo(itemId = uuid, positionTicks = positionTicks, failed = false),
             )
         }
         if (durationMs > 0 && positionMs.toFloat() / durationMs.toFloat() > NEARLY_COMPLETE_FRACTION) {
