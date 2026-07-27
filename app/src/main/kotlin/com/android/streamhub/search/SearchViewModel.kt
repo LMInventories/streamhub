@@ -133,7 +133,16 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /**
+     * searchUpcoming() only ever reads EpgGridRepository's Room cache - it never fetches. Every
+     * other caller of that cache (LiveTvViewModel) fetches it on its own init, so a search run
+     * before Live TV was ever opened this session (or with a stale/empty cache) used to silently
+     * return zero EPG results with no indication why. ensureFresh() is cheap to call unconditionally
+     * here - it no-ops immediately if the cache is already fresh (see its own doc), and only
+     * actually downloads the guide on a genuinely stale/empty cache.
+     */
     private suspend fun fetchEpgResults(query: String, limit: Int): List<EpgSearchResult> = runCatching {
+        runCatching { epgGridRepository.ensureFresh() }
         val channels = iptvBrowseRepository.getAllChannels()
         epgGridRepository.searchUpcoming(channels, query, limit).map { (channel, program) -> EpgSearchResult(channel, program) }
     }.getOrDefault(emptyList())

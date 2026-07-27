@@ -20,6 +20,9 @@ import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.api.PlaybackInfoDto
+import org.jellyfin.sdk.model.api.PlaybackProgressInfo
+import org.jellyfin.sdk.model.api.PlaybackStartInfo
+import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.SortOrder
 import kotlinx.coroutines.flow.first
 import java.util.UUID
@@ -28,6 +31,11 @@ import javax.inject.Singleton
 
 // 1 tick = 100ns (Jellyfin's .NET-derived convention throughout its API) - 600_000_000 ticks/min.
 private const val TICKS_PER_MINUTE = 600_000_000L
+private const val TICKS_PER_MS = 10_000L
+
+// Matches WatchProgress.isNearlyComplete (core-common) - close enough to the end that the server
+// should treat this the same as an explicit "mark watched" rather than just a resume point.
+private const val NEARLY_COMPLETE_FRACTION = 0.92f
 
 @Singleton
 class JellyfinBrowseRepository @Inject constructor(
@@ -208,6 +216,57 @@ class JellyfinBrowseRepository @Inject constructor(
             }
             result.content.played
         }.getOrNull()
+    }
+
+    /**
+     * Playback lifecycle reporting via Jellyfin's Sessions API - this is what makes a native
+     * Jellyfin app (or the web UI) see the same "Continue Watching"/resume-position/watched state
+     * this app produces, instead of that only ever living in this app's own local
+     * WatchProgressRepository (which was all playback ever updated before this). The three calls
+     * mirror what every official Jellyfin client does around a playback session: report start
+     * once, progress periodically (also covers pause, via isPaused), and stopped once when the
+     * player screen is torn down. Best-effort/fire-and-forget - a failed report here should never
+     * interrupt playback, so every call swallows its own failure.
+     */
+    suspend fun reportPlaybackStart(itemId: String) {
+        val api = apiOrNull() ?: return
+        val uuid = UUID.fromString(itemId)
+        runCatching { api.playStateApi.reportPlaybackStart(data = PlaybackStartInfo(itemId = uuid, canSeek = true)) }
+    }
+
+    suspend fun reportPlaybackProgress(itemId: String, positionMs: Long, isPaused: Boolean) {
+        val api = apiOrNull() ?: return
+        val uuid = UUID.fromString(itemId)
+        runCatching {
+            api.playStateApi.reportPlaybackProgress(
+                data = PlaybackProgressInfo(
+                    itemId = uuid,
+                    positionTicks = positionMs * TICKS_PER_MS,
+                    isPaused = isPaused,
+                    canSeek = true,
+                ),
+            )
+        }
+    }
+
+    /**
+     * [positionMs]/[durationMs] decide whether this also explicitly marks the item played -
+     * relying on the server's own completion heuristic here would mean this app's "nearly
+     * complete" cutoff (see WatchProgress.isNearlyComplete in core-common) could disagree with
+     * whatever the server assumes, so it's made explicit here to match exactly.
+     */
+    suspend fun reportPlaybackStopped(itemId: String, positionMs: Long, durationMs: Long) {
+        val api = apiOrNull() ?: return
+        val uuid = UUID.fromString(itemId)
+        val positionTicks = positionMs * TICKS_PER_MS
+        runCatching {
+            api.playStateApi.reportPlaybackStopped(
+                data = PlaybackStopInfo(itemId = uuid, positionTicks = positionTicks),
+            )
+        }
+        if (durationMs > 0 && positionMs.toFloat() / durationMs.toFloat() > NEARLY_COMPLETE_FRACTION) {
+            runCatching { api.playStateApi.markPlayedItem(itemId = uuid, userId = currentUserId()) }
+        }
     }
 
     suspend fun getSeasons(seriesId: String): List<JellyfinItemInfo> {

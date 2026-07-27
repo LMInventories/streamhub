@@ -31,4 +31,18 @@ interface MediaSource {
 
     /** Default empty - see [recordViewed]. Drives the fullscreen player's channel-switcher strip for sources that support it. */
     fun observeRecentlyViewed(): Flow<List<PlaybackItem>> = flowOf(emptyList())
+
+    /**
+     * Playback lifecycle hooks for sources that track watched/resume state server-side
+     * (Jellyfin/Emby), so the server's own apps see the same progress and watched status this app
+     * produces instead of it staying siloed in this app's local WatchProgressRepository. Default
+     * no-op - only sources with a server-side concept of this need to override any of them, so the
+     * player screen can call all three unconditionally regardless of source, the same pattern as
+     * [recordViewed] above. Not used for live items (those already have [recordViewed]).
+     */
+    suspend fun onPlaybackStarted(itemId: String) {}
+
+    suspend fun onPlaybackProgress(itemId: String, positionMs: Long, durationMs: Long, isPaused: Boolean) {}
+
+    suspend fun onPlaybackStopped(itemId: String, positionMs: Long, durationMs: Long) {}
 }

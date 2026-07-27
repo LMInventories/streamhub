@@ -16,6 +16,9 @@ import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.player.download.DownloadTracker
 import com.android.streamhub.feature.player.cast.PlayerCastController
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,6 +59,12 @@ class PlayerViewModel @Inject constructor(
     // lands back on the originally-navigated channel rather than whichever was last switched to -
     // an accepted tradeoff against the complexity of keeping the nav route itself in sync.
     private val mediaSource: MediaSource? = mediaSources.firstOrNull { it.sourceType == sourceType }
+
+    // viewModelScope is cancelled right *before* onCleared() runs (see that function's own
+    // androidx doc), so anything launched through it from inside onCleared never actually starts -
+    // its Job is already dead at that point. This scope exists solely so the final save/stop
+    // report below can actually complete after the screen is gone instead of silently no-oping.
+    private val teardownScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _currentItem = MutableStateFlow<PlaybackItem?>(null)
     val currentItem: StateFlow<PlaybackItem?> = _currentItem
@@ -122,6 +131,7 @@ class PlayerViewModel @Inject constructor(
             if (item.isLive) {
                 mediaSource?.let { source -> viewModelScope.launch { source.recordViewed(item.id) } }
             } else {
+                mediaSource?.let { source -> viewModelScope.launch { source.onPlaybackStarted(item.id) } }
                 startProgressReporting()
             }
         }.onFailure { throwable ->
@@ -173,15 +183,29 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             watchProgressRepository.saveProgress(sourceType, item.id, state.positionMs, state.durationMs)
         }
+        // Same position, mirrored to whichever server-side source owns this item (Jellyfin/Emby)
+        // so its own apps see the same progress instead of it staying siloed in the line above.
+        mediaSource?.let { source ->
+            viewModelScope.launch { source.onPlaybackProgress(item.id, state.positionMs, state.durationMs, !state.isPlaying) }
+        }
     }
 
     override fun onCleared() {
-        // Best-effort only - viewModelScope is cancelled around the same time onCleared() runs,
-        // so this isn't guaranteed to complete. The periodic tick (every 10s) and the
-        // save-on-pause above are what actually make resume reliable; this just narrows the gap
-        // a little further for the common case where the coroutine dispatcher gets a moment
-        // before full cancellation.
-        saveProgressNow()
+        // Uses teardownScope, not viewModelScope - see that property's own doc for why. The
+        // periodic tick (every 10s) and the save-on-pause in saveProgressNow() are what carry most
+        // of the load for resume reliability; this is just the final flush for whatever happened
+        // since the last one of those.
+        _currentItem.value?.let { item ->
+            if (!item.isLive) {
+                val state = uiState.value
+                if (state.durationMs > 0) {
+                    teardownScope.launch { watchProgressRepository.saveProgress(sourceType, item.id, state.positionMs, state.durationMs) }
+                }
+                mediaSource?.let { source ->
+                    teardownScope.launch { source.onPlaybackStopped(item.id, state.positionMs, state.durationMs) }
+                }
+            }
+        }
         playerController.release()
     }
 }

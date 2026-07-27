@@ -68,6 +68,14 @@ class JellyfinMediaSource @Inject constructor(
         )
     }
 
+    override suspend fun onPlaybackStarted(itemId: String) = browseRepository.reportPlaybackStart(itemId)
+
+    override suspend fun onPlaybackProgress(itemId: String, positionMs: Long, durationMs: Long, isPaused: Boolean) =
+        browseRepository.reportPlaybackProgress(itemId, positionMs, isPaused)
+
+    override suspend fun onPlaybackStopped(itemId: String, positionMs: Long, durationMs: Long) =
+        browseRepository.reportPlaybackStopped(itemId, positionMs, durationMs)
+
     private fun JellyfinItemInfo.toPlaybackItem(
         streamUri: String,
         preferredAudio: String?,
