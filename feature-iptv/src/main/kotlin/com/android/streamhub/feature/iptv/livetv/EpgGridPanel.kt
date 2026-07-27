@@ -30,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -88,6 +89,10 @@ fun EpgGridPanel(
     windowEnd: Instant,
     isLoading: Boolean,
     loadProgress: Float?,
+    // The channel to land D-pad focus on once this grid (re)populates - normally whatever's
+    // already focused/previewing (see the LaunchedEffect below), so re-entering an already-browsed
+    // category doesn't strand focus on the nav rail. Falls back to the first row if null/absent.
+    initialFocusChannelId: String?,
     onFocusChannel: (IptvChannelInfo) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
@@ -109,6 +114,26 @@ fun EpgGridPanel(
     val rowFocusRequester = remember { FocusRequester() }
     var focusRestoreChannelId by remember { mutableStateOf<String?>(null) }
     val restoreFocus: () -> Unit = { runCatching { rowFocusRequester.requestFocus() } }
+
+    // The other half of the same problem the dialog-restore logic below solves: this grid
+    // populating for the first time after a category is selected (nothing inside it has ever held
+    // focus yet) also falls back to the nav rail with nothing to reclaim it. Seeds the row to
+    // restore to once (guarded by focusRestoreChannelId already being null - a later re-fetch that
+    // hands back a new but equal-content `channels` list must not fight the user's own subsequent
+    // clicks), preferring whatever's already focused/previewing over just the first row.
+    LaunchedEffect(channels) {
+        if (focusRestoreChannelId == null && channels.isNotEmpty()) {
+            focusRestoreChannelId = initialFocusChannelId?.takeIf { id -> channels.any { it.id == id } }
+                ?: channels.first().id
+        }
+    }
+    // Reactive rather than called inline from the row's own onClick - at the moment of a click,
+    // rowFocusRequester isn't attached to that row yet (that only happens once this state change
+    // recomposes the LazyColumn below), so requesting focus synchronously there would just throw
+    // (silently swallowed by restoreFocus()'s runCatching) and do nothing.
+    LaunchedEffect(focusRestoreChannelId) {
+        if (focusRestoreChannelId != null) restoreFocus()
+    }
 
     Column(modifier = modifier) {
         // isLoading alone (no real progress yet) covers the gap loadProgress leaves - a Room
@@ -154,7 +179,10 @@ fun EpgGridPanel(
                     windowStart = windowStart,
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
-                    onClick = { onFocusChannel(channel) },
+                    onClick = {
+                        focusRestoreChannelId = channel.id
+                        onFocusChannel(channel)
+                    },
                     onLongPressProgram = { program ->
                         focusRestoreChannelId = channel.id
                         menuState = ProgramMenuState.ContextMenu(channel, program)

@@ -345,6 +345,7 @@ fun LiveTvBrowseContent(
                         windowEnd = uiState.gridWindowEnd,
                         isLoading = uiState.isLoadingEpgGrid,
                         loadProgress = uiState.epgGridLoadProgress,
+                        initialFocusChannelId = uiState.focusedChannel?.id,
                         onFocusChannel = onFocusChannel,
                         onScheduleRecording = onScheduleRecording,
                         onScheduleReminder = onScheduleReminder,
