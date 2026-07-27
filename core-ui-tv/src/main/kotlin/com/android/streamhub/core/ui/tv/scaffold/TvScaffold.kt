@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircleFilled
@@ -39,7 +38,6 @@ import com.android.streamhub.core.design.tvFocusBorder
 data class TvNavItem(val route: String, val label: String, val icon: ImageVector)
 
 val tvNavItems = listOf(
-    TvNavItem(route = "home", label = "Home", icon = Icons.Filled.Home),
     TvNavItem(route = "search", label = "Search", icon = Icons.Filled.Search),
     TvNavItem(route = "live_tv", label = "Live TV", icon = Icons.Filled.LiveTv),
     TvNavItem(route = "vod", label = "VOD", icon = Icons.Filled.Movie),

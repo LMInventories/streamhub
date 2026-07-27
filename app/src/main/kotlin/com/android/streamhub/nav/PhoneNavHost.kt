@@ -1,6 +1,7 @@
 package com.android.streamhub.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,14 +38,12 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsS
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.downloads.DownloadsManagementScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
-import com.android.streamhub.home.HomeScreenPhone
 import com.android.streamhub.placeholder.ComingSoonScreen
 import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreen
 import com.android.streamhub.settings.SettingsScreen
 
 private val TAB_ROUTES = setOf(
-    Route.HOME_PATTERN,
     Route.SEARCH_PATTERN,
     Route.LIVE_TV_PATTERN,
     Route.VOD_PATTERN,
@@ -65,13 +64,23 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
     IptvAutoUpdateEffect()
     AppUpdateCheckEffect()
 
+    // "On App Launch" (Settings > Appearance) - fires at most once per process (see
+    // AppLaunchState), so resuming from background never re-triggers it. Route.LIVE_TV_PATTERN is
+    // already this NavHost's own startDestination, so that setting needs no redirect at all.
+    val launchRedirectViewModel: AppLaunchRedirectViewModel = hiltViewModel()
+    LaunchedEffect(Unit) {
+        launchRedirectViewModel.resolveRedirectRouteIfNeeded()?.let { route ->
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
     // Standard bottom-nav "switch tabs, keep each tab's state" pattern - without
     // saveState/restoreState, hopping between tabs would push a fresh backstack entry (and a
-    // fresh ViewModel/mini-player) every time instead of resuming the one already running. Shared
-    // by both the bottom nav bar itself and Home's own dashboard tiles - those used to call
-    // navController.navigate(route) directly with none of this, which is why tapping a dashboard
-    // tile then later tapping Home in the bottom bar could leave a stale/duplicate "home" entry
-    // buried under the tile's destination instead of actually returning to it.
+    // fresh ViewModel/mini-player) every time instead of resuming the one already running.
     val navigateToTab: (String) -> Unit = { route ->
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -85,13 +94,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
         bottomBarVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
         onNavigate = navigateToTab,
     ) { paddingValues ->
-        NavHost(navController = navController, startDestination = Route.HOME_PATTERN) {
-            composable(Route.HOME_PATTERN) {
-                HomeScreenPhone(
-                    paddingValues = paddingValues,
-                    onNavigate = navigateToTab,
-                )
-            }
+        NavHost(navController = navController, startDestination = Route.LIVE_TV_PATTERN) {
             composable(Route.SEARCH_PATTERN) {
                 SearchScreen(
                     paddingValues = paddingValues,

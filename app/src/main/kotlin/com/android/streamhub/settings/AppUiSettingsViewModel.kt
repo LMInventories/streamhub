@@ -25,4 +25,8 @@ class AppUiSettingsViewModel @Inject constructor(
     fun setTextScale(scale: TextScale) {
         viewModelScope.launch { repository.update { it.copy(textScale = scale) } }
     }
+
+    fun setLaunchDestination(destination: AppLaunchDestination) {
+        viewModelScope.launch { repository.update { it.copy(launchDestination = destination) } }
+    }
 }

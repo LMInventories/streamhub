@@ -3,6 +3,7 @@ package com.android.streamhub.nav
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -42,14 +43,12 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibility
 import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreenTv
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreenTv
 import com.android.streamhub.feature.player.PlayerScreenTv
-import com.android.streamhub.home.HomeScreenTv
 import com.android.streamhub.placeholder.ComingSoonScreen
 import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreenTv
 import com.android.streamhub.settings.SettingsScreenTv
 
 private val TAB_ROUTES = setOf(
-    Route.HOME_PATTERN,
     Route.SEARCH_PATTERN,
     Route.LIVE_TV_PATTERN,
     Route.VOD_PATTERN,
@@ -69,6 +68,20 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
 
     IptvAutoUpdateEffect()
     AppUpdateCheckEffect()
+
+    // "On App Launch" (Settings > Appearance) - fires at most once per process (see
+    // AppLaunchState), so resuming from background never re-triggers it. Route.LIVE_TV_PATTERN is
+    // already this NavHost's own startDestination, so that setting needs no redirect at all.
+    val launchRedirectViewModel: AppLaunchRedirectViewModel = hiltViewModel()
+    LaunchedEffect(Unit) {
+        launchRedirectViewModel.resolveRedirectRouteIfNeeded()?.let { route ->
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     // Explicit history of visited tabs. The popUpTo below is exactly what keeps each tab's
     // ViewModel/mini-player alive across switches, but as a side effect it also collapses
@@ -116,13 +129,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
         tabRowVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
         onNavigate = navigateToTab,
     ) {
-        NavHost(navController = navController, startDestination = Route.HOME_PATTERN) {
-            composable(Route.HOME_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
-                HomeScreenTv(
-                    onNavigate = navigateToTab,
-                )
-            }
+        NavHost(navController = navController, startDestination = Route.LIVE_TV_PATTERN) {
             composable(Route.SEARCH_PATTERN) {
                 BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 SearchScreen(

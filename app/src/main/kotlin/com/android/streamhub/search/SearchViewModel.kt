@@ -62,7 +62,7 @@ private const val EXPANDED_SEARCH_RESULT_LIMIT = 200
  *
  * Deliberately lives in :app rather than any single feature module - it depends on both
  * feature-iptv and feature-jellyfin, and feature modules never depend on each other, the same
- * reasoning SettingsScreen/HomeScreenPhone already follow for cross-source aggregation.
+ * reasoning SettingsScreen already follows for cross-source aggregation.
  */
 @HiltViewModel
 class SearchViewModel @Inject constructor(

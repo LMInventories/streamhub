@@ -31,6 +31,7 @@ import androidx.tv.material3.Text as TvText
 
 private val THEME_OPTIONS = listOf(ThemeMode.DARK to "Dark", ThemeMode.LIGHT to "Light")
 private val TEXT_SCALE_OPTIONS = TextScale.entries.toList()
+private val LAUNCH_DESTINATION_OPTIONS = AppLaunchDestination.entries.toList()
 
 /** Same "wrap own MaterialTheme locally" reasoning as every other settings sub-screen - reachable from the TV nav host too. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,6 +78,20 @@ fun AppUiSettingsScreen(
                     )
                 }
 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("On app launch", color = Palette.TextMuted)
+                    PillToggle(
+                        options = LAUNCH_DESTINATION_OPTIONS.map { it.label },
+                        selectedIndex = LAUNCH_DESTINATION_OPTIONS.indexOf(uiState.launchDestination).coerceAtLeast(0),
+                        onSelect = { index -> viewModel.setLaunchDestination(LAUNCH_DESTINATION_OPTIONS[index]) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "Which screen the app opens into when launched fresh (not just resumed from background). Live TV also resumes whatever channel was last viewed.",
+                        color = Palette.TextMuted,
+                    )
+                }
+
                 Text(
                     text = "Applies across the whole app immediately.",
                     color = Palette.TextMuted,
@@ -113,6 +128,22 @@ fun AppUiSettingsScreenTv(
                     onSelect = { index -> viewModel.setTextScale(TEXT_SCALE_OPTIONS[index]) },
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                 )
+            }
+
+            TvSettingsSection(title = "On app launch") {
+                Column {
+                    PillToggle(
+                        options = LAUNCH_DESTINATION_OPTIONS.map { it.label },
+                        selectedIndex = LAUNCH_DESTINATION_OPTIONS.indexOf(uiState.launchDestination).coerceAtLeast(0),
+                        onSelect = { index -> viewModel.setLaunchDestination(LAUNCH_DESTINATION_OPTIONS[index]) },
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    )
+                    TvText(
+                        text = "Which screen the app opens into when launched fresh (not just resumed from background). Live TV also resumes whatever channel was last viewed.",
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                }
             }
 
             TvText(text = "Applies across the whole app immediately.", color = Palette.TextMuted)

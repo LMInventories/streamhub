@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircleFilled
@@ -47,7 +46,6 @@ data class PhoneNavItem(
 )
 
 val phoneNavItems = listOf(
-    PhoneNavItem(route = "home", label = "Home", icon = Icons.Filled.Home),
     PhoneNavItem(route = "search", label = "Search", icon = Icons.Filled.Search),
     PhoneNavItem(route = "live_tv", label = "Live TV", icon = Icons.Filled.LiveTv),
     PhoneNavItem(route = "vod", label = "VOD", icon = Icons.Filled.Movie),
