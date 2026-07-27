@@ -1,5 +1,6 @@
 package com.android.streamhub.core.design
 
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -11,7 +12,19 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+
+/**
+ * TV-only concern, detected here at runtime (Configuration.uiMode) rather than trusted from the
+ * caller - IptvSettingsScreen/JellyfinSettingsScreen are single shared composables reachable from
+ * either NavHost, not separate phone/TV variants.
+ */
+@Composable
+private fun isTvUiMode(): Boolean {
+    val uiMode = LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK
+    return uiMode == Configuration.UI_MODE_TYPE_TELEVISION
+}
 
 /**
  * A text field normally pops the software keyboard the instant it gains focus - correct for
@@ -28,12 +41,21 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
  * for - it only becomes editable (and only then shows the keyboard) on an explicit D-pad
  * center/Enter "select" press, fully under the user's own control. Moving focus away resets it
  * back to read-only for next time.
+ *
+ * Permanently false on phone/tablet - without that gate, a field there started read-only same as
+ * TV, but nothing on a touch device ever sends the DirectionCenter/Enter key press needed to flip
+ * it editable, so it silently never showed a keyboard or accepted typing/paste at all.
  */
 @Composable
-fun rememberTvManualKeyboardReadOnly(): MutableState<Boolean> = remember { mutableStateOf(true) }
+fun rememberTvManualKeyboardReadOnly(): MutableState<Boolean> {
+    val isTv = isTvUiMode()
+    return remember(isTv) { mutableStateOf(isTv) }
+}
 
+/** No-op on phone/tablet (see [rememberTvManualKeyboardReadOnly]) - leaves the field exactly as a plain OutlinedTextField would behave with no modifier attached. */
 @Composable
 fun Modifier.tvManualKeyboard(readOnly: MutableState<Boolean>): Modifier {
+    if (!isTvUiMode()) return this
     val keyboardController = LocalSoftwareKeyboardController.current
     return this
         .onFocusChanged { state ->
