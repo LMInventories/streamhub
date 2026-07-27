@@ -186,7 +186,7 @@ fun JellyfinPlaybackSettingsScreenTv(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Playback", onBack = onDone)
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 8.dp)) {
             TvSettingsSection(title = "Preferences") {
                 TvSettingsPickerRow(
                     label = "Preferred audio language",

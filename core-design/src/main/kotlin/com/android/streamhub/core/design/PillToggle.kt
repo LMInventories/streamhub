@@ -1,12 +1,15 @@
 package com.android.streamhub.core.design
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -29,11 +32,16 @@ fun PillToggle(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Uni
 
 @Composable
 private fun PillToggleOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    // This had no D-pad focus indicator at all before tvFocusBorder was added here - only the
+    // already-selected option was ever visually distinguishable, so arrowing onto a *different*,
+    // not-yet-selected option showed nothing telling you the cursor had actually moved there.
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .clip(AppShapes.pill)
             .background(if (selected) Palette.Accent else Color.Transparent)
-            .clickable(onClick = onClick)
+            .tvFocusBorder(interactionSource, AppShapes.pill)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         BasicText(

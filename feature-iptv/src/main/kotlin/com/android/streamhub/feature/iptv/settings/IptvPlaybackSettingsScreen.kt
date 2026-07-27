@@ -108,7 +108,7 @@ fun IptvPlaybackSettingsScreenTv(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Live TV playback", onBack = onDone)
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 8.dp)) {
             TvSettingsSection(title = "Playback") {
                 TvSettingsToggleRow(
                     label = "Resume last channel",

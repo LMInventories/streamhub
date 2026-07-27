@@ -40,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -281,6 +284,23 @@ fun LiveTvBrowseContent(
     var selectedPrefix by remember { mutableStateOf<String?>(null) }
     var contextMenuChannel by remember { mutableStateOf<IptvChannelInfo?>(null) }
 
+    // Same TV focus-reset problem EpgGridPanel's own rowFocusRequester/focusRestoreChannelId
+    // solves, in the opposite direction: returning to this category list (Back from a channel/EPG
+    // view) swaps the `when` branch below back to a brand new LazyColumn with nothing holding
+    // focus, so it falls back to the nav rail. Tracks whichever category was last selected so
+    // focus lands back on that row instead - declared at this level (not inside the `when` branch
+    // itself) so it survives the branch swap that tears the category-list composable down and
+    // rebuilds it.
+    val categoryRowFocusRequester = remember { FocusRequester() }
+    var focusRestoreCategoryId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(selectedCategory) {
+        if (selectedCategory != null) {
+            focusRestoreCategoryId = selectedCategory.id
+        } else if (focusRestoreCategoryId != null) {
+            runCatching { categoryRowFocusRequester.requestFocus() }
+        }
+    }
+
     // Without this, Back while browsing a category's channels/EPG has nothing to intercept it -
     // selecting a category is pure ViewModel state, not a nav backstack entry, so the system/
     // remote Back button fell straight through to whatever's above this screen (TvNavHost's own
@@ -329,6 +349,7 @@ fun LiveTvBrowseContent(
                             headlineContent = { Text(category.name) },
                             modifier = Modifier
                                 .tvFocusBorder(interactionSource)
+                                .let { if (category.id == focusRestoreCategoryId) it.focusRequester(categoryRowFocusRequester) else it }
                                 .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { onSelectCategory(category) },
                         )
                     }

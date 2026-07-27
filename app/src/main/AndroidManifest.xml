@@ -84,6 +84,19 @@
             android:name="com.android.streamhub.core.player.download.StreamHubDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- AppUpdateInstaller downloads the update APK into the app's private cache dir, then
+             needs a content:// URI to hand it to the system package installer - a plain file://
+             URI isn't accepted for ACTION_VIEW package-archive intents on API 24+. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_file_paths" />
+        </provider>
     </application>
 
 </manifest>

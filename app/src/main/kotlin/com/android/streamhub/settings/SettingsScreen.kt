@@ -137,12 +137,17 @@ fun rememberUpdateCheckSubtitle(viewModel: SettingsViewModel): String {
     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
     val isChecking by viewModel.isCheckingForUpdate.collectAsStateWithLifecycle()
     val lastCheckResult by viewModel.lastCheckResult.collectAsStateWithLifecycle()
-    return when {
-        isChecking -> "Checking..."
-        updateInfo != null -> "Update available: v${updateInfo!!.versionName}"
-        lastCheckResult == UpdateCheckResult.UP_TO_DATE -> "Up to date - version ${BuildConfig.VERSION_NAME}"
-        lastCheckResult == UpdateCheckResult.CHECK_FAILED -> "Check failed - version ${BuildConfig.VERSION_NAME}"
-        else -> "Version ${BuildConfig.VERSION_NAME}"
+    val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
+    return when (val state = downloadState) {
+        is UpdateDownloadState.Downloading -> "Downloading update... ${(state.progress * 100).toInt()}%"
+        is UpdateDownloadState.Failed -> state.message
+        UpdateDownloadState.Idle -> when {
+            isChecking -> "Checking..."
+            updateInfo != null -> "Update available: v${updateInfo!!.versionName}"
+            lastCheckResult == UpdateCheckResult.UP_TO_DATE -> "Up to date - version ${BuildConfig.VERSION_NAME}"
+            lastCheckResult == UpdateCheckResult.CHECK_FAILED -> "Check failed - version ${BuildConfig.VERSION_NAME}"
+            else -> "Version ${BuildConfig.VERSION_NAME}"
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.android.streamhub.core.design
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -19,11 +20,22 @@ import androidx.compose.ui.unit.dp
  * Button, which already draw a focus border/scale out of the box. Without it, D-pad navigation
  * technically works but looks and feels completely broken, since there's no cursor to follow.
  *
+ * A border alone (the original version of this) was reported hard to notice at real TV viewing
+ * distance - a thin 2dp outline on top of Surface/Border tones that are already close in value.
+ * Adds a translucent fill of the same accent color underneath, and a thicker border, so a focused
+ * element reads as a whole highlighted region rather than a faint outline you have to look for.
+ *
  * Pass the same [interactionSource] given to the element's own clickable modifier so this reads
  * the same focus state clickable is already tracking, rather than a second, separate one.
  */
 @Composable
 fun Modifier.tvFocusBorder(interactionSource: InteractionSource, shape: Shape = RectangleShape): Modifier {
     val isFocused by interactionSource.collectIsFocusedAsState()
-    return if (isFocused) this.border(width = 2.dp, color = Palette.Accent, shape = shape) else this
+    return if (isFocused) {
+        this
+            .background(color = Palette.Accent.copy(alpha = 0.22f), shape = shape)
+            .border(width = 3.dp, color = Palette.Accent, shape = shape)
+    } else {
+        this
+    }
 }

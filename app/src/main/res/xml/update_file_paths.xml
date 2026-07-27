@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exposes only the app's private cache dir (where AppUpdateInstaller downloads the update APK
+     to) via FileProvider - nothing else in the app needs a content:// URI grant. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="updates" path="." />
+</paths>

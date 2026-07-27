@@ -13,6 +13,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed class UpdateDownloadState {
+    data object Idle : UpdateDownloadState()
+    data class Downloading(val progress: Float) : UpdateDownloadState()
+    data class Failed(val message: String) : UpdateDownloadState()
+}
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val appUpdateRepository: AppUpdateRepository,
@@ -27,13 +33,28 @@ class SettingsViewModel @Inject constructor(
     private val _lastCheckResult = MutableStateFlow<UpdateCheckResult?>(null)
     val lastCheckResult: StateFlow<UpdateCheckResult?> = _lastCheckResult
 
+    private val _downloadState = MutableStateFlow<UpdateDownloadState>(UpdateDownloadState.Idle)
+    val downloadState: StateFlow<UpdateDownloadState> = _downloadState
+
     fun canInstallPackages(): Boolean = appUpdateInstaller.canInstallPackages()
 
     fun requestInstallPermissionIntent(): Intent = appUpdateInstaller.requestInstallPermissionIntent()
 
     fun startUpdateDownload() {
         val info = updateInfo.value ?: return
-        appUpdateInstaller.startDownload(info)
+        if (_downloadState.value is UpdateDownloadState.Downloading) return
+        viewModelScope.launch {
+            _downloadState.value = UpdateDownloadState.Downloading(0f)
+            runCatching {
+                appUpdateInstaller.downloadAndInstall(info) { progress ->
+                    _downloadState.value = UpdateDownloadState.Downloading(progress)
+                }
+            }.onSuccess {
+                _downloadState.value = UpdateDownloadState.Idle
+            }.onFailure { e ->
+                _downloadState.value = UpdateDownloadState.Failed(e.message ?: "Update download failed")
+            }
+        }
     }
 
     /** Manual "Check for Updates" row tap when no update is already known - bypassDismiss=true so an earlier Home-banner dismissal doesn't hide the result of an explicit check. */
