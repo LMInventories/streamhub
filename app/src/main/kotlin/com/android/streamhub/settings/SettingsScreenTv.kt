@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.material3.Card
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
@@ -43,7 +44,11 @@ fun SettingsScreenTv(
     onIptvPlaybackClick: () -> Unit,
     onScheduledManagementClick: () -> Unit,
     onDownloadsManagementClick: () -> Unit,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val updateSubtitle = rememberUpdateCheckSubtitle(settingsViewModel)
+    val onCheckForUpdateClick = rememberUpdateRowClick(settingsViewModel)
+
     val sections = buildSettingsSections(
         onIptvClick = onIptvClick,
         onJellyfinClick = onJellyfinClick,
@@ -54,6 +59,8 @@ fun SettingsScreenTv(
         onIptvPlaybackClick = onIptvPlaybackClick,
         onScheduledManagementClick = onScheduledManagementClick,
         onDownloadsManagementClick = onDownloadsManagementClick,
+        updateCheckSubtitle = updateSubtitle,
+        onCheckForUpdateClick = onCheckForUpdateClick,
     )
 
     Column(

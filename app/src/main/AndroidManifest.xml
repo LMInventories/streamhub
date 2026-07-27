@@ -12,6 +12,9 @@
          download fails before a single byte transfers. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- AppUpdateInstaller hands a downloaded APK to the system package installer - this app
+         isn't distributed via Play Store, so self-updating needs this explicitly. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- required=false so the same APK installs on phones (no leanback feature) and TV boxes -->
     <uses-feature

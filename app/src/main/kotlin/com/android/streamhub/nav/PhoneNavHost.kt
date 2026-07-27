@@ -19,6 +19,7 @@ import com.android.streamhub.feature.iptv.livetv.LiveTvScreenPhone
 import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
 import com.android.streamhub.feature.iptv.scheduled.ScheduledManagementScreen
 import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
+import com.android.streamhub.update.AppUpdateCheckEffect
 import com.android.streamhub.feature.iptv.settings.IptvPlaybackSettingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
@@ -62,6 +63,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
     val isFullscreenOverlayActive by hiltViewModel<FullscreenOverlayViewModel>().isActive.collectAsStateWithLifecycle()
 
     IptvAutoUpdateEffect()
+    AppUpdateCheckEffect()
 
     // Standard bottom-nav "switch tabs, keep each tab's state" pattern - without
     // saveState/restoreState, hopping between tabs would push a fresh backstack entry (and a

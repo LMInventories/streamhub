@@ -47,6 +47,9 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig.VERSION_CODE/VERSION_NAME - read by AppUpdateRepository to compare against
+        // the latest GitHub Release's tag.
+        buildConfig = true
     }
 
     compileOptions {
@@ -101,6 +104,11 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    // AppUpdateRepository's GitHub Releases API call - feature-iptv already depends on this, but
+    // only as `implementation`, which doesn't expose OkHttp's types to :app's own compile
+    // classpath.
+    implementation(libs.okhttp)
 
     // Backs AppUiSettingsRepository (theme mode + text size) - same DataStore-as-JSON pattern
     // feature-jellyfin/feature-iptv already use for their own settings.

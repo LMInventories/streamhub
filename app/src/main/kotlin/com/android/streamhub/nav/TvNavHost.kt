@@ -25,6 +25,7 @@ import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
 import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
 import com.android.streamhub.feature.iptv.scheduled.ScheduledManagementScreen
 import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
+import com.android.streamhub.update.AppUpdateCheckEffect
 import com.android.streamhub.feature.iptv.settings.IptvPlaybackSettingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
@@ -67,6 +68,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
     val isFullscreenOverlayActive by hiltViewModel<FullscreenOverlayViewModel>().isActive.collectAsStateWithLifecycle()
 
     IptvAutoUpdateEffect()
+    AppUpdateCheckEffect()
 
     // Explicit history of visited tabs. The popUpTo below is exactly what keeps each tab's
     // ViewModel/mini-player alive across switches, but as a side effect it also collapses
