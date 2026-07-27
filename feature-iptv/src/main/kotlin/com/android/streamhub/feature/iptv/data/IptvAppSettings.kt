@@ -4,10 +4,14 @@ import kotlinx.serialization.Serializable
 
 enum class ChannelSortOrder { PLAYLIST, ALPHABETICAL }
 
+// Multipliers relative to the current ("Medium") preview size - Small is exactly 50% smaller,
+// Large exactly 50% larger. Controlled from Settings > Appearance (not a Live TV-specific
+// setting), even though the underlying value stays here for IptvBrowseRepository/LiveTvViewModel
+// to keep reading directly - :app can depend on :feature-iptv, not the other way around.
 enum class PreviewPlayerSize(val multiplier: Float, val label: String) {
-    SMALL(0.75f, "Small"),
+    SMALL(0.5f, "Small"),
     MEDIUM(1f, "Medium"),
-    LARGE(1.3f, "Large"),
+    LARGE(1.5f, "Large"),
 }
 
 // How long the channel list (IptvBrowseRepository) and EPG guide (EpgGridRepository) stay cached

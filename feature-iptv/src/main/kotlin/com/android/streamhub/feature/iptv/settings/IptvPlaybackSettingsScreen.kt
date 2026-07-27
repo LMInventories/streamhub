@@ -33,11 +33,9 @@ import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsToggleRow
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
 import com.android.streamhub.feature.iptv.data.ChannelSortOrder
-import com.android.streamhub.feature.iptv.data.PreviewPlayerSize
 
 private val SORT_OPTIONS = listOf(ChannelSortOrder.PLAYLIST to "Playlist order", ChannelSortOrder.ALPHABETICAL to "A-Z")
 private val TIME_FORMAT_OPTIONS = listOf(true to "24-hour", false to "12-hour")
-private val PREVIEW_SIZE_OPTIONS = PreviewPlayerSize.entries.toList()
 
 /** Same "wrap own MaterialTheme locally" reasoning as IptvSettingsScreen - reachable from the TV nav host too. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,16 +93,6 @@ fun IptvPlaybackSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Preview player size", color = Palette.TextMuted)
-                    PillToggle(
-                        options = PREVIEW_SIZE_OPTIONS.map { it.label },
-                        selectedIndex = PREVIEW_SIZE_OPTIONS.indexOf(uiState.previewPlayerSize).coerceAtLeast(0),
-                        onSelect = { index -> viewModel.setPreviewPlayerSize(PREVIEW_SIZE_OPTIONS[index]) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
             }
         }
     }
@@ -144,15 +132,6 @@ fun IptvPlaybackSettingsScreenTv(
                     options = TIME_FORMAT_OPTIONS.map { it.second },
                     selectedIndex = TIME_FORMAT_OPTIONS.indexOfFirst { it.first == uiState.use24HourTime }.coerceAtLeast(0),
                     onSelect = { index -> viewModel.setUse24HourTime(TIME_FORMAT_OPTIONS[index].first) },
-                    modifier = Modifier.fillMaxWidth().padding(20.dp),
-                )
-            }
-
-            TvSettingsSection(title = "Preview player size") {
-                PillToggle(
-                    options = PREVIEW_SIZE_OPTIONS.map { it.label },
-                    selectedIndex = PREVIEW_SIZE_OPTIONS.indexOf(uiState.previewPlayerSize).coerceAtLeast(0),
-                    onSelect = { index -> viewModel.setPreviewPlayerSize(PREVIEW_SIZE_OPTIONS[index]) },
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                 )
             }

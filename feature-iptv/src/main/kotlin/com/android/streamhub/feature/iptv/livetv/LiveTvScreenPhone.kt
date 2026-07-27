@@ -76,6 +76,15 @@ fun LiveTvScreenPhone(
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Reported by EpgGridPanel (landscape only - portrait has no grid/scroll to preview) as the
+    // user scrolls the shared timeline to browse future programmes - null falls back to the
+    // channel's real live now/next below, so this only ever overrides while actively scrolled away
+    // from "now". Plain local Compose state rather than ViewModel state: uiState.nowProgram/
+    // nextProgram are also read by castCurrentChannel() for the Cast session's subtitle, which
+    // must stay tied to what's actually playing, not wherever the guide happens to be scrolled to.
+    var previewNowProgram by remember { mutableStateOf<EpgProgram?>(null) }
+    var previewNextProgram by remember { mutableStateOf<EpgProgram?>(null) }
+
     // Resumes the focused channel whenever this screen enters composition (first time, or
     // returning from another tab) and pauses it whenever it leaves - there's no reason to keep a
     // channel the user can't see decoding/buffering in the background. Category/channel browsing
@@ -163,8 +172,8 @@ fun LiveTvScreenPhone(
                         )
                         EpgInfoPanel(
                             channelName = uiState.focusedChannel?.name,
-                            nowProgram = uiState.nowProgram,
-                            nextProgram = uiState.nextProgram,
+                            nowProgram = previewNowProgram ?: uiState.nowProgram,
+                            nextProgram = previewNextProgram ?: uiState.nextProgram,
                             modifier = Modifier.padding(12.dp),
                         )
                     }
@@ -178,8 +187,8 @@ fun LiveTvScreenPhone(
                         )
                         EpgInfoPanel(
                             channelName = uiState.focusedChannel?.name,
-                            nowProgram = uiState.nowProgram,
-                            nextProgram = uiState.nextProgram,
+                            nowProgram = previewNowProgram ?: uiState.nowProgram,
+                            nextProgram = previewNextProgram ?: uiState.nextProgram,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color.Black)
@@ -201,6 +210,7 @@ fun LiveTvScreenPhone(
                 onScheduleRecording = viewModel::scheduleRecording,
                 onScheduleReminder = viewModel::scheduleReminder,
                 onOpenRecordings = onOpenRecordings,
+                onPreviewProgramChange = { current, next -> previewNowProgram = current; previewNextProgram = next },
                 // Without this, this content competes for height with the fixed-size mini-player
                 // row/header above it under Column's default (unbounded) child measurement,
                 // which is what made the grid/list silently fail to render in landscape - there's
@@ -264,6 +274,7 @@ fun LiveTvBrowseContent(
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
     onOpenRecordings: () -> Unit,
+    onPreviewProgramChange: (current: EpgProgram?, next: EpgProgram?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory = uiState.selectedCategory
@@ -346,9 +357,11 @@ fun LiveTvBrowseContent(
                         isLoading = uiState.isLoadingEpgGrid,
                         loadProgress = uiState.epgGridLoadProgress,
                         initialFocusChannelId = uiState.focusedChannel?.id,
+                        focusedChannelId = uiState.focusedChannel?.id,
                         onFocusChannel = onFocusChannel,
                         onScheduleRecording = onScheduleRecording,
                         onScheduleReminder = onScheduleReminder,
+                        onPreviewProgramChange = onPreviewProgramChange,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
                     else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {

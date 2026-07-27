@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.livetv.cast.CastButton
 
 // How long Back has to be held before it's treated as a "long press" shortcut rather than a
@@ -53,6 +55,14 @@ fun LiveTvScreenTv(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val miniPlayerState by viewModel.miniPlayerUiState.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+
+    // Reported by EpgGridPanel as the user scrolls the shared timeline to browse future
+    // programmes - null falls back to the channel's real live now/next below, so this only ever
+    // overrides while actively scrolled away from "now". Plain local Compose state rather than
+    // ViewModel state: uiState.nowProgram/nextProgram are also read by castCurrentChannel() for
+    // the Cast session's subtitle, which must stay tied to what's actually playing.
+    var previewNowProgram by remember { mutableStateOf<EpgProgram?>(null) }
+    var previewNextProgram by remember { mutableStateOf<EpgProgram?>(null) }
 
     // Resumes the focused channel whenever this screen enters composition (first time, or
     // returning from another tab) and pauses it whenever it leaves - there's no reason to keep a
@@ -173,8 +183,8 @@ fun LiveTvScreenTv(
                         )
                         EpgInfoPanel(
                             channelName = uiState.focusedChannel?.name,
-                            nowProgram = uiState.nowProgram,
-                            nextProgram = uiState.nextProgram,
+                            nowProgram = previewNowProgram ?: uiState.nowProgram,
+                            nextProgram = previewNextProgram ?: uiState.nextProgram,
                             modifier = Modifier.padding(16.dp),
                         )
                     }
@@ -195,6 +205,7 @@ fun LiveTvScreenTv(
                     onScheduleRecording = viewModel::scheduleRecording,
                     onScheduleReminder = viewModel::scheduleReminder,
                     onOpenRecordings = onOpenRecordings,
+                    onPreviewProgramChange = { current, next -> previewNowProgram = current; previewNextProgram = next },
                     // Load-bearing, not decorative - see LiveTvScreenPhone's matching comment.
                     modifier = Modifier.weight(1f),
                 )

@@ -93,9 +93,19 @@ fun EpgGridPanel(
     // already focused/previewing (see the LaunchedEffect below), so re-entering an already-browsed
     // category doesn't strand focus on the nav rail. Falls back to the first row if null/absent.
     initialFocusChannelId: String?,
+    // The channel currently focused/previewing in the mini-player - drives onPreviewProgramChange
+    // below regardless of D-pad focus restoration, so scrolling the shared timeline always updates
+    // the preview for whatever's actually playing, not whichever row initialFocusChannelId last seeded.
+    focusedChannelId: String?,
     onFocusChannel: (IptvChannelInfo) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
+    // Reports which programme the shared timeline's current horizontal scroll position lands on
+    // for focusedChannelId - (current, next), same shape as the mini-player's own now/next - so
+    // the top preview panel can show "whatever's scrolled to" while browsing future programmes
+    // instead of staying fixed on the channel's actual live now/next. Null/null when nothing to
+    // report (channel not in this category, or its guide data hasn't loaded).
+    onPreviewProgramChange: (current: EpgProgram?, next: EpgProgram?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val use24Hour = rememberUse24HourTime()
@@ -104,6 +114,32 @@ fun EpgGridPanel(
     var startAdjustMinutes by remember { mutableIntStateOf(0) }
     var endAdjustMinutes by remember { mutableIntStateOf(0) }
     var leadMinutes by remember { mutableIntStateOf(10) }
+
+    // Same pxPerMinute conversion ChannelTimeline computes for its own render-window culling -
+    // duplicated rather than shared since it's a one-line density conversion and hoisting it would
+    // mean threading a value down through GridChannelRow for no real benefit.
+    val density = LocalDensity.current
+    val pxPerMinute = with(density) { PIXELS_PER_MINUTE.toPx() }
+
+    // (current, next) at the shared timeline's scroll position, for whichever channel is actually
+    // focused/previewing - recomputed on every scroll delta via derivedStateOf (like
+    // ChannelTimeline's visibleProgrammes) so downstream reporting only fires when the *result*
+    // actually changes, not on every pixel of scroll.
+    val scrollPreview by remember(focusedChannelId, channels, programmesByChannel) {
+        derivedStateOf {
+            val channel = channels.firstOrNull { it.id == focusedChannelId }
+            val programmes = channel?.let { programmesByChannel[it.epgKey] }.orEmpty()
+            if (programmes.isEmpty()) return@derivedStateOf null to null
+            val atTime = windowStart.plus((sharedScrollState.value / pxPerMinute).toLong(), ChronoUnit.MINUTES)
+            val sorted = programmes.sortedBy { it.startAt }
+            val current = sorted.firstOrNull { atTime >= it.startAt && atTime < it.endAt }
+            val next = sorted.firstOrNull { it.startAt > atTime }
+            current to next
+        }
+    }
+    LaunchedEffect(scrollPreview) {
+        onPreviewProgramChange(scrollPreview.first, scrollPreview.second)
+    }
 
     // Closing the context menu/dialog chain (dismiss, Record, Reminder, Cancel) disposes whichever
     // row inside it currently holds D-pad focus with nothing left to take over, so without this

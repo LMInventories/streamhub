@@ -27,11 +27,13 @@ import com.android.streamhub.core.design.ThemeMode
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.feature.iptv.data.PreviewPlayerSize
 import androidx.tv.material3.Text as TvText
 
 private val THEME_OPTIONS = listOf(ThemeMode.DARK to "Dark", ThemeMode.LIGHT to "Light")
 private val TEXT_SCALE_OPTIONS = TextScale.entries.toList()
 private val LAUNCH_DESTINATION_OPTIONS = AppLaunchDestination.entries.toList()
+private val PREVIEW_SIZE_OPTIONS = PreviewPlayerSize.entries.toList()
 
 /** Same "wrap own MaterialTheme locally" reasoning as every other settings sub-screen - reachable from the TV nav host too. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,6 +43,7 @@ fun AppUiSettingsScreen(
     viewModel: AppUiSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val previewPlayerSize by viewModel.previewPlayerSize.collectAsStateWithLifecycle()
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -92,6 +95,20 @@ fun AppUiSettingsScreen(
                     )
                 }
 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Preview player size", color = Palette.TextMuted)
+                    PillToggle(
+                        options = PREVIEW_SIZE_OPTIONS.map { it.label },
+                        selectedIndex = PREVIEW_SIZE_OPTIONS.indexOf(previewPlayerSize).coerceAtLeast(0),
+                        onSelect = { index -> viewModel.setPreviewPlayerSize(PREVIEW_SIZE_OPTIONS[index]) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "Size of Live TV's mini-preview player above the channel/guide list.",
+                        color = Palette.TextMuted,
+                    )
+                }
+
                 Text(
                     text = "Applies across the whole app immediately.",
                     color = Palette.TextMuted,
@@ -108,6 +125,7 @@ fun AppUiSettingsScreenTv(
     viewModel: AppUiSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val previewPlayerSize by viewModel.previewPlayerSize.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Appearance", onBack = onDone)
@@ -140,6 +158,22 @@ fun AppUiSettingsScreenTv(
                     )
                     TvText(
                         text = "Which screen the app opens into when launched fresh (not just resumed from background). Live TV also resumes whatever channel was last viewed.",
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                }
+            }
+
+            TvSettingsSection(title = "Preview player size") {
+                Column {
+                    PillToggle(
+                        options = PREVIEW_SIZE_OPTIONS.map { it.label },
+                        selectedIndex = PREVIEW_SIZE_OPTIONS.indexOf(previewPlayerSize).coerceAtLeast(0),
+                        onSelect = { index -> viewModel.setPreviewPlayerSize(PREVIEW_SIZE_OPTIONS[index]) },
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    )
+                    TvText(
+                        text = "Size of Live TV's mini-preview player above the channel/guide list.",
                         color = Palette.TextMuted,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )
