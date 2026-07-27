@@ -5,6 +5,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,17 +50,25 @@ class IptvBrowseRepository @Inject constructor(
     // playlist just to filter it client-side by category). Cleared by invalidateCache(), which
     // "Update Playlist" and the auto-update setting both already call through to.
     private var cachedCategories: List<IptvCategoryInfo>? = null
+    private var categoriesFetchedAtEpochSeconds: Long = 0L
     // ConcurrentHashMap, not a plain map - getAllChannels() below writes into this from many
     // categories' coroutines running in parallel (genuinely concurrent, not just interleaved -
     // each getChannels() call suspends on real network I/O), so a plain mutableMapOf() here would
     // be a real data race.
     private val cachedChannelsByCategory = ConcurrentHashMap<String, List<IptvChannelInfo>>()
+    private val channelsFetchedAtEpochSeconds = ConcurrentHashMap<String, Long>()
     // The one raw fetch+parse of the M3U playlist that both getCategories() and every
     // getChannels() call now share, instead of each doing its own independent fetch+parse.
     private var cachedM3uChannels: List<M3uChannel>? = null
 
+    private suspend fun cacheDurationSeconds(): Long =
+        TimeUnit.DAYS.toSeconds(appSettingsRepository.settingsFlow.first().cacheDurationDays.toLong())
+
+    private fun isFresh(fetchedAtEpochSeconds: Long, ttlSeconds: Long): Boolean =
+        Instant.now().epochSecond - fetchedAtEpochSeconds < ttlSeconds
+
     suspend fun getCategories(): List<IptvCategoryInfo> {
-        cachedCategories?.let { return it }
+        cachedCategories?.let { if (isFresh(categoriesFetchedAtEpochSeconds, cacheDurationSeconds())) return it }
         val config = configRepository.configFlow.first() ?: return emptyList()
         val result = when (config) {
             is IptvSourceConfig.Xtream ->
@@ -71,11 +80,16 @@ class IptvBrowseRepository @Inject constructor(
                     .map { IptvCategoryInfo(id = it, name = if (it == UNCATEGORIZED_ID) "Uncategorized" else it) }
         }
         cachedCategories = result
+        categoriesFetchedAtEpochSeconds = Instant.now().epochSecond
         return result
     }
 
     suspend fun getChannels(categoryId: String): List<IptvChannelInfo> {
-        cachedChannelsByCategory[categoryId]?.let { return it }
+        val appSettings = appSettingsRepository.settingsFlow.first()
+        val ttlSeconds = TimeUnit.DAYS.toSeconds(appSettings.cacheDurationDays.toLong())
+        cachedChannelsByCategory[categoryId]?.let { cached ->
+            if (isFresh(channelsFetchedAtEpochSeconds[categoryId] ?: 0L, ttlSeconds)) return cached
+        }
         val config = configRepository.configFlow.first() ?: return emptyList()
         val result = when (config) {
             is IptvSourceConfig.Xtream ->
@@ -93,11 +107,12 @@ class IptvBrowseRepository @Inject constructor(
                     .filter { (it.groupTitle?.takeIf(String::isNotBlank) ?: UNCATEGORIZED_ID) == categoryId }
                     .map { IptvChannelInfo(id = it.id, name = it.name, logoUrl = it.logoUrl, streamUrl = it.streamUrl) }
         }
-        val sorted = when (appSettingsRepository.settingsFlow.first().channelSortOrder) {
+        val sorted = when (appSettings.channelSortOrder) {
             ChannelSortOrder.ALPHABETICAL -> result.sortedBy { it.name.lowercase() }
             ChannelSortOrder.PLAYLIST -> result
         }
         cachedChannelsByCategory[categoryId] = sorted
+        channelsFetchedAtEpochSeconds[categoryId] = Instant.now().epochSecond
         return sorted
     }
 
@@ -154,7 +169,9 @@ class IptvBrowseRepository @Inject constructor(
         cachedEpgUrl = null
         cachedEpgByChannelId = emptyMap()
         cachedCategories = null
+        categoriesFetchedAtEpochSeconds = 0L
         cachedChannelsByCategory.clear()
+        channelsFetchedAtEpochSeconds.clear()
         cachedM3uChannels = null
     }
 }

@@ -31,6 +31,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.tv.material3.Icon as TvIcon
+import androidx.tv.material3.IconButton as TvIconButton
+import androidx.tv.material3.Text as TvText
 import com.android.streamhub.feature.iptv.data.scheduled.ScheduledRecordingEntity
 import com.android.streamhub.feature.iptv.data.scheduled.ScheduledReminderEntity
 import com.android.streamhub.feature.iptv.livetv.dateTimeFormatter
@@ -140,5 +144,86 @@ private fun ScheduledRow(title: String, subtitle: String, onCancel: () -> Unit) 
             Text(text = subtitle, color = Palette.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, contentDescription = "Cancel", tint = Palette.Error) }
+    }
+}
+
+/** TV-native sibling of ScheduledManagementScreen - same ScheduledManagementViewModel. */
+@Composable
+fun ScheduledManagementScreenTv(
+    onBack: () -> Unit,
+    viewModel: ScheduledManagementViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val use24Hour = rememberUse24HourTime()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Scheduled", onBack = onBack)
+
+        when {
+            uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            uiState.reminders.isEmpty() && uiState.recordings.isEmpty() -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    TvText("Nothing scheduled", color = Palette.TextPrimary)
+                    TvText(
+                        text = "Reminders and recordings you set from the EPG guide or Search will show up here.",
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
+                    )
+                }
+            }
+            else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
+                if (uiState.reminders.isNotEmpty()) {
+                    item { TvSectionHeader("Reminders") }
+                    items(uiState.reminders, key = { "reminder:${it.id}" }) { reminder ->
+                        TvReminderRow(reminder, use24Hour, onCancel = { viewModel.cancelReminder(reminder) })
+                    }
+                }
+                if (uiState.recordings.isNotEmpty()) {
+                    item { TvSectionHeader("Scheduled Recordings") }
+                    items(uiState.recordings, key = { "recording:${it.id}" }) { recording ->
+                        TvRecordingRow(recording, use24Hour, onCancel = { viewModel.cancelRecording(recording) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvSectionHeader(title: String) {
+    TvText(text = title, color = Palette.TextPrimary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+}
+
+@Composable
+private fun TvReminderRow(reminder: ScheduledReminderEntity, use24Hour: Boolean, onCancel: () -> Unit) {
+    TvScheduledRow(
+        title = reminder.programTitle,
+        subtitle = "${reminder.channelName} · ${formattedTime(reminder.programStartEpochSeconds, use24Hour)} · ${reminder.leadMinutes}m before",
+        onCancel = onCancel,
+    )
+}
+
+@Composable
+private fun TvRecordingRow(recording: ScheduledRecordingEntity, use24Hour: Boolean, onCancel: () -> Unit) {
+    TvScheduledRow(
+        title = recording.programTitle,
+        subtitle = "${recording.channelName} · ${formattedTime(recording.recordStartEpochSeconds, use24Hour)}",
+        onCancel = onCancel,
+    )
+}
+
+@Composable
+private fun TvScheduledRow(title: String, subtitle: String, onCancel: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            TvText(text = title, color = Palette.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            TvText(text = subtitle, color = Palette.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        TvIconButton(onClick = onCancel) { TvIcon(Icons.Filled.Close, contentDescription = "Cancel", tint = Palette.Error) }
     }
 }

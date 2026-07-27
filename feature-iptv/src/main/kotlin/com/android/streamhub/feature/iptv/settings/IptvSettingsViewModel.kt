@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.streamhub.feature.iptv.data.AutoUpdateMode
 import com.android.streamhub.feature.iptv.data.AutoUpdateSetting
+import com.android.streamhub.feature.iptv.data.IptvAppSettingsRepository
 import com.android.streamhub.feature.iptv.data.IptvAutoUpdateRepository
 import com.android.streamhub.feature.iptv.data.IptvSourceConfig
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
@@ -30,12 +31,14 @@ data class IptvSettingsUiState(
     val isUpdating: Boolean = false,
     val updated: Boolean = false,
     val autoUpdate: AutoUpdateSetting = AutoUpdateSetting(),
+    val cacheDurationDays: Int = 1,
 )
 
 @HiltViewModel
 class IptvSettingsViewModel @Inject constructor(
     private val repository: IptvSourceConfigRepository,
     private val autoUpdateRepository: IptvAutoUpdateRepository,
+    private val appSettingsRepository: IptvAppSettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IptvSettingsUiState())
@@ -68,6 +71,9 @@ class IptvSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             autoUpdateRepository.settingFlow.collect { setting -> _uiState.update { it.copy(autoUpdate = setting) } }
         }
+        viewModelScope.launch {
+            appSettingsRepository.settingsFlow.collect { settings -> _uiState.update { it.copy(cacheDurationDays = settings.cacheDurationDays) } }
+        }
     }
 
     /** Saves immediately, not bundled into the source-config Save button - this is a standalone background-behavior toggle. */
@@ -79,6 +85,12 @@ class IptvSettingsViewModel @Inject constructor(
         val updated = transform(_uiState.value.autoUpdate)
         _uiState.update { it.copy(autoUpdate = updated) }
         viewModelScope.launch { autoUpdateRepository.saveSetting(updated) }
+    }
+
+    /** Saves immediately, same shape as saveAutoUpdate above - governs how long the channel list/EPG guide stay cached before a genuine re-fetch (see IptvBrowseRepository/EpgGridRepository). */
+    fun setCacheDurationDays(days: Int) {
+        _uiState.update { it.copy(cacheDurationDays = days) }
+        viewModelScope.launch { appSettingsRepository.update { it.copy(cacheDurationDays = days) } }
     }
 
     fun selectProviderType(type: IptvProviderType) = _uiState.update { it.copy(providerType = type, saved = false) }

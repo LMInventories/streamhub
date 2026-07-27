@@ -25,6 +25,9 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.PillToggle
 import com.android.streamhub.core.design.ThemeMode
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.tv.material3.Text as TvText
 
 private val THEME_OPTIONS = listOf(ThemeMode.DARK to "Dark", ThemeMode.LIGHT to "Light")
 private val TEXT_SCALE_OPTIONS = TextScale.entries.toList()
@@ -79,6 +82,40 @@ fun AppUiSettingsScreen(
                     color = Palette.TextMuted,
                 )
             }
+        }
+    }
+}
+
+/** TV-native sibling of AppUiSettingsScreen - same AppUiSettingsViewModel. PillToggle is theme-library-agnostic (BasicText, not Material3), so it's reused directly rather than restyled. */
+@Composable
+fun AppUiSettingsScreenTv(
+    onDone: () -> Unit,
+    viewModel: AppUiSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Appearance", onBack = onDone)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp)) {
+            TvSettingsSection(title = "Theme") {
+                PillToggle(
+                    options = THEME_OPTIONS.map { it.second },
+                    selectedIndex = THEME_OPTIONS.indexOfFirst { it.first == uiState.themeMode }.coerceAtLeast(0),
+                    onSelect = { index -> viewModel.setThemeMode(THEME_OPTIONS[index].first) },
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                )
+            }
+
+            TvSettingsSection(title = "Text size") {
+                PillToggle(
+                    options = TEXT_SCALE_OPTIONS.map { it.label },
+                    selectedIndex = TEXT_SCALE_OPTIONS.indexOf(uiState.textScale).coerceAtLeast(0),
+                    onSelect = { index -> viewModel.setTextScale(TEXT_SCALE_OPTIONS[index]) },
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                )
+            }
+
+            TvText(text = "Applies across the whole app immediately.", color = Palette.TextMuted)
         }
     }
 }

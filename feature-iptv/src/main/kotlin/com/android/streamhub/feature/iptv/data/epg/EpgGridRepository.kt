@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import com.android.streamhub.core.common.search.FuzzyMatch
 import com.android.streamhub.feature.iptv.data.EpgProgram
+import com.android.streamhub.feature.iptv.data.IptvAppSettingsRepository
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.IptvSourceConfig
 import com.android.streamhub.feature.iptv.data.IptvSourceConfigRepository
@@ -52,11 +53,13 @@ class EpgGridRepository @Inject constructor(
     private val dao: EpgDao,
     private val okHttpClient: OkHttpClient,
     private val dataStore: DataStore<Preferences>,
+    private val appSettingsRepository: IptvAppSettingsRepository,
 ) {
     private val lastRefreshedKey = longPreferencesKey("epg_grid_last_refreshed_epoch_seconds")
 
-    // A bit under 24h so a daily refresh doesn't creep later and later each day.
-    private val refreshIntervalSeconds = TimeUnit.HOURS.toSeconds(20)
+    // User-tunable via Settings' Cache Duration (1/3/5/7 days) - was a hardcoded ~20h before.
+    private suspend fun refreshIntervalSeconds(): Long =
+        TimeUnit.DAYS.toSeconds(appSettingsRepository.settingsFlow.first().cacheDurationDays.toLong())
 
     // LiveTvViewModel now kicks this off proactively on init (in parallel with loadCategories())
     // *and* whenever a category is selected - without this, both of those firing close together
@@ -84,7 +87,7 @@ class EpgGridRepository @Inject constructor(
         refreshMutex.withLock {
             val lastRefreshed = dataStore.data.map { it[lastRefreshedKey] ?: 0L }.first()
             val now = Instant.now().epochSecond
-            if (!forceRefresh && now - lastRefreshed < refreshIntervalSeconds && dao.count() > 0) {
+            if (!forceRefresh && now - lastRefreshed < refreshIntervalSeconds() && dao.count() > 0) {
                 return@withContext EpgRefreshResult.UpToDate
             }
 

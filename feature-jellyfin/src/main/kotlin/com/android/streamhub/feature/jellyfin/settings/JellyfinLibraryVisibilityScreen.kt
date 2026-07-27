@@ -29,6 +29,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsToggleRow
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.tv.material3.Text as TvText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +84,39 @@ fun JellyfinLibraryVisibilityScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** TV-native sibling of JellyfinLibraryVisibilityScreen - same JellyfinLibraryVisibilityViewModel. */
+@Composable
+fun JellyfinLibraryVisibilityScreenTv(
+    onDone: () -> Unit,
+    viewModel: JellyfinLibraryVisibilityViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Libraries", onBack = onDone)
+
+        if (uiState.isLoading) {
+            return
+        }
+
+        if (uiState.libraries.isEmpty()) {
+            TvText(text = "No libraries found on this server.", color = Palette.TextMuted, modifier = Modifier.padding(32.dp))
+            return
+        }
+
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+            items(uiState.libraries, key = { it.id }) { library ->
+                TvSettingsToggleRow(
+                    label = library.name,
+                    checked = library.id !in uiState.hiddenLibraryIds,
+                    onToggle = { viewModel.toggleVisible(library.id) },
+                )
+                TvSettingsRowDivider()
             }
         }
     }

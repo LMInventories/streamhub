@@ -20,14 +20,14 @@ import androidx.navigation.navArgument
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
 import com.android.streamhub.core.ui.tv.scaffold.TvScaffold
-import com.android.streamhub.downloads.DownloadsManagementScreen
+import com.android.streamhub.downloads.DownloadsManagementScreenTv
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
 import com.android.streamhub.feature.iptv.recordings.RecordingsScreen
-import com.android.streamhub.feature.iptv.scheduled.ScheduledManagementScreen
+import com.android.streamhub.feature.iptv.scheduled.ScheduledManagementScreenTv
 import com.android.streamhub.feature.iptv.settings.IptvAutoUpdateEffect
 import com.android.streamhub.update.AppUpdateCheckEffect
-import com.android.streamhub.feature.iptv.settings.IptvPlaybackSettingsScreen
-import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
+import com.android.streamhub.feature.iptv.settings.IptvPlaybackSettingsScreenTv
+import com.android.streamhub.feature.iptv.settings.IptvSettingsScreenTv
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenTv
@@ -37,15 +37,15 @@ import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreenTv
 import com.android.streamhub.feature.jellyfin.library.JellyfinFavoritesScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinSeeAllScreen
-import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderScreen
-import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibilityScreen
-import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreen
-import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
+import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderScreenTv
+import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibilityScreenTv
+import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreenTv
+import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreenTv
 import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.home.HomeScreenTv
 import com.android.streamhub.placeholder.ComingSoonScreen
 import com.android.streamhub.search.SearchScreen
-import com.android.streamhub.settings.AppUiSettingsScreen
+import com.android.streamhub.settings.AppUiSettingsScreenTv
 import com.android.streamhub.settings.SettingsScreenTv
 
 private val TAB_ROUTES = setOf(
@@ -252,34 +252,34 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
-                IptvSettingsScreen(onDone = { navController.popBackStack() })
+                IptvSettingsScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) {
-                IptvPlaybackSettingsScreen(onDone = { navController.popBackStack() })
+                IptvPlaybackSettingsScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.DOWNLOADS_MANAGEMENT_PATTERN) {
-                DownloadsManagementScreen(
+                DownloadsManagementScreenTv(
                     onBack = { navController.popBackStack() },
                     onOpenDownload = { itemId, sourceType -> navController.navigate(Route.playerRoute(itemId, sourceType)) },
                 )
             }
             composable(Route.SCHEDULED_MANAGEMENT_PATTERN) {
-                ScheduledManagementScreen(onBack = { navController.popBackStack() })
+                ScheduledManagementScreenTv(onBack = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_SETTINGS_PATTERN) {
-                JellyfinSettingsScreen(onDone = { navController.popBackStack() })
+                JellyfinSettingsScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) {
-                JellyfinPlaybackSettingsScreen(onDone = { navController.popBackStack() })
+                JellyfinPlaybackSettingsScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) {
-                JellyfinLibraryVisibilityScreen(onDone = { navController.popBackStack() })
+                JellyfinLibraryVisibilityScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_HOME_SECTION_ORDER_PATTERN) {
-                JellyfinHomeSectionOrderScreen(onDone = { navController.popBackStack() })
+                JellyfinHomeSectionOrderScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.APP_UI_SETTINGS_PATTERN) {
-                AppUiSettingsScreen(onDone = { navController.popBackStack() })
+                AppUiSettingsScreenTv(onDone = { navController.popBackStack() })
             }
             composable(
                 route = Route.PLAYER_PATTERN,

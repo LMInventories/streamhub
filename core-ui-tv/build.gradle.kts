@@ -29,12 +29,19 @@ kotlin {
 dependencies {
     implementation(project(":core-common"))
     api(project(":core-design"))
+    // TvSettingsTextField needs Material3's OutlinedTextField (tv-material3 has no text field of
+    // its own - the same reason every settings sub-screen with input fields wraps a local plain
+    // Material3 theme instead of relying on tv-material3's ambient one) and appColorScheme() to
+    // theme it correctly - already the established shared home for that helper regardless of
+    // platform (feature-iptv/feature-jellyfin's own settings screens already pull it from here).
+    implementation(project(":core-ui-phone"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)

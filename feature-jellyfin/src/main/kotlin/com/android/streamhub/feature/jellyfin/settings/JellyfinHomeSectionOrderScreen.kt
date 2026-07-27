@@ -30,6 +30,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.tv.material3.Icon as TvIcon
+import androidx.tv.material3.IconButton as TvIconButton
+import androidx.tv.material3.Text as TvText
 
 /** Up/down buttons rather than drag-and-drop - no extra gesture-detection/reorder-animation state to build or get wrong, and moving a section a few positions is still just a few taps. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,6 +87,46 @@ fun JellyfinHomeSectionOrderScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** TV-native sibling of JellyfinHomeSectionOrderScreen - same JellyfinHomeSectionOrderViewModel and up/down-button reorder interaction. */
+@Composable
+fun JellyfinHomeSectionOrderScreenTv(
+    onDone: () -> Unit,
+    viewModel: JellyfinHomeSectionOrderViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Home screen order", onBack = onDone)
+
+        if (uiState.isLoading) return
+
+        TvText(
+            text = "Sections with nothing in them right now still show up here, but won't appear on Home until they do.",
+            color = Palette.TextMuted,
+            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
+        )
+
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+            items(uiState.sections, key = { it.key }) { section ->
+                val index = uiState.sections.indexOf(section)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TvText(text = section.title, color = Palette.TextPrimary, modifier = Modifier.weight(1f))
+                    TvIconButton(onClick = { viewModel.moveUp(index) }, enabled = index > 0) {
+                        TvIcon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up")
+                    }
+                    TvIconButton(onClick = { viewModel.moveDown(index) }, enabled = index < uiState.sections.lastIndex) {
+                        TvIcon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down")
+                    }
+                }
+                TvSettingsRowDivider()
             }
         }
     }

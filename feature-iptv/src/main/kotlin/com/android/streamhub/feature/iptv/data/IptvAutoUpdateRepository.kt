@@ -42,12 +42,28 @@ class IptvAutoUpdateRepository @Inject constructor(
         dataStore.edit { it[settingKey] = json.encodeToString(setting) }
     }
 
-    /** Drops every IPTV cache and re-signals active screens to refetch - unconditional, used by the manual "Update Playlist" button. */
+    /** Drops every IPTV cache and re-signals active screens to refetch - unconditional, used only by the manual "Update Playlist" button. checkAndRefreshIfDue()'s automatic tick uses refreshIfDue() below instead, which doesn't bypass Cache Duration. */
     suspend fun forceRefreshNow() {
         mediaSource.invalidateCache()
         browseRepository.invalidateCache()
         vodRepository.invalidateCache()
         runCatching { epgGridRepository.ensureFresh(forceRefresh = true) }
+        configRepository.requestRefresh()
+        dataStore.edit { it[lastRefreshKey] = Instant.now().epochSecond }
+    }
+
+    /**
+     * The automatic policy tick's own version of forceRefreshNow() - deliberately lighter. Channel
+     * list (IptvBrowseRepository) and the EPG guide (EpgGridRepository) now track their own
+     * Cache Duration-based freshness independently of whether/when this fires, so forcing them here
+     * too would defeat that setting entirely (this used to call forceRefreshNow() directly, which
+     * unconditionally bypassed both - the reported "EPG keeps re-downloading no matter what" bug).
+     * VOD has no such TTL of its own yet, so it keeps today's "auto-update tick invalidates it"
+     * behavior; re-validating the source config itself (requestRefresh) is a different concern
+     * from cache staleness and stays unconditional too.
+     */
+    private suspend fun refreshIfDue() {
+        vodRepository.invalidateCache()
         configRepository.requestRefresh()
         dataStore.edit { it[lastRefreshKey] = Instant.now().epochSecond }
     }
@@ -70,6 +86,6 @@ class IptvAutoUpdateRepository @Inject constructor(
             AutoUpdateMode.EVERY_N_DAYS -> now - lastRefresh >= TimeUnit.DAYS.toSeconds(setting.days.toLong())
             AutoUpdateMode.EVERY_N_HOURS -> now - lastRefresh >= TimeUnit.HOURS.toSeconds(setting.hours.toLong())
         }
-        if (due) forceRefreshNow()
+        if (due) refreshIfDue()
     }
 }

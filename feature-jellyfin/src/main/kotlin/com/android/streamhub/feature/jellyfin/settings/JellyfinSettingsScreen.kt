@@ -44,6 +44,14 @@ import com.android.streamhub.core.design.rememberTvManualKeyboardReadOnly
 import com.android.streamhub.core.design.tvManualKeyboard
 import com.android.streamhub.core.design.tvScrollsIntoViewOnFocus
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTextField
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.tv.material3.Button as TvButton
+import androidx.tv.material3.Icon as TvIcon
+import androidx.tv.material3.IconButton as TvIconButton
+import androidx.tv.material3.MaterialTheme as TvMaterialTheme
+import androidx.tv.material3.Text as TvText
 
 // Same "wrap own MaterialTheme locally" reasoning as IptvSettingsScreen - reachable from the TV
 // nav host too, which only wraps content in tv-material3's MaterialTheme, not this one.
@@ -179,6 +187,98 @@ fun JellyfinSettingsScreen(
                     Text("Signed in as ${uiState.username}.", color = Palette.TextMuted)
                     OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.tvScrollsIntoViewOnFocus()) {
                         Text("Sign out")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** TV-native sibling of JellyfinSettingsScreen - same JellyfinSettingsViewModel (server sign-in + Quick Connect), TvSettingsSection/TextField layout instead of a Material3 form. */
+@Composable
+fun JellyfinSettingsScreenTv(
+    onDone: () -> Unit,
+    viewModel: JellyfinSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val clipboardManager = LocalClipboardManager.current
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Jellyfin server", onBack = onDone)
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 8.dp),
+        ) {
+            TvSettingsSection(title = "Server") {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    TvSettingsTextField(
+                        value = uiState.serverUrl,
+                        onValueChange = viewModel::updateServerUrl,
+                        label = "Server URL (e.g. http://host:8096)",
+                        keyboardType = KeyboardType.Uri,
+                        enabled = !uiState.isSigningIn,
+                    )
+                    TvSettingsTextField(
+                        value = uiState.username,
+                        onValueChange = viewModel::updateUsername,
+                        label = "Username",
+                        enabled = !uiState.isSigningIn,
+                    )
+                    TvSettingsTextField(
+                        value = uiState.password,
+                        onValueChange = viewModel::updatePassword,
+                        label = "Password",
+                        visualTransformation = PasswordVisualTransformation(),
+                        enabled = !uiState.isSigningIn,
+                    )
+                    TvButton(onClick = viewModel::signIn, enabled = !uiState.isSigningIn) {
+                        TvText(if (uiState.isSigningIn) "Signing in…" else "Sign in")
+                    }
+                }
+            }
+
+            if (!uiState.signedIn) {
+                TvSettingsSection(title = "Quick Connect") {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val quickConnectCode = uiState.quickConnectCode
+                        if (quickConnectCode != null) {
+                            TvText(
+                                text = "Enter this code on the server (web UI, or another signed-in app) under your account's Quick Connect settings:",
+                                color = Palette.TextMuted,
+                            )
+                            TvText(
+                                text = quickConnectCode,
+                                style = TvMaterialTheme.typography.headlineMedium,
+                                color = Palette.Accent,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                            )
+                            TvText("Waiting for approval…", color = Palette.TextMuted)
+                            TvButton(onClick = viewModel::cancelQuickConnect) { TvText("Cancel") }
+                        } else {
+                            TvButton(onClick = viewModel::startQuickConnect, enabled = !uiState.isQuickConnecting) {
+                                TvText(if (uiState.isQuickConnecting) "Starting…" else "Sign in with Quick Connect")
+                            }
+                        }
+                    }
+                }
+            }
+
+            uiState.errorMessage?.let { error ->
+                TvSettingsSection(title = "Error") {
+                    Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(20.dp)) {
+                        TvText(error, color = Palette.Error, modifier = Modifier.weight(1f))
+                        TvIconButton(onClick = { clipboardManager.setText(AnnotatedString(error)) }) {
+                            TvIcon(Icons.Filled.ContentCopy, contentDescription = "Copy error details")
+                        }
+                    }
+                }
+            }
+
+            if (uiState.signedIn) {
+                TvSettingsSection(title = "Account") {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvText("Signed in as ${uiState.username}.", color = Palette.TextMuted)
+                        TvButton(onClick = { viewModel.signOut() }) { TvText("Sign out") }
                     }
                 }
             }

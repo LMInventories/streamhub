@@ -41,6 +41,13 @@ import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_DAY_OPTIONS
 import com.android.streamhub.feature.iptv.data.AUTO_UPDATE_HOUR_OPTIONS
 import com.android.streamhub.feature.iptv.data.AutoUpdateMode
+import com.android.streamhub.feature.iptv.data.CACHE_DURATION_DAY_OPTIONS
+import com.android.streamhub.core.ui.tv.scaffold.TvChoiceChip
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTextField
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.tv.material3.Button as TvButton
+import androidx.tv.material3.Text as TvText
 
 // This screen uses mobile Material3 components but is reachable from the TV nav host too, which
 // only wraps content in tv-material3's MaterialTheme, not this one - without a local wrapper the
@@ -244,8 +251,160 @@ fun IptvSettingsScreen(
                         }
                     }
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Palette.Border)
+
+                Text("Cache duration", color = Palette.TextPrimary)
+                Text(
+                    "How long the channel list and EPG guide stay cached before checking again - longer means faster loads, shorter means fresher data.",
+                    color = Palette.TextMuted,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    CACHE_DURATION_DAY_OPTIONS.forEach { days ->
+                        FilterChip(
+                            selected = uiState.cacheDurationDays == days,
+                            onClick = { viewModel.setCacheDurationDays(days) },
+                            label = { Text(if (days == 1) "1 day" else "$days days") },
+                            modifier = Modifier.tvScrollsIntoViewOnFocus(),
+                        )
+                    }
+                }
             }
         }
     }
+    }
+}
+
+/** TV-native sibling of IptvSettingsScreen - same IptvSettingsViewModel, TvSettingsSection/Row/TextField layout instead of a Material3 form. */
+@Composable
+fun IptvSettingsScreenTv(
+    onDone: () -> Unit,
+    viewModel: IptvSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "IPTV source", onBack = onDone)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp, vertical = 8.dp),
+        ) {
+            TvSettingsSection(title = "Source type") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(20.dp)) {
+                    TvChoiceChip(
+                        label = "Xtream Codes",
+                        selected = uiState.providerType == IptvProviderType.XTREAM,
+                        onClick = { viewModel.selectProviderType(IptvProviderType.XTREAM) },
+                    )
+                    TvChoiceChip(
+                        label = "M3U playlist",
+                        selected = uiState.providerType == IptvProviderType.M3U,
+                        onClick = { viewModel.selectProviderType(IptvProviderType.M3U) },
+                    )
+                }
+            }
+
+            TvSettingsSection(title = if (uiState.providerType == IptvProviderType.XTREAM) "Xtream details" else "M3U details") {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (uiState.providerType == IptvProviderType.XTREAM) {
+                        TvSettingsTextField(
+                            value = uiState.xtreamBaseUrl,
+                            onValueChange = viewModel::updateXtreamBaseUrl,
+                            label = "Server URL (e.g. http://host:port)",
+                            keyboardType = KeyboardType.Uri,
+                        )
+                        TvSettingsTextField(
+                            value = uiState.xtreamUsername,
+                            onValueChange = viewModel::updateXtreamUsername,
+                            label = "Username",
+                        )
+                        TvSettingsTextField(
+                            value = uiState.xtreamPassword,
+                            onValueChange = viewModel::updateXtreamPassword,
+                            label = "Password",
+                            visualTransformation = PasswordVisualTransformation(),
+                        )
+                        TvSettingsTextField(
+                            value = uiState.xtreamXmlTvUrlOverride,
+                            onValueChange = viewModel::updateXtreamXmlTvUrlOverride,
+                            label = "EPG (XMLTV) URL override - optional",
+                            keyboardType = KeyboardType.Uri,
+                        )
+                    } else {
+                        TvSettingsTextField(
+                            value = uiState.m3uPlaylistUrl,
+                            onValueChange = viewModel::updateM3uPlaylistUrl,
+                            label = "Playlist URL",
+                            keyboardType = KeyboardType.Uri,
+                        )
+                        TvSettingsTextField(
+                            value = uiState.m3uEpgUrl,
+                            onValueChange = viewModel::updateM3uEpgUrl,
+                            label = "EPG (XMLTV) URL - optional",
+                            keyboardType = KeyboardType.Uri,
+                        )
+                    }
+                    TvButton(onClick = { viewModel.save(); onDone() }) { TvText(if (uiState.saved) "Saved" else "Save") }
+                }
+            }
+
+            if (uiState.hasSource) {
+                TvSettingsSection(title = "Playlist") {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvText("Playlist not showing everything it should? Refetch it without re-entering your details.", color = Palette.TextMuted)
+                        TvButton(onClick = viewModel::updatePlaylist) {
+                            TvText(if (uiState.isUpdating) "Updating…" else "Update Playlist")
+                        }
+                        if (uiState.updated && !uiState.isUpdating) {
+                            TvText("Playlist updated.", color = Palette.TextMuted)
+                        }
+                    }
+                }
+
+                TvSettingsSection(title = "Auto-update") {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TvChoiceChip("Off", uiState.autoUpdate.mode == AutoUpdateMode.OFF) { viewModel.selectAutoUpdateMode(AutoUpdateMode.OFF) }
+                            TvChoiceChip("On App Open", uiState.autoUpdate.mode == AutoUpdateMode.ON_APP_OPEN) { viewModel.selectAutoUpdateMode(AutoUpdateMode.ON_APP_OPEN) }
+                            TvChoiceChip("Every few days", uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_DAYS) { viewModel.selectAutoUpdateMode(AutoUpdateMode.EVERY_N_DAYS) }
+                            TvChoiceChip("Every few hours", uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_HOURS) { viewModel.selectAutoUpdateMode(AutoUpdateMode.EVERY_N_HOURS) }
+                        }
+                        if (uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_DAYS) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AUTO_UPDATE_DAY_OPTIONS.forEach { days ->
+                                    TvChoiceChip(if (days == 1) "1 day" else "$days days", uiState.autoUpdate.days == days) { viewModel.setAutoUpdateDays(days) }
+                                }
+                            }
+                        }
+                        if (uiState.autoUpdate.mode == AutoUpdateMode.EVERY_N_HOURS) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AUTO_UPDATE_HOUR_OPTIONS.forEach { hours ->
+                                    TvChoiceChip("$hours hours", uiState.autoUpdate.hours == hours) { viewModel.setAutoUpdateHours(hours) }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                TvSettingsSection(title = "Cache duration") {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TvText(
+                            "How long the channel list and EPG guide stay cached before checking again - longer means faster loads, shorter means fresher data.",
+                            color = Palette.TextMuted,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CACHE_DURATION_DAY_OPTIONS.forEach { days ->
+                                TvChoiceChip(if (days == 1) "1 day" else "$days days", uiState.cacheDurationDays == days) { viewModel.setCacheDurationDays(days) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +47,12 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.tv.material3.Icon as TvIcon
+import androidx.tv.material3.IconButton as TvIconButton
+import androidx.tv.material3.Text as TvText
 import kotlin.math.ln
 import kotlin.math.pow
 
@@ -194,4 +201,113 @@ private fun formatBytes(bytes: Long): String {
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (ln(bytes.toDouble()) / ln(1024.0)).toInt().coerceIn(0, units.size - 1)
     return "%.1f %s".format(bytes / 1024.0.pow(digitGroups), units[digitGroups])
+}
+
+/** TV-native sibling of DownloadsManagementScreen - same DownloadsManagementViewModel and status/format helpers above. */
+@Composable
+fun DownloadsManagementScreenTv(
+    onBack: () -> Unit,
+    onOpenDownload: (itemId: String, sourceType: SourceType) -> Unit,
+    viewModel: DownloadsManagementViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Downloads", onBack = onBack)
+
+        if (uiState.downloads.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    TvText("No downloads yet", color = Palette.TextPrimary)
+                    TvText(
+                        text = "Download a movie or episode from its detail screen to watch it offline.",
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(top = 8.dp, start = 32.dp, end = 32.dp),
+                    )
+                }
+            }
+        } else {
+            TvText(
+                text = "${formatBytes(uiState.totalBytesUsed)} used · ${formatBytes(uiState.freeBytesAvailable)} free",
+                color = Palette.TextMuted,
+                modifier = Modifier.padding(32.dp, 8.dp),
+            )
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
+                items(uiState.downloads, key = { it.id }) { download ->
+                    TvDownloadRow(
+                        download = download,
+                        onPause = { viewModel.pause(download.id) },
+                        onResume = { viewModel.resume(download.id) },
+                        onRemove = { viewModel.remove(download.id) },
+                        onRetry = { viewModel.retry(download.id) },
+                        onOpen = { onOpenDownload(download.id, download.sourceType) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvDownloadRow(
+    download: DownloadInfo,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRemove: () -> Unit,
+    onRetry: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    val isPlayable = download.state == DownloadState.COMPLETED
+    val interactionSource = remember { MutableInteractionSource() }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .tvFocusBorder(interactionSource)
+            .clickable(interactionSource = interactionSource, indication = null, enabled = isPlayable, onClick = onOpen)
+            .padding(vertical = 10.dp),
+    ) {
+        Box(modifier = Modifier.width(56.dp).aspectRatio(2f / 3f).clip(AppShapes.small).background(Palette.Surface)) {
+            if (download.posterUrl != null) {
+                AsyncImage(
+                    model = download.posterUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .padding(3.dp)
+                    .clip(CircleShape)
+                    .background(sourceBadgeColor(download.sourceType))
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+            TvText(text = download.title, color = Palette.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            TvText(
+                text = statusLabel(download),
+                color = if (download.state == DownloadState.FAILED) Palette.Error else Palette.TextMuted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        when (download.state) {
+            DownloadState.QUEUED, DownloadState.DOWNLOADING -> {
+                if (download.progressPercent >= 0f) {
+                    CircularProgressIndicator(progress = { download.progressPercent / 100f }, modifier = Modifier.padding(end = 4.dp))
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.padding(end = 4.dp))
+                }
+                TvIconButton(onClick = onPause) { TvIcon(Icons.Filled.Pause, contentDescription = "Pause") }
+            }
+            DownloadState.PAUSED -> TvIconButton(onClick = onResume) { TvIcon(Icons.Filled.PlayArrow, contentDescription = "Resume") }
+            DownloadState.REMOVING -> CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
+            DownloadState.FAILED -> TvIconButton(onClick = onRetry) { TvIcon(Icons.Filled.Refresh, contentDescription = "Retry") }
+            DownloadState.COMPLETED -> Unit
+        }
+        TvIconButton(onClick = onRemove) { TvIcon(Icons.Filled.Close, contentDescription = "Delete", tint = Palette.Error) }
+    }
 }

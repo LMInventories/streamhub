@@ -29,6 +29,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.PillToggle
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsToggleRow
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
 import com.android.streamhub.feature.iptv.data.ChannelSortOrder
 import com.android.streamhub.feature.iptv.data.PreviewPlayerSize
 
@@ -102,6 +105,56 @@ fun IptvPlaybackSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+            }
+        }
+    }
+}
+
+/** TV-native sibling of IptvPlaybackSettingsScreen - same IptvPlaybackSettingsViewModel. PillToggle is theme-library-agnostic (BasicText, not Material3), so it's reused directly rather than restyled. */
+@Composable
+fun IptvPlaybackSettingsScreenTv(
+    onDone: () -> Unit,
+    viewModel: IptvPlaybackSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Live TV playback", onBack = onDone)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp)) {
+            TvSettingsSection(title = "Playback") {
+                TvSettingsToggleRow(
+                    label = "Resume last channel",
+                    subtitle = "Automatically preview whatever was on when you left",
+                    checked = uiState.resumeLastChannel,
+                    onToggle = { viewModel.setResumeLastChannel(!uiState.resumeLastChannel) },
+                )
+            }
+
+            TvSettingsSection(title = "Channel order") {
+                PillToggle(
+                    options = SORT_OPTIONS.map { it.second },
+                    selectedIndex = SORT_OPTIONS.indexOfFirst { it.first == uiState.channelSortOrder }.coerceAtLeast(0),
+                    onSelect = { index -> viewModel.setChannelSortOrder(SORT_OPTIONS[index].first) },
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                )
+            }
+
+            TvSettingsSection(title = "EPG time format") {
+                PillToggle(
+                    options = TIME_FORMAT_OPTIONS.map { it.second },
+                    selectedIndex = TIME_FORMAT_OPTIONS.indexOfFirst { it.first == uiState.use24HourTime }.coerceAtLeast(0),
+                    onSelect = { index -> viewModel.setUse24HourTime(TIME_FORMAT_OPTIONS[index].first) },
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                )
+            }
+
+            TvSettingsSection(title = "Preview player size") {
+                PillToggle(
+                    options = PREVIEW_SIZE_OPTIONS.map { it.label },
+                    selectedIndex = PREVIEW_SIZE_OPTIONS.indexOf(uiState.previewPlayerSize).coerceAtLeast(0),
+                    onSelect = { index -> viewModel.setPreviewPlayerSize(PREVIEW_SIZE_OPTIONS[index]) },
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                )
             }
         }
     }

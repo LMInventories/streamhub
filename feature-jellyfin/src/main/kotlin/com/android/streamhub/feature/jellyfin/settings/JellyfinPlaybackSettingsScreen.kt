@@ -42,6 +42,16 @@ import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRow
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.window.Dialog
+import androidx.tv.material3.Icon as TvIcon
+import androidx.tv.material3.Text as TvText
 
 // ISO 639-2 codes - the fixed subset Jellyfin libraries most commonly carry, not an exhaustive
 // list. "No preference" (null) always leaves the player to fall back on its own default
@@ -160,6 +170,77 @@ private fun <T> SettingsDropdownRow(label: String, options: List<Pair<T, String>
                         modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
                         onClick = { onSelect(value); closeMenu() },
                     )
+                }
+            }
+        }
+    }
+}
+
+/** TV-native sibling of JellyfinPlaybackSettingsScreen - same JellyfinPlaybackSettingsViewModel. A Material3 DropdownMenu doesn't fit a tv-material3 screen well (D-pad focus behaves oddly inside it, see the phone version's own comment on that), so this uses a full-screen Dialog picker instead. */
+@Composable
+fun JellyfinPlaybackSettingsScreenTv(
+    onDone: () -> Unit,
+    viewModel: JellyfinPlaybackSettingsViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TvSettingsTopBar(title = "Playback", onBack = onDone)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 8.dp)) {
+            TvSettingsSection(title = "Preferences") {
+                TvSettingsPickerRow(
+                    label = "Preferred audio language",
+                    options = LANGUAGE_OPTIONS,
+                    selected = uiState.preferredAudioLanguage,
+                    onSelect = viewModel::setPreferredAudioLanguage,
+                )
+                TvSettingsRowDivider()
+                TvSettingsPickerRow(
+                    label = "Preferred subtitle language",
+                    options = LANGUAGE_OPTIONS,
+                    selected = uiState.preferredSubtitleLanguage,
+                    onSelect = viewModel::setPreferredSubtitleLanguage,
+                )
+                TvSettingsRowDivider()
+                TvSettingsPickerRow(
+                    label = "Max streaming bitrate",
+                    options = BITRATE_OPTIONS,
+                    selected = uiState.maxStreamingBitrateMbps,
+                    onSelect = viewModel::setMaxStreamingBitrateMbps,
+                )
+            }
+            TvText(
+                text = "Applies the next time something starts playing - already-playing streams aren't interrupted.",
+                color = Palette.TextMuted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun <T> TvSettingsPickerRow(label: String, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: options.first().second
+
+    TvSettingsRow(label = label, subtitle = selectedLabel, onClick = { expanded = true })
+
+    if (expanded) {
+        Dialog(onDismissRequest = { expanded = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShapes.large)
+                    .background(Palette.Surface)
+                    .padding(vertical = 8.dp),
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxHeight(fraction = 0.6f)) {
+                    items(options) { (value, optionLabel) ->
+                        TvSettingsRow(
+                            label = optionLabel,
+                            showChevron = false,
+                            onClick = { onSelect(value); expanded = false },
+                        )
+                    }
                 }
             }
         }
