@@ -1,5 +1,45 @@
 # TO DO NEXT
 
+## Session update - Jellyfin sync, self-updating app, TV polish, nav change - DONE
+
+A long stretch of fixes/features landed since the section below was last accurate (that section's
+"Home is a dashboard of 4 entry cards" and "5 tabs: Home, Live TV, VOD, Emby, Jellyfin" are now
+stale - see the nav change at the bottom of this list):
+
+- Jellyfin playback progress/watched status now actually reports to the server (`playStateApi`
+  reportPlaybackStart/Progress/Stopped + markPlayedItem past 92% complete) - previously only
+  updated this app's own local cache, invisible to native Jellyfin clients.
+- Master Search's EPG results no longer come back silently empty on a cold cache - it now
+  triggers `EpgGridRepository.ensureFresh()` itself instead of assuming Live TV already warmed it.
+- Self-updating app: CI publishes a GitHub Release per version, and the app itself checks for a
+  newer one (Home banner was retired below; now a Settings row + automatic app-open check),
+  downloading and installing via `android.app.DownloadManager` - this app isn't on Play Store, so
+  this is the update channel. **This step has since been automated further - see the bottom.**
+- Phone keyboard/paste bug: a TV-only "hold D-pad focus without popping the keyboard" mechanism
+  (`TvManualKeyboard.kt`) was accidentally in effect on phone too, permanently blocking typing in
+  Jellyfin/IPTV source fields after the first tap. Now gated on actual TV `Configuration.uiMode`.
+- TV focus-reset bug: picking a category or channel in Live TV's EPG grid dropped D-pad focus to
+  the nav rail (Compose's default fallback when nothing explicitly reclaims focus). Fixed in
+  `EpgGridPanel.kt` by generalizing its existing dialog-restore `FocusRequester` mechanism to fire
+  on every selection and to seed itself once the grid first populates.
+- New Cache Duration setting (1/3/5/7 days, IPTV source settings) governing channel-list/EPG
+  freshness - and a real root-cause fix alongside it: `IptvAutoUpdateRepository`'s automatic tick
+  used to force-bypass all freshness checks on every trigger (e.g. every app open if Auto-Update
+  was "On App Open"), which is what was actually causing "the EPG keeps updating no matter what."
+  Only the manual "Update Playlist" button still forces a hard refresh now.
+- TV Settings redesign: a new shared toolkit (`core-ui-tv/.../TvSettingsComponents.kt`) replaced
+  the old horizontal card-shelf hub layout with a vertical grouped list matching phone's look, and
+  every sub-screen Settings opens (source/playback settings, library visibility, home order,
+  Appearance, Downloads, Scheduled) now has a genuine TV-native sibling screen.
+- **Nav change**: Home (the 4-tile dashboard) is removed entirely. Settings > Appearance has a new
+  "On App Launch" picker (Live TV/VOD/Jellyfin/Emby) controlling which screen the app opens
+  directly into on a cold start only (never on a mere resume from background, guarded by a new
+  process-lifetime `AppLaunchState` singleton) - Live TV is the new default and still resumes
+  whatever channel was last viewed.
+- CI now auto-bumps `versionCode`/`versionName` and publishes a GitHub Release on every real push
+  to `main` (a new `auto-release` job in `build.yml`, gated to real pushes only) - no more manual
+  bump-tag-push step before the in-app updater sees something new.
+
 Updated after working through items 1, 3, and 4 below (commits `ccd62e8`, `c2ef766`, and the
 mini-player-continuity nav fix). Design system landed too (`51bca74`) - dark-first palette,
 Space Grotesk/Inter/JetBrains Mono type, per-source badge colors, the Signal Bar progress motif,
