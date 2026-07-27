@@ -55,3 +55,84 @@ jobs:
           name: test-reports
           path: "**/build/reports/tests/**"
           retention-days: 7
+
+  # Every real push to main (not PRs, not a manual/disposable-branch workflow_dispatch run) bumps
+  # the version and cuts a real GitHub Release, so the in-app updater (AppUpdateRepository) always
+  # has a newer release to find. Tag convention: v<versionCode> - versionCode is the plain
+  # monotonic Int AGP requires, and the only value the updater actually parses; human-readable
+  # versionName goes in the Release's own title instead. This replaces the old manual
+  # bump-then-tag-then-push flow (formerly release.yml, now retired - it triggered on `push:
+  # tags`, which would have double-fired against the tag this job itself creates).
+  #
+  # Uses the default GITHUB_TOKEN (not a PAT) deliberately: GitHub Actions never lets a
+  # GITHUB_TOKEN-authored push trigger another workflow run, which is exactly what stops this
+  # job's own version-bump commit from re-triggering this same workflow in a loop - no [skip ci]
+  # trick or separate secret needed.
+  auto-release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      # versionName's trailing numeric segment bumps alongside versionCode when it parses as
+      # plain dot-separated numbers (e.g. "0.4.0" -> "0.4.1") - falls back to just appending the
+      # new versionCode if it's ever hand-edited to something else (a milestone suffix etc.).
+      - name: Bump version
+        id: bump
+        run: |
+          set -euo pipefail
+          CURRENT_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          NEW_CODE=$((CURRENT_CODE + 1))
+          CURRENT_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          if [[ "$CURRENT_NAME" =~ ^([0-9]+\.[0-9]+\.)([0-9]+)$ ]]; then
+            NEW_NAME="${BASH_REMATCH[1]}$(( ${BASH_REMATCH[2]} + 1 ))"
+          else
+            NEW_NAME="${CURRENT_NAME}+${NEW_CODE}"
+          fi
+          sed -i "s/versionCode = $CURRENT_CODE/versionCode = $NEW_CODE/" app/build.gradle.kts
+          sed -i "s/versionName = \"$CURRENT_NAME\"/versionName = \"$NEW_NAME\"/" app/build.gradle.kts
+          echo "new_code=$NEW_CODE" >> "$GITHUB_OUTPUT"
+          echo "new_name=$NEW_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle.kts
+          git commit -m "Bump version to ${{ steps.bump.outputs.new_name }} (v${{ steps.bump.outputs.new_code }}) [skip ci]"
+          git push origin HEAD:main
+
+      - name: Assemble release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.bump.outputs.new_code }}"
+          name: "${{ steps.bump.outputs.new_name }} (v${{ steps.bump.outputs.new_code }})"
+          target_commitish: main
+          generate_release_notes: true
+          files: app/build/outputs/apk/release/*.apk
