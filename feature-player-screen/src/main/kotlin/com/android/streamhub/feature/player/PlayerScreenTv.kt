@@ -32,6 +32,9 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.MaterialTheme as MaterialTheme3
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,6 +81,7 @@ import com.android.streamhub.core.player.formatPositionMs
 import com.android.streamhub.core.player.frameRateLabel
 import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
 import com.android.streamhub.core.player.resolutionLabel
+import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import kotlinx.coroutines.delay
 
 private const val SEEK_STEP_MS = 10_000L
@@ -472,17 +476,55 @@ private fun TvLiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiStat
     }
 }
 
+// Real players (MX Player, VLC) never fire an actual seek per key-repeat tick - they move a
+// preview position instantly (cheap) and only commit the real, expensive seek once the user
+// pauses, plus ramp the step size the longer a direction is held so crossing a 2-hour movie
+// doesn't mean holding the key for a minute straight.
+private const val SEEK_BAR_COMMIT_DEBOUNCE_MS = 400L
+private const val SEEK_BAR_ACCEL_WINDOW_MS = 700L
+private val SEEK_BAR_STEP_MS_BY_HOLD = longArrayOf(5_000L, 10_000L, 20_000L, 30_000L)
+
 /**
- * Focusable seek bar for VOD - Left/Right while it has focus scrub by a duration-scaled step (2%
- * of total length, floor 5s) rather than the dedicated Replay10/Forward10 buttons' fixed 10s
- * nudge, so the bar itself is a genuine "skip along" control rather than just a passive progress
- * display. tvFocusBorder makes the D-pad focus state visible the same way every other custom
- * clickable/focusable control in this app already does.
+ * Focusable seek bar for VOD - a real Material3 Slider (recolored, same as the phone player's own
+ * scrubber) for the familiar look-and-feel "other players" have, rather than SignalBar's segmented
+ * meter styling. The Slider itself stays disabled (display-only) - all actual seeking goes through
+ * the surrounding key handler below, so there's exactly one path driving playback position instead
+ * of the Slider's own built-in keyboard handling potentially fighting with it. tvFocusBorder makes
+ * the D-pad focus state visible the same way every other custom focusable control in this app does.
  */
 @Composable
 private fun TvSeekBar(uiState: PlayerUiState, onSeek: (Long) -> Unit) {
+    // Null = not currently scrubbing (display uiState's own real position). Set the moment
+    // Left/Right is first pressed, cleared once SEEK_BAR_COMMIT_DEBOUNCE_MS passes with no further
+    // presses - see the LaunchedEffect below, which is what actually calls onSeek.
+    var previewPositionMs by remember { mutableStateOf<Long?>(null) }
+    var consecutivePresses by remember { mutableIntStateOf(0) }
+    var lastPressDirection by remember { mutableIntStateOf(0) }
+    var lastPressAtMillis by remember { mutableLongStateOf(0L) }
+
+    val displayPositionMs = previewPositionMs ?: uiState.positionMs
+
+    LaunchedEffect(previewPositionMs) {
+        val pending = previewPositionMs ?: return@LaunchedEffect
+        delay(SEEK_BAR_COMMIT_DEBOUNCE_MS)
+        onSeek(pending)
+        previewPositionMs = null
+    }
+
+    fun press(direction: Int) {
+        val now = System.currentTimeMillis()
+        consecutivePresses = if (direction == lastPressDirection && now - lastPressAtMillis <= SEEK_BAR_ACCEL_WINDOW_MS) {
+            (consecutivePresses + 1).coerceAtMost(SEEK_BAR_STEP_MS_BY_HOLD.size)
+        } else {
+            1
+        }
+        lastPressDirection = direction
+        lastPressAtMillis = now
+        val stepMs = SEEK_BAR_STEP_MS_BY_HOLD[consecutivePresses - 1]
+        previewPositionMs = (displayPositionMs + direction * stepMs).coerceIn(0L, uiState.durationMs.coerceAtLeast(0L))
+    }
+
     val interactionSource = remember { MutableInteractionSource() }
-    val stepMs = (uiState.durationMs * 0.02f).toLong().coerceAtLeast(5_000L)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -491,25 +533,28 @@ private fun TvSeekBar(uiState: PlayerUiState, onSeek: (Long) -> Unit) {
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> {
-                        onSeek((uiState.positionMs - stepMs).coerceAtLeast(0L))
-                        true
-                    }
-                    Key.DirectionRight -> {
-                        onSeek((uiState.positionMs + stepMs).coerceAtMost(uiState.durationMs))
-                        true
-                    }
+                    Key.DirectionLeft -> { press(-1); true }
+                    Key.DirectionRight -> { press(1); true }
                     else -> false
                 }
             }
             .padding(vertical = 4.dp),
     ) {
-        SignalBar(
-            progress = if (uiState.durationMs > 0) uiState.positionMs.toFloat() / uiState.durationMs.toFloat() else 0f,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        MaterialTheme3(colorScheme = appColorScheme()) {
+            Slider(
+                value = displayPositionMs.toFloat(),
+                onValueChange = {},
+                enabled = false,
+                valueRange = 0f..uiState.durationMs.coerceAtLeast(1L).toFloat(),
+                colors = SliderDefaults.colors(
+                    disabledThumbColor = Palette.Accent,
+                    disabledActiveTrackColor = Palette.Accent,
+                    disabledInactiveTrackColor = Palette.Border,
+                ),
+            )
+        }
         Text(
-            text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
+            text = "${formatPositionMs(displayPositionMs)} / ${formatPositionMs(uiState.durationMs)}",
             color = Color.White,
             modifier = Modifier.padding(top = 4.dp),
         )

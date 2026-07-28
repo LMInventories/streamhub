@@ -338,9 +338,9 @@ private fun JellyfinItemDetailContentTv(
     }
 }
 
-/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned "N. Name" (matches the official Jellyfin app) with a watched checkmark overlay when already seen. */
+/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned "N. Name" (matches the official Jellyfin app) with a watched checkmark overlay when already seen. Not private - reused as-is by JellyfinSeriesDetailScreenTv's own per-season episode row (same package). */
 @Composable
-private fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
+fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
     Column(modifier = Modifier.width(160.dp)) {
         Card(onClick = onClick, scale = CardDefaults.scale(focusedScale = 1.05f), modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(AppShapes.small)) {
