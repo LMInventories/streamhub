@@ -40,7 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -293,11 +293,20 @@ fun LiveTvBrowseContent(
     // rebuilds it.
     val categoryRowFocusRequester = remember { FocusRequester() }
     var focusRestoreCategoryId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(selectedCategory) {
-        if (selectedCategory != null) {
-            focusRestoreCategoryId = selectedCategory.id
-        } else if (focusRestoreCategoryId != null) {
+    if (selectedCategory != null) {
+        focusRestoreCategoryId = selectedCategory.id
+    }
+    // SideEffect, not LaunchedEffect - runs synchronously as part of this same recomposition's
+    // apply-changes step, before layout/draw, so the correction never becomes visible. LaunchedEffect
+    // dispatches a new coroutine that runs too late to prevent TV's default focus fallback (the nav
+    // rail) from actually being drawn for a frame first - see EpgGridPanel's matching comment/fix,
+    // reported as a visible flash before this was changed. Guarded by lastRestoredFocusCategoryId so
+    // it only actually requests focus once per real return-to-the-list, not on every recomposition.
+    var lastRestoredFocusCategoryId by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        if (selectedCategory == null && focusRestoreCategoryId != null && focusRestoreCategoryId != lastRestoredFocusCategoryId) {
             runCatching { categoryRowFocusRequester.requestFocus() }
+            lastRestoredFocusCategoryId = focusRestoreCategoryId
         }
     }
 

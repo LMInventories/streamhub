@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -156,19 +157,31 @@ fun EpgGridPanel(
     // focus yet) also falls back to the nav rail with nothing to reclaim it. Seeds the row to
     // restore to once (guarded by focusRestoreChannelId already being null - a later re-fetch that
     // hands back a new but equal-content `channels` list must not fight the user's own subsequent
-    // clicks), preferring whatever's already focused/previewing over just the first row.
-    LaunchedEffect(channels) {
-        if (focusRestoreChannelId == null && channels.isNotEmpty()) {
-            focusRestoreChannelId = initialFocusChannelId?.takeIf { id -> channels.any { it.id == id } }
-                ?: channels.first().id
-        }
+    // clicks), preferring whatever's already focused/previewing over just the first row. Plain
+    // assignment, not an effect - just bookkeeping (mutableStateOf skips the write once already
+    // equal, so this can't loop); the actual focus request below is what needs careful timing.
+    if (focusRestoreChannelId == null && channels.isNotEmpty()) {
+        focusRestoreChannelId = initialFocusChannelId?.takeIf { id -> channels.any { it.id == id } }
+            ?: channels.first().id
     }
-    // Reactive rather than called inline from the row's own onClick - at the moment of a click,
-    // rowFocusRequester isn't attached to that row yet (that only happens once this state change
-    // recomposes the LazyColumn below), so requesting focus synchronously there would just throw
-    // (silently swallowed by restoreFocus()'s runCatching) and do nothing.
-    LaunchedEffect(focusRestoreChannelId) {
-        if (focusRestoreChannelId != null) restoreFocus()
+    // SideEffect, not LaunchedEffect - at the moment of a click/initial-load, rowFocusRequester
+    // isn't attached to the right row yet (that only happens once this state change recomposes the
+    // LazyColumn below), so requesting focus synchronously inline would just throw. LaunchedEffect
+    // would fix that correctly too, but only after dispatching a new coroutine - which runs too
+    // late to prevent TV's default focus fallback (the nav rail) from actually being drawn for a
+    // frame first, a visible flash reported after this was first shipped with LaunchedEffect here.
+    // SideEffect runs synchronously as part of this same recomposition's apply-changes step,
+    // before layout/draw, so the correction never becomes visible. Guarded against
+    // lastRestoredFocusChannelId so it only actually requests focus once per real change - it
+    // would otherwise fire on every unrelated recomposition too, yanking focus away from wherever
+    // the user has since D-pad-navigated to without clicking (which never updates
+    // focusRestoreChannelId at all).
+    var lastRestoredFocusChannelId by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        if (focusRestoreChannelId != null && focusRestoreChannelId != lastRestoredFocusChannelId) {
+            restoreFocus()
+            lastRestoredFocusChannelId = focusRestoreChannelId
+        }
     }
 
     Column(modifier = modifier) {
