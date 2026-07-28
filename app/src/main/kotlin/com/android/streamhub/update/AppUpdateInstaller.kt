@@ -20,12 +20,12 @@ private const val UPDATE_APK_FILENAME = "streamhub-update.apk"
  * Downloads and hands a new APK off to the system package installer - this app isn't distributed
  * via Play Store, so this is how "Update" in the Settings row actually works. Mirrors
  * inspectpro-mobile's own proven updateService.ts flow (download with progress into a private
- * cache dir, content:// URI via FileProvider, ACTION_VIEW install intent, delete the file
- * afterward) rather than android.app.DownloadManager, which this used previously: that relied on
- * a system component that turned out to be unreliable across real devices - it silently never
- * even started a download on some Android TV builds, and its ACTION_DOWNLOAD_COMPLETE
- * broadcast-based install handoff wasn't firing reliably on phone either. A direct HTTP download
- * we fully control end-to-end (no system service, no broadcast receiver) sidesteps both.
+ * cache dir, content:// URI via FileProvider, ACTION_VIEW install intent) rather than
+ * android.app.DownloadManager, which this used previously: that relied on a system component that
+ * turned out to be unreliable across real devices - it silently never even started a download on
+ * some Android TV builds, and its ACTION_DOWNLOAD_COMPLETE broadcast-based install handoff wasn't
+ * firing reliably on phone either. A direct HTTP download we fully control end-to-end (no system
+ * service, no broadcast receiver) sidesteps both.
  */
 @Singleton
 class AppUpdateInstaller @Inject constructor(
@@ -41,9 +41,9 @@ class AppUpdateInstaller @Inject constructor(
     /**
      * Downloads [info]'s APK into this app's private cache dir (no storage permission needed on
      * any API level), reporting [onProgress] as bytes arrive, then launches the system package
-     * installer against it via a FileProvider content URI and deletes the downloaded file -
-     * same shape as inspectpro-mobile's downloadAndInstall(). Throws on a download failure -
-     * callers should catch/report, same as every other network call in this app.
+     * installer against it via a FileProvider content URI - same shape as inspectpro-mobile's
+     * downloadAndInstall(). Throws on a download failure - callers should catch/report, same as
+     * every other network call in this app.
      */
     suspend fun downloadAndInstall(info: AppUpdateInfo, onProgress: (Float) -> Unit) {
         val dest = File(context.cacheDir, UPDATE_APK_FILENAME)
@@ -71,17 +71,23 @@ class AppUpdateInstaller @Inject constructor(
             }
         }
 
-        try {
-            val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", dest)
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(contentUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(installIntent)
-        } finally {
-            // Best-effort, same as inspectpro-mobile's own cleanup - the system installer only
-            // needs a moment to read the file after being granted the URI above.
-            runCatching { dest.delete() }
+        val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", dest)
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(contentUri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        // Belt-and-suspenders alongside FLAG_GRANT_READ_URI_PERMISSION above - some OEM package
+        // installers resolved via an implicit ACTION_VIEW intent don't reliably receive that grant,
+        // and silently failing to read the content:// URI is exactly what surfaces to the user as
+        // "There was a problem parsing the package" instead of a clearer permission error.
+        context.packageManager.queryIntentActivities(installIntent, 0).forEach { resolveInfo ->
+            context.grantUriPermission(resolveInfo.activityInfo.packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(installIntent)
+        // Deliberately not deleted here - startActivity() only launches the installer
+        // asynchronously and returns immediately, well before a separate process has actually
+        // opened and read the file; deleting it right away raced that read and was the other half
+        // of the same "problem parsing the package" failure. The download step above already
+        // deletes any previous leftover file before writing a new one, which is enough cleanup.
     }
 }

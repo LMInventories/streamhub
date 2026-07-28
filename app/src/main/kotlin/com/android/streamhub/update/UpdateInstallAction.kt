@@ -12,6 +12,14 @@ import androidx.compose.runtime.remember
  * permission ask in this app, ProgramSchedulingUi's POST_NOTIFICATIONS flow). The grant/deny
  * result code from that Settings screen is unreliable across OEMs, so this just re-checks
  * [canInstallPackages] once the user returns rather than trusting the launcher's result.
+ *
+ * Many Android TV builds have no Settings activity resolving ACTION_MANAGE_UNKNOWN_APP_SOURCES at
+ * all (that per-app "install unknown apps" screen is a phone-Settings-app feature, not guaranteed
+ * on TV/OEM boxes) - launching it there throws ActivityNotFoundException, which without this
+ * catch left the whole tap silently doing nothing and the download never even starting. Falling
+ * back to attempting the download/install directly is still useful even without that redirect:
+ * the system package installer itself prompts for the same permission when it's actually missing
+ * (standard since Android 8), so this only skips a nicety, not a hard requirement.
  */
 @Composable
 fun rememberUpdateInstallAction(
@@ -24,7 +32,12 @@ fun rememberUpdateInstallAction(
     }
     return remember(canInstallPackages, installPermissionIntent, onStartDownload) {
         {
-            if (canInstallPackages()) onStartDownload() else permissionLauncher.launch(installPermissionIntent())
+            if (canInstallPackages()) {
+                onStartDownload()
+            } else {
+                runCatching { permissionLauncher.launch(installPermissionIntent()) }
+                    .onFailure { onStartDownload() }
+            }
         }
     }
 }

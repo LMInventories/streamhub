@@ -34,6 +34,13 @@
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
+        <!-- AppUpdateInstaller's queryIntentActivities() call (to explicitly grant the package
+             installer read access to the downloaded APK's content:// URI) would otherwise see an
+             empty list under Android 11+ package-visibility rules, silently skipping that grant. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
     </queries>
 
     <application
