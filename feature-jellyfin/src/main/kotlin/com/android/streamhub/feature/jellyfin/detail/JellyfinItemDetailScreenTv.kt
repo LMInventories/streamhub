@@ -53,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
@@ -68,7 +69,6 @@ import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleTrackInfo
-import com.android.streamhub.feature.jellyfin.home.JellyfinPosterTv
 
 /** TV-native sibling of JellyfinItemDetailScreen - same JellyfinItemDetailViewModel, tv-material3 components + TvFocusBorder on the custom (non-Card/Button) rows. */
 @Composable
@@ -115,28 +115,36 @@ fun JellyfinItemDetailScreenTv(
             }
         }
 
-        when {
-            uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        // weight(1f) is load-bearing here, not decorative - without it, the fillMaxSize() content
+        // below would be measured against the whole Column's height (same budget the title Row
+        // already consumed from), not what's actually left after it, and would get placed starting
+        // below the title Row while still claiming full-screen height - pushing its own bottom edge
+        // that same distance past the visible screen, with no way to scroll the hidden portion back
+        // into view.
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                uiState.item == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
+                }
+                else -> JellyfinItemDetailContentTv(
+                    item = uiState.item!!,
+                    seasonEpisodes = uiState.seasonEpisodes,
+                    downloadInfo = downloadInfo,
+                    selectedSubtitleIndex = uiState.selectedSubtitleIndex,
+                    subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
+                    onSelectSubtitle = viewModel::selectSubtitle,
+                    onPlay = onPlay,
+                    onOpenSeries = onOpenSeries,
+                    onOpenEpisode = onOpenEpisode,
+                    onStartDownload = viewModel::startDownload,
+                    onPauseDownload = viewModel::pauseDownload,
+                    onResumeDownload = viewModel::resumeDownload,
+                    onRemoveDownload = viewModel::removeDownload,
+                )
             }
-            uiState.item == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
-            }
-            else -> JellyfinItemDetailContentTv(
-                item = uiState.item!!,
-                seasonEpisodes = uiState.seasonEpisodes,
-                downloadInfo = downloadInfo,
-                selectedSubtitleIndex = uiState.selectedSubtitleIndex,
-                subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
-                onSelectSubtitle = viewModel::selectSubtitle,
-                onPlay = onPlay,
-                onOpenSeries = onOpenSeries,
-                onOpenEpisode = onOpenEpisode,
-                onStartDownload = viewModel::startDownload,
-                onPauseDownload = viewModel::pauseDownload,
-                onResumeDownload = viewModel::resumeDownload,
-                onRemoveDownload = viewModel::removeDownload,
-            )
         }
     }
 }
@@ -282,7 +290,7 @@ private fun JellyfinItemDetailContentTv(
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(seasonEpisodes, key = { it.id }) { episode ->
-                        JellyfinPosterTv(item = episode, onClick = { onOpenEpisode(episode.id) })
+                        EpisodeThumbnailCardTv(episode = episode, onClick = { onOpenEpisode(episode.id) })
                     }
                 }
             }
@@ -296,6 +304,30 @@ private fun JellyfinItemDetailContentTv(
                 TvCastRow(cast = item.cast)
             }
         }
+    }
+}
+
+/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned with its own episode number/name rather than the series name. */
+@Composable
+private fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
+    Column(modifier = Modifier.width(160.dp)) {
+        Card(onClick = onClick, scale = CardDefaults.scale(focusedScale = 1.05f), modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(AppShapes.small)) {
+                val thumbUrl = episode.episodeThumbnailUrl ?: episode.primaryImageUrl
+                if (thumbUrl != null) {
+                    AsyncImage(model = thumbUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+                }
+            }
+        }
+        Text(
+            text = listOfNotNull(episode.indexNumber?.let { "Episode $it" }, episode.name.takeIf { it.isNotBlank() }).joinToString(" · "),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = Palette.TextPrimary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

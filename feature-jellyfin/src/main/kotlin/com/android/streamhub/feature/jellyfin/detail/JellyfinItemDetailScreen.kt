@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -76,7 +77,6 @@ import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleTrackInfo
-import com.android.streamhub.feature.jellyfin.home.JellyfinPoster
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,28 +121,36 @@ fun JellyfinItemDetailScreen(
                     modifier = Modifier.statusBarsPadding(),
                 )
 
-                when {
-                    uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                // weight(1f) is load-bearing here, not decorative - without it, the fillMaxSize()
+                // content below would be measured against the whole Column's height (same budget
+                // TopAppBar already consumed from), not what's actually left after it, and would
+                // get placed starting below TopAppBar while still claiming full-screen height -
+                // pushing its own bottom edge that same distance past the visible screen, with no
+                // way to scroll the hidden portion back into view.
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when {
+                        uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                        uiState.item == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
+                        }
+                        else -> JellyfinItemDetailContent(
+                            item = uiState.item!!,
+                            seasonEpisodes = uiState.seasonEpisodes,
+                            downloadInfo = downloadInfo,
+                            selectedSubtitleIndex = uiState.selectedSubtitleIndex,
+                            subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
+                            onSelectSubtitle = viewModel::selectSubtitle,
+                            onPlay = onPlay,
+                            onOpenSeries = onOpenSeries,
+                            onOpenEpisode = onOpenEpisode,
+                            onStartDownload = viewModel::startDownload,
+                            onPauseDownload = viewModel::pauseDownload,
+                            onResumeDownload = viewModel::resumeDownload,
+                            onRemoveDownload = viewModel::removeDownload,
+                        )
                     }
-                    uiState.item == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
-                    }
-                    else -> JellyfinItemDetailContent(
-                        item = uiState.item!!,
-                        seasonEpisodes = uiState.seasonEpisodes,
-                        downloadInfo = downloadInfo,
-                        selectedSubtitleIndex = uiState.selectedSubtitleIndex,
-                        subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
-                        onSelectSubtitle = viewModel::selectSubtitle,
-                        onPlay = onPlay,
-                        onOpenSeries = onOpenSeries,
-                        onOpenEpisode = onOpenEpisode,
-                        onStartDownload = viewModel::startDownload,
-                        onPauseDownload = viewModel::pauseDownload,
-                        onResumeDownload = viewModel::resumeDownload,
-                        onRemoveDownload = viewModel::removeDownload,
-                    )
                 }
             }
         }
@@ -172,7 +180,7 @@ private fun JellyfinItemDetailContent(
     // touch devices, which have no focus ring to show.
     val playFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { playFocusRequester.requestFocus() }
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
         // Episodes get a 16:9 scene-thumbnail hero instead of the narrow 2:3 poster - a poster-
         // shaped box for an episode either shows the series' own poster (confusing next to an
         // episode-specific page) or a stretched scene-grab, neither of which reads as intentional
@@ -315,7 +323,7 @@ private fun JellyfinItemDetailContent(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(seasonEpisodes, key = { it.id }) { episode ->
-                    JellyfinPoster(item = episode, onClick = { onOpenEpisode(episode.id) })
+                    EpisodeThumbnailCard(episode = episode, onClick = { onOpenEpisode(episode.id) })
                 }
             }
         }
@@ -492,6 +500,33 @@ private fun DownloadButton(
                 Text("Removing", modifier = Modifier.padding(start = 6.dp))
             }
         }
+    }
+}
+
+/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPoster would show for an episode) captioned with its own episode number/name rather than the series name. */
+@Composable
+private fun EpisodeThumbnailCard(episode: JellyfinItemInfo, onClick: () -> Unit) {
+    Column(modifier = Modifier.width(160.dp).clickable(onClick = onClick)) {
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(AppShapes.small)) {
+            val thumbUrl = episode.episodeThumbnailUrl ?: episode.primaryImageUrl
+            if (thumbUrl != null) {
+                AsyncImage(
+                    model = thumbUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+            }
+        }
+        Text(
+            text = listOfNotNull(episode.indexNumber?.let { "Episode $it" }, episode.name.takeIf { it.isNotBlank() }).joinToString(" · "),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = Palette.TextPrimary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

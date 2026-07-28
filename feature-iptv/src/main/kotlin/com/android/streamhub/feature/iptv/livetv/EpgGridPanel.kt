@@ -28,7 +28,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -99,6 +107,12 @@ fun EpgGridPanel(
     // the preview for whatever's actually playing, not whichever row initialFocusChannelId last seeded.
     focusedChannelId: String?,
     onFocusChannel: (IptvChannelInfo) -> Unit,
+    // Backs the long-press-on-channel-label popup below - same favourite set/toggle/play actions
+    // the non-EPG channel list already offers via its own long-press DropdownMenu, so the two
+    // views behave the same regardless of which one the user happens to be in.
+    favoriteChannelIds: Set<String>,
+    onToggleFavorite: (IptvChannelInfo) -> Unit,
+    onPlayFullscreen: (channelId: String) -> Unit,
     onScheduleRecording: (channel: IptvChannelInfo, program: EpgProgram, startAdjustMinutes: Int, endAdjustMinutes: Int) -> Unit,
     onScheduleReminder: (channel: IptvChannelInfo, program: EpgProgram, leadMinutes: Int) -> Unit,
     // Reports which programme the shared timeline's current horizontal scroll position lands on
@@ -112,6 +126,7 @@ fun EpgGridPanel(
     val use24Hour = rememberUse24HourTime()
     val sharedScrollState = rememberScrollState()
     var menuState by remember { mutableStateOf<ProgramMenuState?>(null) }
+    var favoriteMenuChannelId by remember { mutableStateOf<String?>(null) }
     var startAdjustMinutes by remember { mutableIntStateOf(0) }
     var endAdjustMinutes by remember { mutableIntStateOf(0) }
     var leadMinutes by remember { mutableIntStateOf(10) }
@@ -228,9 +243,28 @@ fun EpgGridPanel(
                     windowStart = windowStart,
                     windowEnd = windowEnd,
                     sharedScrollState = sharedScrollState,
+                    isFavorite = channel.id in favoriteChannelIds,
+                    isFavoriteMenuExpanded = favoriteMenuChannelId == channel.id,
                     onClick = {
                         focusRestoreChannelId = channel.id
                         onFocusChannel(channel)
+                    },
+                    onLongClick = {
+                        focusRestoreChannelId = channel.id
+                        favoriteMenuChannelId = channel.id
+                    },
+                    onDismissFavoriteMenu = {
+                        favoriteMenuChannelId = null
+                        restoreFocus()
+                    },
+                    onPlay = {
+                        onFocusChannel(channel)
+                        onPlayFullscreen(channel.id)
+                        favoriteMenuChannelId = null
+                    },
+                    onToggleFavorite = {
+                        onToggleFavorite(channel)
+                        favoriteMenuChannelId = null
                     },
                     onLongPressProgram = { program ->
                         focusRestoreChannelId = channel.id
@@ -321,6 +355,7 @@ private fun TimeHeader(windowStart: Instant, windowEnd: Instant, use24Hour: Bool
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GridChannelRow(
     channel: IptvChannelInfo,
@@ -328,28 +363,68 @@ private fun GridChannelRow(
     windowStart: Instant,
     windowEnd: Instant,
     sharedScrollState: ScrollState,
+    isFavorite: Boolean,
+    isFavoriteMenuExpanded: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onDismissFavoriteMenu: () -> Unit,
+    onPlay: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onLongPressProgram: (EpgProgram) -> Unit,
     rowFocusRequester: FocusRequester? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(modifier = Modifier.height(ROW_HEIGHT)) {
-        Box(
-            modifier = Modifier.width(CHANNEL_LABEL_WIDTH).fillMaxHeight()
-                .background(Palette.Surface)
-                .tvFocusBorder(interactionSource)
-                .let { if (rowFocusRequester != null) it.focusRequester(rowFocusRequester) else it }
-                .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
-                .padding(8.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            BasicText(
-                text = channel.name,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(color = Palette.TextPrimary, fontSize = 12.sp),
-                modifier = Modifier.padding(4.dp),
-            )
+        Box {
+            Box(
+                modifier = Modifier.width(CHANNEL_LABEL_WIDTH).fillMaxHeight()
+                    .background(Palette.Surface)
+                    .tvFocusBorder(interactionSource)
+                    .let { if (rowFocusRequester != null) it.focusRequester(rowFocusRequester) else it }
+                    .combinedClickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick, onLongClick = onLongClick)
+                    .padding(8.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                BasicText(
+                    text = channel.name,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(color = Palette.TextPrimary, fontSize = 12.sp),
+                    modifier = Modifier.padding(4.dp),
+                )
+            }
+            // Same long-press-to-favourite popup the non-EPG channel list already offers (see
+            // LiveTvBrowseContent's own DropdownMenu) - kept visually identical so the two views
+            // behave the same regardless of which one the user happens to be browsing in.
+            DropdownMenu(
+                expanded = isFavoriteMenuExpanded,
+                onDismissRequest = onDismissFavoriteMenu,
+                containerColor = Palette.ContextMenuSurface,
+                shadowElevation = 10.dp,
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Play", fontSize = 16.sp, color = Palette.ContextMenuText) },
+                    leadingIcon = { Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Palette.ContextMenuText) },
+                    onClick = onPlay,
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (isFavorite) "Remove from Favourites" else "Add to Favourites",
+                            fontSize = 16.sp,
+                            color = Palette.ContextMenuText,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = null,
+                            tint = Palette.ContextMenuText,
+                        )
+                    },
+                    onClick = onToggleFavorite,
+                )
+            }
         }
         Box(
             modifier = Modifier

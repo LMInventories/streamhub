@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -86,21 +87,27 @@ fun JellyfinSeriesDetailScreen(
                     modifier = Modifier.statusBarsPadding(),
                 )
 
-                when {
-                    uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                // weight(1f) is load-bearing here, not decorative - see JellyfinItemDetailScreen's
+                // matching comment for why a plain fillMaxSize() second child here would overflow
+                // past the screen and permanently hide however much of it TopAppBar's own height
+                // covers, unreachable by scrolling.
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when {
+                        uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                        uiState.series == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
+                        }
+                        else -> JellyfinSeriesDetailContent(
+                            series = uiState.series!!,
+                            seasons = uiState.seasons,
+                            episodesBySeasonNumber = uiState.episodesBySeasonNumber,
+                            similarShows = uiState.similarShows,
+                            onOpenEpisode = onOpenEpisode,
+                            onOpenSeries = onOpenSeries,
+                        )
                     }
-                    uiState.series == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
-                    }
-                    else -> JellyfinSeriesDetailContent(
-                        series = uiState.series!!,
-                        seasons = uiState.seasons,
-                        episodesBySeasonNumber = uiState.episodesBySeasonNumber,
-                        similarShows = uiState.similarShows,
-                        onOpenEpisode = onOpenEpisode,
-                        onOpenSeries = onOpenSeries,
-                    )
                 }
             }
         }
@@ -119,7 +126,7 @@ private fun JellyfinSeriesDetailContent(
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Box(modifier = Modifier.width(100.dp).height(150.dp).clip(AppShapes.small)) {
