@@ -199,7 +199,7 @@ private fun JellyfinSeriesDetailContentTv(
                         JellyfinPosterTv(
                             item = season,
                             badge = season.childCount?.let { count -> "$count ep" },
-                            showWatchedBadge = season.isPlayed,
+                            unwatchedCount = season.unplayedItemCount,
                             onClick = { selectedSeason = season.indexNumber ?: 0 },
                         )
                     }

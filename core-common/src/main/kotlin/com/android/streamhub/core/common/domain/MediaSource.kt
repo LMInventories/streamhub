@@ -45,4 +45,19 @@ interface MediaSource {
     suspend fun onPlaybackProgress(itemId: String, positionMs: Long, durationMs: Long, isPaused: Boolean) {}
 
     suspend fun onPlaybackStopped(itemId: String, positionMs: Long, durationMs: Long) {}
+
+    /**
+     * Subtitle preference for an item that's already available offline - unlike [resolvePlayback],
+     * this must never require network access, since the player also calls it for already-downloaded
+     * content (which plays back straight from disk specifically so a genuinely offline device can
+     * still use it). Default "no preference" - only sources with a per-item subtitle picker
+     * (Jellyfin) need to override this.
+     */
+    suspend fun resolveSubtitlePreference(itemId: String): SubtitlePreference = SubtitlePreference()
 }
+
+/** [preferredLanguage] mirrors PlaybackItem's own field; [off] is the hard "Off means Off" override - see PlaybackItem.subtitlesOff's doc for why that's distinct from just no language preference. */
+data class SubtitlePreference(
+    val preferredLanguage: String? = null,
+    val off: Boolean = false,
+)

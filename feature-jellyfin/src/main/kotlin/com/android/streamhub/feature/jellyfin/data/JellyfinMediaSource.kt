@@ -3,6 +3,7 @@ package com.android.streamhub.feature.jellyfin.data
 import com.android.streamhub.core.common.domain.MediaSource
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
+import com.android.streamhub.core.common.domain.SubtitlePreference
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -43,28 +44,40 @@ class JellyfinMediaSource @Inject constructor(
         val item = browseRepository.getItem(itemId) ?: error("Jellyfin item not found: $itemId")
         val streamUrl = browseRepository.getStreamUrl(itemId) ?: error("No Jellyfin stream URL for: $itemId")
         val settings = appSettingsRepository.settingsFlow.first()
-        // An explicit per-item choice from the detail page's subtitle dropdown (if any) overrides
-        // the app-wide language preference below - that's the whole point of offering a per-item
-        // picker at all. No choice recorded for this item falls through to the app-wide language
-        // setting IF one is actually configured - but if neither exists, this must still default
-        // to hard-off (not just "no language preference"), because the detail page's own dropdown
-        // already displays "Off" as its default, untouched state. Leaving subtitlesOff false here
-        // let Media3's default track selector auto-pick a forced/default-flagged embedded track
-        // regardless of any of this, which is exactly what broke the "Off means Off" contract.
+        val subtitlePreference = resolveSubtitlePreference(itemId)
+        return item.toPlaybackItem(
+            streamUri = streamUrl,
+            preferredAudio = settings.preferredAudioLanguage,
+            preferredSubtitle = subtitlePreference.preferredLanguage,
+            subtitlesOff = subtitlePreference.off,
+        )
+    }
+
+    // An explicit per-item choice from the detail page's subtitle dropdown (if any) overrides the
+    // app-wide language preference below - that's the whole point of offering a per-item picker at
+    // all. No choice recorded for this item falls through to the app-wide language setting IF one
+    // is actually configured - but if neither exists, this must still default to hard-off (not just
+    // "no language preference"), because the detail page's own dropdown already displays "Off" as
+    // its default, untouched state. Leaving subtitlesOff false here let Media3's default track
+    // selector auto-pick a forced/default-flagged embedded track regardless of any of this, which is
+    // exactly what broke the "Off means Off" contract. Also consulted for already-downloaded
+    // playback (see PlayerViewModel.loadAndPrepare) - that path never calls resolvePlayback() above
+    // at all (deliberately, to stay usable offline), so without this override subtitles for a
+    // downloaded item would always fall back to PlaybackItem's own default (subtitlesOff = false).
+    override suspend fun resolveSubtitlePreference(itemId: String): SubtitlePreference {
+        val settings = appSettingsRepository.settingsFlow.first()
         val subtitleChoice = subtitlePreferenceStore.get(itemId)
         val subtitlesOff = when (subtitleChoice) {
             is JellyfinSubtitleChoice.Off -> true
             is JellyfinSubtitleChoice.Track -> false
             null -> settings.preferredSubtitleLanguage == null
         }
-        return item.toPlaybackItem(
-            streamUri = streamUrl,
-            preferredAudio = settings.preferredAudioLanguage,
-            preferredSubtitle = when (subtitleChoice) {
+        return SubtitlePreference(
+            preferredLanguage = when (subtitleChoice) {
                 is JellyfinSubtitleChoice.Track -> subtitleChoice.language
                 else -> settings.preferredSubtitleLanguage
             },
-            subtitlesOff = subtitlesOff,
+            off = subtitlesOff,
         )
     }
 

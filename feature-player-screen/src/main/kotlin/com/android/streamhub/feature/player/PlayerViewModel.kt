@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.common.domain.MediaSource
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
+import com.android.streamhub.core.common.domain.SubtitlePreference
 import com.android.streamhub.core.common.domain.WatchProgressRepository
 import com.android.streamhub.core.player.ExternalPlayerLauncher
 import com.android.streamhub.core.player.PlayerController
@@ -102,7 +103,11 @@ class PlayerViewModel @Inject constructor(
             // normal MediaSource.resolvePlayback() here would mean a genuinely offline device
             // (no network at all) can't play back content it already has sitting on disk, since
             // that call still needs to reach Jellyfin/Xtream just to resolve metadata/URLs.
+            // resolveSubtitlePreference() is still safe to call here (network-free by contract),
+            // and without it this PlaybackItem would fall back to subtitlesOff = false regardless
+            // of whatever the detail page's own subtitle picker was set to for this item.
             val item = if (downloaded != null) {
+                val subtitlePreference = mediaSource?.resolveSubtitlePreference(id) ?: SubtitlePreference()
                 PlaybackItem(
                     id = downloaded.id,
                     sourceType = downloaded.sourceType,
@@ -110,6 +115,8 @@ class PlayerViewModel @Inject constructor(
                     posterUrl = downloaded.posterUrl,
                     streamUri = downloaded.streamUri,
                     isLive = false,
+                    preferredSubtitleLanguage = subtitlePreference.preferredLanguage,
+                    subtitlesOff = subtitlePreference.off,
                 )
             } else {
                 val source = mediaSource ?: error("No MediaSource registered for $sourceType")

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +67,7 @@ import com.android.streamhub.core.common.domain.LiveProgramInfo
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
@@ -243,6 +245,7 @@ fun PlayerScreenTv(
                 onPlayPause = onPlayPause,
                 onSeekBack = onSeekBack,
                 onSeekForward = onSeekForward,
+                onSeek = viewModel::seekTo,
                 onAudioTrackClick = { showAudioPicker = true },
                 onSubtitleTrackClick = { showSubtitlePicker = true },
                 onAspectModeClick = { showAspectPicker = true },
@@ -340,6 +343,7 @@ private fun TvPlayerControls(
     onPlayPause: () -> Unit,
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
+    onSeek: (Long) -> Unit,
     onAudioTrackClick: () -> Unit,
     onSubtitleTrackClick: () -> Unit,
     onAspectModeClick: () -> Unit,
@@ -370,10 +374,7 @@ private fun TvPlayerControls(
         if (nowStart != null && nowEnd != null) {
             TvLiveProgressBar(nowStartAtEpochMs = nowStart, nowEndAtEpochMs = nowEnd)
         } else {
-            Text(
-                text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
-                color = Color.White,
-            )
+            TvSeekBar(uiState = uiState, onSeek = onSeek)
         }
         uiState.errorMessage?.let { Text(text = it, color = Palette.Error) }
 
@@ -468,6 +469,50 @@ private fun TvLiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiStat
                 Text(text = "Next: $nextTitle$nextTime", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(top = 6.dp))
             }
         }
+    }
+}
+
+/**
+ * Focusable seek bar for VOD - Left/Right while it has focus scrub by a duration-scaled step (2%
+ * of total length, floor 5s) rather than the dedicated Replay10/Forward10 buttons' fixed 10s
+ * nudge, so the bar itself is a genuine "skip along" control rather than just a passive progress
+ * display. tvFocusBorder makes the D-pad focus state visible the same way every other custom
+ * clickable/focusable control in this app already does.
+ */
+@Composable
+private fun TvSeekBar(uiState: PlayerUiState, onSeek: (Long) -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val stepMs = (uiState.durationMs * 0.02f).toLong().coerceAtLeast(5_000L)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tvFocusBorder(interactionSource)
+            .focusable(interactionSource = interactionSource)
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> {
+                        onSeek((uiState.positionMs - stepMs).coerceAtLeast(0L))
+                        true
+                    }
+                    Key.DirectionRight -> {
+                        onSeek((uiState.positionMs + stepMs).coerceAtMost(uiState.durationMs))
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .padding(vertical = 4.dp),
+    ) {
+        SignalBar(
+            progress = if (uiState.durationMs > 0) uiState.positionMs.toFloat() / uiState.durationMs.toFloat() else 0f,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = "${formatPositionMs(uiState.positionMs)} / ${formatPositionMs(uiState.durationMs)}",
+            color = Color.White,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

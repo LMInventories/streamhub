@@ -13,11 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -413,10 +414,11 @@ private fun SeeAllTileTv(onClick: () -> Unit) {
 // CardDefaults' own default growth (1.1f) since the full-size grow-on-focus was tall enough to
 // visually cover the "Next Up" row/title sitting just above it.
 /**
- * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count)
- * - null renders nothing extra, the plain poster look every existing caller already expects.
- * [showWatchedBadge] overlays a small checkmark circle top-end (e.g. a fully-watched season) -
- * a separate corner from [badge] so the two never collide when both are present.
+ * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's total episode
+ * count) - null renders nothing extra, the plain poster look every existing caller already
+ * expects. [unwatchedCount] overlays a small roundel top-end (a separate corner from [badge], so
+ * the two never collide) - the unwatched count when > 0, or a checkmark once fully watched (0);
+ * null renders nothing.
  */
 @Composable
 fun JellyfinPosterTv(
@@ -424,7 +426,7 @@ fun JellyfinPosterTv(
     onClick: () -> Unit,
     onFocused: (Boolean) -> Unit = {},
     badge: String? = null,
-    showWatchedBadge: Boolean = false,
+    unwatchedCount: Int? = null,
 ) {
     Card(
         onClick = onClick,
@@ -460,13 +462,22 @@ fun JellyfinPosterTv(
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
-            if (showWatchedBadge) {
-                Icon(
-                    Icons.Filled.CheckCircle,
-                    contentDescription = "Watched",
-                    tint = Palette.Accent,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
-                )
+            if (unwatchedCount != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(if (unwatchedCount == 0) Palette.Accent else Palette.Surface.copy(alpha = 0.9f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (unwatchedCount == 0) {
+                        Icon(Icons.Filled.Check, contentDescription = "All watched", tint = Palette.TextPrimary, modifier = Modifier.size(12.dp))
+                    } else {
+                        Text(text = unwatchedCount.toString(), color = Palette.TextPrimary, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
         }
     }

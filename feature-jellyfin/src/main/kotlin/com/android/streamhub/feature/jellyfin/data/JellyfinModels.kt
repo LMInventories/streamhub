@@ -64,6 +64,9 @@ data class JellyfinItemInfo(
     // Episode count for a season item; null for every other item type. Default null for the same
     // cache-compatibility reason as episodeThumbnailUrl above.
     val childCount: Int? = null,
+    // Unwatched episode count for a season item (0 once fully watched); null for every other item
+    // type. Default null for the same cache-compatibility reason as episodeThumbnailUrl above.
+    val unplayedItemCount: Int? = null,
     // Default null (not just nullable) - JellyfinHomeCacheRepository persists this whole type as
     // JSON, and a cache written before this field existed needs to still decode successfully.
     val logoImageUrl: String? = null,

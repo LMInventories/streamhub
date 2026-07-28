@@ -17,9 +17,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -268,13 +270,15 @@ private fun MediaCard(label: String, onClick: () -> Unit) {
 }
 
 /**
- * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count)
- * - null renders nothing extra, the plain poster look every existing caller already expects.
- * [showWatchedBadge] overlays a small checkmark circle top-end (e.g. a fully-watched season) -
- * a separate corner from [badge] so the two never collide when both are present.
+ * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's total episode
+ * count) - null renders nothing extra, the plain poster look every existing caller already
+ * expects. [unwatchedCount] overlays a small roundel top-end (a separate corner from [badge], so
+ * the two never collide) - the unwatched count when > 0, or a checkmark once fully watched (0);
+ * null renders nothing (item types with no watched-progress concept, e.g. movies/episodes in
+ * other rows that reuse this same composable).
  */
 @Composable
-fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? = null, showWatchedBadge: Boolean = false) {
+fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? = null, unwatchedCount: Int? = null) {
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
@@ -304,13 +308,22 @@ fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? =
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
-            if (showWatchedBadge) {
-                Icon(
-                    Icons.Filled.CheckCircle,
-                    contentDescription = "Watched",
-                    tint = Palette.Accent,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
-                )
+            if (unwatchedCount != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(if (unwatchedCount == 0) Palette.Accent else Palette.Surface.copy(alpha = 0.9f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (unwatchedCount == 0) {
+                        Icon(Icons.Filled.Check, contentDescription = "All watched", tint = Palette.TextPrimary, modifier = Modifier.size(14.dp))
+                    } else {
+                        Text(text = unwatchedCount.toString(), color = Palette.TextPrimary, fontSize = 11.sp)
+                    }
+                }
             }
         }
         Text(

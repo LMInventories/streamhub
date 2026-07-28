@@ -439,6 +439,7 @@ class JellyfinBrowseRepository @Inject constructor(
             backdropImageUrl = backdropImageUrl,
             episodeThumbnailUrl = episodeThumbnailUrl,
             childCount = childCount,
+            unplayedItemCount = userData?.unplayedItemCount,
             logoImageUrl = logoImageUrl,
             videoWidth = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.width,
             videoHeight = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.height,
