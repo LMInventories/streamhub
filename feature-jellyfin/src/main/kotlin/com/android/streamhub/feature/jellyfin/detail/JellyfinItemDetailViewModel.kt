@@ -30,6 +30,8 @@ data class JellyfinItemDetailUiState(
     // needs to be threaded to a different screen entirely rather than just local UI state.
     val selectedSubtitleIndex: Int? = null,
     val subtitlesExplicitlyOff: Boolean = false,
+    // Only populated for episodes (excludes the current item) - "More from Season X" row.
+    val seasonEpisodes: List<JellyfinItemInfo> = emptyList(),
 )
 
 @HiltViewModel
@@ -54,6 +56,13 @@ class JellyfinItemDetailViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val item = runCatching { browseRepository.getItem(itemId) }.getOrNull()
             _uiState.update { it.copy(isLoading = false, item = item, errorMessage = if (item == null) "Item not found" else null) }
+
+            val seriesId = item?.seriesId
+            val seasonId = item?.seasonId
+            if (item != null && seriesId != null && seasonId != null) {
+                val episodes = runCatching { browseRepository.getEpisodes(seriesId, seasonId) }.getOrDefault(emptyList())
+                _uiState.update { it.copy(seasonEpisodes = episodes.filter { episode -> episode.id != itemId }) }
+            }
         }
     }
 

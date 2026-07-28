@@ -410,8 +410,9 @@ private fun SeeAllTileTv(onClick: () -> Unit) {
 // the original 140dp per feedback that the rows read too large; focusedScale is half of
 // CardDefaults' own default growth (1.1f) since the full-size grow-on-focus was tall enough to
 // visually cover the "Next Up" row/title sitting just above it.
+/** [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count) - null renders nothing extra, the plain poster look every existing caller already expects. */
 @Composable
-private fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit) {
+fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit = {}, badge: String? = null) {
     Card(
         onClick = onClick,
         scale = CardDefaults.scale(focusedScale = 1.05f),
@@ -432,6 +433,19 @@ private fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocu
                 )
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+            }
+            if (badge != null) {
+                Text(
+                    text = badge,
+                    color = Palette.TextPrimary,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .clip(AppShapes.small)
+                        .background(Palette.Surface.copy(alpha = 0.85f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
             }
         }
     }

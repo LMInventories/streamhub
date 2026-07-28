@@ -32,8 +32,8 @@ import com.android.streamhub.feature.iptv.settings.IptvSettingsScreenTv
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenTv
-import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreen
-import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
+import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreenTv
+import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreenTv
 import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreenTv
 import com.android.streamhub.feature.jellyfin.library.JellyfinFavoritesScreen
 import com.android.streamhub.feature.jellyfin.library.JellyfinLibraryScreen
@@ -230,18 +230,21 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 arguments = listOf(navArgument("itemId") { type = NavType.StringType }),
             ) { backStackEntry ->
                 val itemId = checkNotNull(backStackEntry.arguments?.getString("itemId"))
-                JellyfinItemDetailScreen(
+                JellyfinItemDetailScreenTv(
                     onBack = { navController.popBackStack() },
                     onPlay = { navController.navigate(Route.playerRoute(itemId, SourceType.JELLYFIN)) },
+                    onOpenSeries = { seriesId -> navController.navigate(Route.jellyfinSeriesDetailRoute(seriesId)) },
+                    onOpenEpisode = { episodeId -> navController.navigate(Route.jellyfinItemDetailRoute(episodeId)) },
                 )
             }
             composable(
                 route = Route.JELLYFIN_SERIES_DETAIL_PATTERN,
                 arguments = listOf(navArgument("seriesId") { type = NavType.StringType }),
             ) {
-                JellyfinSeriesDetailScreen(
+                JellyfinSeriesDetailScreenTv(
                     onBack = { navController.popBackStack() },
                     onOpenEpisode = { itemId -> navController.navigate(Route.jellyfinItemDetailRoute(itemId)) },
+                    onOpenSeries = { seriesId -> navController.navigate(Route.jellyfinSeriesDetailRoute(seriesId)) },
                 )
             }
             composable(Route.SETTINGS_PATTERN) {

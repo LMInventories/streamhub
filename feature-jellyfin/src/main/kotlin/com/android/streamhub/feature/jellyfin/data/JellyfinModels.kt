@@ -57,6 +57,13 @@ data class JellyfinItemInfo(
     val runtimeMinutes: Int?,
     val primaryImageUrl: String?,
     val backdropImageUrl: String?,
+    // The episode's own scene-grab image, bypassing the series-poster override primaryImageUrl
+    // applies for episodes (see toItemInfo's comment) - null for non-episodes. Default null for
+    // cache-compatibility, same reasoning as logoImageUrl below.
+    val episodeThumbnailUrl: String? = null,
+    // Episode count for a season item; null for every other item type. Default null for the same
+    // cache-compatibility reason as episodeThumbnailUrl above.
+    val childCount: Int? = null,
     // Default null (not just nullable) - JellyfinHomeCacheRepository persists this whole type as
     // JSON, and a cache written before this field existed needs to still decode successfully.
     val logoImageUrl: String? = null,

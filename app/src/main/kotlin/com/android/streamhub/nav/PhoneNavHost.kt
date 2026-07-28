@@ -198,6 +198,8 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 JellyfinItemDetailScreen(
                     onBack = { navController.popBackStack() },
                     onPlay = { navController.navigate(Route.playerRoute(itemId, SourceType.JELLYFIN)) },
+                    onOpenSeries = { seriesId -> navController.navigate(Route.jellyfinSeriesDetailRoute(seriesId)) },
+                    onOpenEpisode = { episodeId -> navController.navigate(Route.jellyfinItemDetailRoute(episodeId)) },
                 )
             }
             composable(
@@ -207,6 +209,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 JellyfinSeriesDetailScreen(
                     onBack = { navController.popBackStack() },
                     onOpenEpisode = { itemId -> navController.navigate(Route.jellyfinItemDetailRoute(itemId)) },
+                    onOpenSeries = { seriesId -> navController.navigate(Route.jellyfinSeriesDetailRoute(seriesId)) },
                 )
             }
             composable(Route.SETTINGS_PATTERN) {

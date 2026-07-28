@@ -265,8 +265,9 @@ private fun MediaCard(label: String, onClick: () -> Unit) {
     }
 }
 
+/** [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count) - null renders nothing extra, the plain poster look every existing caller already expects. */
 @Composable
-private fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit) {
+fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? = null) {
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
@@ -283,6 +284,18 @@ private fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit) {
                 )
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+            }
+            if (badge != null) {
+                Text(
+                    text = badge,
+                    color = Palette.TextPrimary,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .clip(AppShapes.small)
+                        .background(Palette.Surface.copy(alpha = 0.85f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
             }
         }
         Text(

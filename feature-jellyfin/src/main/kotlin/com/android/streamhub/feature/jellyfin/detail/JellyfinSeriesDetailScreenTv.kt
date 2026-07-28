@@ -1,6 +1,5 @@
 package com.android.streamhub.feature.jellyfin.detail
 
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,13 +22,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,17 +35,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.Icon
+import androidx.tv.material3.IconButton
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
-import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
-import com.android.streamhub.feature.jellyfin.home.JellyfinPoster
+import com.android.streamhub.feature.jellyfin.home.JellyfinPosterTv
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** TV-native sibling of JellyfinSeriesDetailScreen - same JellyfinSeriesDetailViewModel, tv-material3 components + TvFocusBorder on the custom (non-Card) rows. Reuses TvCastRow from JellyfinItemDetailScreenTv (same package). */
 @Composable
-fun JellyfinSeriesDetailScreen(
+fun JellyfinSeriesDetailScreenTv(
     onBack: () -> Unit,
     onOpenEpisode: (itemId: String) -> Unit,
     onOpenSeries: (seriesId: String) -> Unit,
@@ -62,53 +56,53 @@ fun JellyfinSeriesDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    MaterialTheme(colorScheme = appColorScheme()) {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                TopAppBar(
-                    title = { Text(uiState.series?.name.orEmpty()) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        uiState.series?.let { series ->
-                            IconButton(onClick = viewModel::toggleFavorite) {
-                                Icon(
-                                    if (series.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                    contentDescription = if (series.isFavorite) "Remove from favourites" else "Add to favourites",
-                                    tint = if (series.isFavorite) Palette.Accent else Palette.TextPrimary,
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier.statusBarsPadding(),
-                )
-
-                when {
-                    uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                    uiState.series == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
-                    }
-                    else -> JellyfinSeriesDetailContent(
-                        series = uiState.series!!,
-                        seasons = uiState.seasons,
-                        episodesBySeasonNumber = uiState.episodesBySeasonNumber,
-                        similarShows = uiState.similarShows,
-                        onOpenEpisode = onOpenEpisode,
-                        onOpenSeries = onOpenSeries,
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Text(
+                text = uiState.series?.name.orEmpty(),
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp).weight(1f),
+            )
+            uiState.series?.let { series ->
+                IconButton(onClick = viewModel::toggleFavorite) {
+                    Icon(
+                        if (series.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = if (series.isFavorite) "Remove from favourites" else "Add to favourites",
+                        tint = if (series.isFavorite) Palette.Accent else Palette.TextPrimary,
                     )
                 }
             }
+        }
+
+        when {
+            uiState.isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            uiState.series == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = uiState.errorMessage ?: "Not found", color = Palette.Error, modifier = Modifier.padding(32.dp))
+            }
+            else -> JellyfinSeriesDetailContentTv(
+                series = uiState.series!!,
+                seasons = uiState.seasons,
+                episodesBySeasonNumber = uiState.episodesBySeasonNumber,
+                similarShows = uiState.similarShows,
+                onOpenEpisode = onOpenEpisode,
+                onOpenSeries = onOpenSeries,
+            )
         }
     }
 }
 
 @Composable
-private fun JellyfinSeriesDetailContent(
+private fun JellyfinSeriesDetailContentTv(
     series: JellyfinItemInfo,
     seasons: List<JellyfinItemInfo>,
     episodesBySeasonNumber: Map<Int, List<JellyfinItemInfo>>,
@@ -119,22 +113,17 @@ private fun JellyfinSeriesDetailContent(
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Box(modifier = Modifier.width(100.dp).height(150.dp).clip(AppShapes.small)) {
+            Row(modifier = Modifier.fillMaxWidth().padding(24.dp, 8.dp)) {
+                Box(modifier = Modifier.width(120.dp).height(180.dp).clip(AppShapes.small)) {
                     if (series.primaryImageUrl != null) {
-                        AsyncImage(
-                            model = series.primaryImageUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        AsyncImage(model = series.primaryImageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
                         Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
                     }
                 }
-                Column(modifier = Modifier.padding(start = 16.dp)) {
+                Column(modifier = Modifier.padding(start = 20.dp)) {
                     val metaParts = listOfNotNull(
                         series.genres.takeIf { it.isNotEmpty() }?.joinToString(", "),
                         series.communityRating?.let { "★ %.1f".format(it) },
@@ -151,18 +140,15 @@ private fun JellyfinSeriesDetailContent(
 
         if (seasons.size > 1) {
             item {
-                Text(text = "Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
+                Text(text = "Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     item(key = "all_seasons") {
-                        AllSeasonsTile(selected = selectedSeason == null, onClick = { selectedSeason = null })
+                        AllSeasonsTileTv(selected = selectedSeason == null, onClick = { selectedSeason = null })
                     }
                     items(seasons, key = { it.id }) { season ->
-                        JellyfinPoster(
+                        JellyfinPosterTv(
                             item = season,
                             badge = season.childCount?.let { count -> "$count ep" },
                             onClick = { selectedSeason = season.indexNumber ?: 0 },
@@ -174,15 +160,10 @@ private fun JellyfinSeriesDetailContent(
 
         if (series.cast.isNotEmpty()) {
             item {
-                Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
+                Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(series.cast, key = { it.id }) { member -> CastMemberCard(member) }
-                }
+                TvCastRow(cast = series.cast)
             }
         }
 
@@ -191,29 +172,22 @@ private fun JellyfinSeriesDetailContent(
             val episodes = episodesBySeasonNumber[season].orEmpty()
             if (selectedSeason == null) {
                 item(key = "season_$season") {
-                    Text(
-                        text = "Season $season",
-                        color = Palette.TextPrimary,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp, 16.dp, 4.dp),
-                    )
+                    Text(text = "Season $season", color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(24.dp, 12.dp, 24.dp, 4.dp))
                 }
             }
             items(episodes, key = { it.id }) { episode ->
-                EpisodeRow(episode = episode, onClick = { onOpenEpisode(episode.id) })
+                EpisodeRowTv(episode = episode, onClick = { onOpenEpisode(episode.id) })
             }
         }
 
         if (similarShows.isNotEmpty()) {
             item {
-                Text(text = "More Like This", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
+                Text(text = "More Like This", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(similarShows, key = { it.id }) { show ->
-                        JellyfinPoster(item = show, onClick = { onOpenSeries(show.id) })
+                        JellyfinPosterTv(item = show, onClick = { onOpenSeries(show.id) })
                     }
                 }
             }
@@ -222,34 +196,34 @@ private fun JellyfinSeriesDetailContent(
 }
 
 @Composable
-private fun AllSeasonsTile(selected: Boolean, onClick: () -> Unit) {
+private fun AllSeasonsTileTv(selected: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .width(120.dp)
+            .width(94.dp)
             .aspectRatio(2f / 3f)
             .clip(AppShapes.small)
             .background(if (selected) Palette.Accent.copy(alpha = 0.2f) else Palette.Surface)
             .tvFocusBorder(interactionSource, AppShapes.small)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = "All Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(8.dp))
+        Text(text = "All Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.labelSmall)
     }
 }
 
 @Composable
-private fun EpisodeRow(episode: JellyfinItemInfo, onClick: () -> Unit) {
+private fun EpisodeRowTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .tvFocusBorder(interactionSource)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
-            .padding(16.dp, 10.dp),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(24.dp, 10.dp),
     ) {
         Row {
-            Text(text = "${episode.indexNumber?.toString() ?: "?"}.", color = Palette.TextMuted, modifier = Modifier.width(28.dp))
+            Text(text = "${episode.indexNumber?.toString() ?: "?"}.", color = Palette.TextMuted, modifier = Modifier.width(32.dp))
             Text(text = episode.name, color = Palette.TextPrimary)
         }
         episode.overview?.let { overview ->
@@ -258,7 +232,7 @@ private fun EpisodeRow(episode: JellyfinItemInfo, onClick: () -> Unit) {
                 color = Palette.TextMuted,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 28.dp, top = 2.dp),
+                modifier = Modifier.padding(start = 32.dp, top = 2.dp),
             )
         }
     }

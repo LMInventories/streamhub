@@ -15,7 +15,9 @@ import javax.inject.Inject
 data class JellyfinSeriesDetailUiState(
     val isLoading: Boolean = true,
     val series: JellyfinItemInfo? = null,
+    val seasons: List<JellyfinItemInfo> = emptyList(),
     val episodesBySeasonNumber: Map<Int, List<JellyfinItemInfo>> = emptyMap(),
+    val similarShows: List<JellyfinItemInfo> = emptyList(),
     val errorMessage: String? = null,
 )
 
@@ -42,10 +44,18 @@ class JellyfinSeriesDetailViewModel @Inject constructor(
                 val episodesBySeason = seasons.associate { season ->
                     (season.indexNumber ?: 0) to browseRepository.getEpisodes(seriesId, season.id)
                 }
-                series to episodesBySeason
-            }.onSuccess { (series, episodesBySeason) ->
+                val similarShows = runCatching { browseRepository.getSimilarShows(seriesId) }.getOrDefault(emptyList())
+                Triple(series, seasons, episodesBySeason) to similarShows
+            }.onSuccess { (seriesData, similarShows) ->
+                val (series, seasons, episodesBySeason) = seriesData
                 _uiState.update {
-                    it.copy(isLoading = false, series = series, episodesBySeasonNumber = episodesBySeason)
+                    it.copy(
+                        isLoading = false,
+                        series = series,
+                        seasons = seasons,
+                        episodesBySeasonNumber = episodesBySeason,
+                        similarShows = similarShows,
+                    )
                 }
             }.onFailure { e ->
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load series") }

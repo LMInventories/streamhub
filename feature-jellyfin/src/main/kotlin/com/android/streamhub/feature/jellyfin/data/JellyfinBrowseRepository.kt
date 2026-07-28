@@ -5,6 +5,7 @@ import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
@@ -300,6 +301,13 @@ class JellyfinBrowseRepository @Inject constructor(
             .content.items.map { it.toItemInfo(api) }
     }
 
+    /** Recommendations for a series' own detail screen "More Like This" row - server-side similarity, same categories/genres-driven logic every official Jellyfin client uses. */
+    suspend fun getSimilarShows(seriesId: String, limit: Int = 20): List<JellyfinItemInfo> {
+        val api = apiOrNull() ?: return emptyList()
+        return api.libraryApi.getSimilarShows(itemId = UUID.fromString(seriesId), userId = currentUserId(), limit = limit)
+            .content.items.map { it.toItemInfo(api) }
+    }
+
     /**
      * A direct-play stream URL - ExoPlayer makes its own separate HTTP request outside the SDK's
      * client, so the access token has to travel as an api_key query param rather than the SDK's
@@ -386,6 +394,11 @@ class JellyfinBrowseRepository @Inject constructor(
         }
         val backdropImageUrl = backdropImageTags?.firstOrNull()
             ?.let { api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.BACKDROP, tag = it).withApiKey() }
+        // Bypasses the series-poster override above - this is the episode's own scene-grab, for
+        // contexts (episode detail hero) that want the real per-episode thumbnail, not the series
+        // poster primaryImageUrl deliberately substitutes in for poster-shaped grids.
+        val episodeThumbnailUrl = primaryTag?.takeIf { itemType == JellyfinItemType.EPISODE }
+            ?.let { api.imageApi.getItemImageUrl(itemId = id, imageType = ImageType.PRIMARY, tag = it).withApiKey() }
         // Movies/series carry their own transparent wordmark; episodes don't (no series-level
         // fallback here the way primaryImageUrl has one above) - the preview panel falls back to
         // a plain text title when this is null, which is already the common case for episodes.
@@ -416,6 +429,8 @@ class JellyfinBrowseRepository @Inject constructor(
             runtimeMinutes = runTimeTicks?.let { (it / TICKS_PER_MINUTE).toInt() },
             primaryImageUrl = primaryImageUrl,
             backdropImageUrl = backdropImageUrl,
+            episodeThumbnailUrl = episodeThumbnailUrl,
+            childCount = childCount,
             logoImageUrl = logoImageUrl,
             videoWidth = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.width,
             videoHeight = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }?.height,
