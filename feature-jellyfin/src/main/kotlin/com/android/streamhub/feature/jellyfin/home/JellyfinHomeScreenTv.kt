@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -410,9 +412,20 @@ private fun SeeAllTileTv(onClick: () -> Unit) {
 // the original 140dp per feedback that the rows read too large; focusedScale is half of
 // CardDefaults' own default growth (1.1f) since the full-size grow-on-focus was tall enough to
 // visually cover the "Next Up" row/title sitting just above it.
-/** [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count) - null renders nothing extra, the plain poster look every existing caller already expects. */
+/**
+ * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count)
+ * - null renders nothing extra, the plain poster look every existing caller already expects.
+ * [showWatchedBadge] overlays a small checkmark circle top-end (e.g. a fully-watched season) -
+ * a separate corner from [badge] so the two never collide when both are present.
+ */
 @Composable
-fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit = {}, badge: String? = null) {
+fun JellyfinPosterTv(
+    item: JellyfinItemInfo,
+    onClick: () -> Unit,
+    onFocused: (Boolean) -> Unit = {},
+    badge: String? = null,
+    showWatchedBadge: Boolean = false,
+) {
     Card(
         onClick = onClick,
         scale = CardDefaults.scale(focusedScale = 1.05f),
@@ -445,6 +458,14 @@ fun JellyfinPosterTv(item: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Bo
                         .clip(AppShapes.small)
                         .background(Palette.Surface.copy(alpha = 0.85f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            if (showWatchedBadge) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = "Watched",
+                    tint = Palette.Accent,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
                 )
             }
         }

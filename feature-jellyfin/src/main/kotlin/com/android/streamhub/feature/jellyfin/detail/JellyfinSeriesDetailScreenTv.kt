@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -99,6 +101,7 @@ fun JellyfinSeriesDetailScreenTv(
                     seasons = uiState.seasons,
                     episodesBySeasonNumber = uiState.episodesBySeasonNumber,
                     similarShows = uiState.similarShows,
+                    nextUpEpisode = uiState.nextUpEpisode,
                     onOpenEpisode = onOpenEpisode,
                     onOpenSeries = onOpenSeries,
                 )
@@ -113,6 +116,7 @@ private fun JellyfinSeriesDetailContentTv(
     seasons: List<JellyfinItemInfo>,
     episodesBySeasonNumber: Map<Int, List<JellyfinItemInfo>>,
     similarShows: List<JellyfinItemInfo>,
+    nextUpEpisode: JellyfinItemInfo?,
     onOpenEpisode: (String) -> Unit,
     onOpenSeries: (String) -> Unit,
 ) {
@@ -130,17 +134,55 @@ private fun JellyfinSeriesDetailContentTv(
                     }
                 }
                 Column(modifier = Modifier.padding(start = 20.dp)) {
-                    val metaParts = listOfNotNull(
-                        series.genres.takeIf { it.isNotEmpty() }?.joinToString(", "),
-                        series.communityRating?.let { "★ %.1f".format(it) },
-                    )
-                    if (metaParts.isNotEmpty()) {
-                        Text(text = metaParts.joinToString(" · "), color = Palette.TextMuted)
+                    series.communityRating?.let { rating ->
+                        Text(text = "★ %.1f".format(rating), color = Palette.TextMuted)
                     }
                     series.overview?.let { overview ->
                         Text(text = overview, color = Palette.TextPrimary, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
+            }
+        }
+
+        if (series.tags.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Tags: ${series.tags.joinToString(", ")}",
+                    color = Palette.TextMuted,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp),
+                )
+            }
+        }
+        if (series.genres.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Genres: ${series.genres.joinToString(", ")}",
+                    color = Palette.TextMuted,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp),
+                )
+            }
+        }
+        if (series.studios.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Studios: ${series.studios.joinToString(", ")}",
+                    color = Palette.TextMuted,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp),
+                )
+            }
+        }
+        if (series.externalLinks.isNotEmpty()) {
+            item {
+                ExternalLinksRowTv(links = series.externalLinks)
+            }
+        }
+
+        if (nextUpEpisode != null) {
+            item {
+                Text(text = "Next Up", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
+            }
+            item {
+                NextUpCardTv(episode = nextUpEpisode, onClick = { onOpenEpisode(nextUpEpisode.id) }, modifier = Modifier.padding(horizontal = 24.dp))
             }
         }
 
@@ -157,6 +199,7 @@ private fun JellyfinSeriesDetailContentTv(
                         JellyfinPosterTv(
                             item = season,
                             badge = season.childCount?.let { count -> "$count ep" },
+                            showWatchedBadge = season.isPlayed,
                             onClick = { selectedSeason = season.indexNumber ?: 0 },
                         )
                     }
@@ -166,7 +209,7 @@ private fun JellyfinSeriesDetailContentTv(
 
         if (series.cast.isNotEmpty()) {
             item {
-                Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
+                Text(text = "Cast & Crew", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
                 TvCastRow(cast = series.cast)
@@ -198,6 +241,47 @@ private fun JellyfinSeriesDetailContentTv(
                 }
             }
         }
+    }
+}
+
+/** TV equivalent of the phone NextUpCard - wide backdrop-style card, tapping opens that episode's own TV detail screen. */
+@Composable
+private fun NextUpCardTv(episode: JellyfinItemInfo, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
+            .clip(AppShapes.small)
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+    ) {
+        val heroUrl = episode.backdropImageUrl ?: episode.episodeThumbnailUrl ?: episode.primaryImageUrl
+        if (heroUrl != null) {
+            AsyncImage(model = heroUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+        }
+        Icon(
+            Icons.Filled.PlayArrow,
+            contentDescription = null,
+            tint = Palette.TextPrimary,
+            modifier = Modifier.align(Alignment.Center).size(40.dp),
+        )
+        Text(
+            text = buildString {
+                if (episode.parentIndexNumber != null && episode.indexNumber != null) {
+                    append("S${episode.parentIndexNumber}:E${episode.indexNumber} - ")
+                }
+                append(episode.name)
+            },
+            color = Palette.TextPrimary,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Palette.Surface.copy(alpha = 0.75f))
+                .padding(8.dp),
+        )
     }
 }
 

@@ -61,8 +61,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -218,15 +220,22 @@ private fun JellyfinItemDetailContent(
             }
 
             Column(modifier = if (isEpisode) Modifier else Modifier.padding(start = 16.dp)) {
-                if (item.seriesName != null) {
+                // Promoted to a bold two-line heading (show name, then "Season X · Episode Y -
+                // Title") rather than a single muted micro-text line - the show/episode title is
+                // the single most important thing on this screen, and TopAppBar's own title is too
+                // small/easy to miss to carry that alone.
+                if (isEpisode && item.seriesName != null) {
+                    Text(text = item.seriesName, color = Palette.TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Text(
                         text = buildString {
-                            append(item.seriesName)
                             if (item.parentIndexNumber != null && item.indexNumber != null) {
-                                append(" · S${item.parentIndexNumber} E${item.indexNumber}")
+                                append("Season ${item.parentIndexNumber} · Episode ${item.indexNumber} - ")
                             }
+                            append(item.name)
                         },
-                        color = Palette.TextMuted,
+                        color = Palette.TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
                 val metaParts = listOfNotNull(
@@ -311,6 +320,17 @@ private fun JellyfinItemDetailContent(
                 modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp),
             )
         }
+        if (item.crew.isNotEmpty()) {
+            Text(
+                text = "Director: ${item.crew.joinToString(", ") { it.name }}",
+                color = Palette.TextMuted,
+                modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp),
+            )
+        }
+
+        if (item.externalLinks.isNotEmpty()) {
+            ExternalLinksRow(links = item.externalLinks)
+        }
 
         if (isEpisode && seasonEpisodes.isNotEmpty()) {
             Text(
@@ -328,13 +348,28 @@ private fun JellyfinItemDetailContent(
             }
         }
 
-        if (item.cast.isNotEmpty()) {
-            Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
+        // Episodes' own people payload doesn't repeat the series' regular cast at all - just its
+        // own director(s) (crew) and any episode-specific guest stars, shown as two separate
+        // sections. Movies/series have no such split - item.cast (actors) is what "Cast & Crew"
+        // shows for them, same as before this section was just labeled "Cast".
+        val castAndCrew = if (isEpisode) item.crew else item.cast
+        if (castAndCrew.isNotEmpty()) {
+            Text(text = "Cast & Crew", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(item.cast, key = { it.id }) { member -> CastMemberCard(member) }
+                items(castAndCrew, key = { it.id }) { member -> CastMemberCard(member) }
+            }
+        }
+
+        if (isEpisode && item.guestStars.isNotEmpty()) {
+            Text(text = "Guest Stars", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(item.guestStars, key = { it.id }) { member -> CastMemberCard(member) }
             }
         }
 
@@ -503,7 +538,7 @@ private fun DownloadButton(
     }
 }
 
-/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPoster would show for an episode) captioned with its own episode number/name rather than the series name. */
+/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPoster would show for an episode) captioned "N. Name" (matches the official Jellyfin app) with a watched checkmark overlay when already seen. */
 @Composable
 private fun EpisodeThumbnailCard(episode: JellyfinItemInfo, onClick: () -> Unit) {
     Column(modifier = Modifier.width(160.dp).clickable(onClick = onClick)) {
@@ -519,14 +554,42 @@ private fun EpisodeThumbnailCard(episode: JellyfinItemInfo, onClick: () -> Unit)
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
             }
+            if (episode.isPlayed) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = "Watched",
+                    tint = Palette.Accent,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
+                )
+            }
         }
         Text(
-            text = listOfNotNull(episode.indexNumber?.let { "Episode $it" }, episode.name.takeIf { it.isNotBlank() }).joinToString(" · "),
+            text = listOfNotNull(episode.indexNumber?.let { "$it." }, episode.name.takeIf { it.isNotBlank() }).joinToString(" "),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             color = Palette.TextPrimary,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+/** A single "IMDb, Trakt, ..." line of tappable links - shared by both the episode/movie and series detail screens (same package, no import needed). Each opens its own URL the same way the trailer-search button above already launches a browser Intent. */
+@Composable
+fun ExternalLinksRow(links: List<Pair<String, String>>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Row(modifier = modifier.fillMaxWidth().padding(16.dp, 4.dp)) {
+        links.forEachIndexed { index, (name, url) ->
+            if (index > 0) {
+                Text(text = ", ", color = Palette.TextMuted)
+            }
+            Text(
+                text = name,
+                color = Palette.Accent,
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                },
+            )
+        }
     }
 }
 

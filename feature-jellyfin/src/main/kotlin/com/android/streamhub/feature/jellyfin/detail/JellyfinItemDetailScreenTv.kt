@@ -197,15 +197,20 @@ private fun JellyfinItemDetailContentTv(
                 }
 
                 Column(modifier = if (isEpisode) Modifier else Modifier.padding(start = 20.dp)) {
-                    if (item.seriesName != null) {
+                    // Promoted to a bold two-line heading - see JellyfinItemDetailScreen's matching
+                    // comment for why a single muted micro-text line wasn't enough here.
+                    if (isEpisode && item.seriesName != null) {
+                        Text(text = item.seriesName, color = Palette.TextPrimary, style = MaterialTheme.typography.titleMedium)
                         Text(
                             text = buildString {
-                                append(item.seriesName)
                                 if (item.parentIndexNumber != null && item.indexNumber != null) {
-                                    append(" · S${item.parentIndexNumber} E${item.indexNumber}")
+                                    append("Season ${item.parentIndexNumber} · Episode ${item.indexNumber} - ")
                                 }
+                                append(item.name)
                             },
-                            color = Palette.TextMuted,
+                            color = Palette.TextPrimary,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                     val metaParts = listOfNotNull(
@@ -278,6 +283,21 @@ private fun JellyfinItemDetailContentTv(
                 )
             }
         }
+        if (item.crew.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Director: ${item.crew.joinToString(", ") { it.name }}",
+                    color = Palette.TextMuted,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp),
+                )
+            }
+        }
+
+        if (item.externalLinks.isNotEmpty()) {
+            item {
+                ExternalLinksRowTv(links = item.externalLinks)
+            }
+        }
 
         if (isEpisode && seasonEpisodes.isNotEmpty()) {
             item {
@@ -296,18 +316,29 @@ private fun JellyfinItemDetailContentTv(
             }
         }
 
-        if (item.cast.isNotEmpty()) {
+        // Same crew/guest-star split as the phone screen - see that composable's matching comment.
+        val castAndCrew = if (isEpisode) item.crew else item.cast
+        if (castAndCrew.isNotEmpty()) {
             item {
-                Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
+                Text(text = "Cast & Crew", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                TvCastRow(cast = item.cast)
+                TvCastRow(cast = castAndCrew)
+            }
+        }
+
+        if (isEpisode && item.guestStars.isNotEmpty()) {
+            item {
+                Text(text = "Guest Stars", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
+            }
+            item {
+                TvCastRow(cast = item.guestStars)
             }
         }
     }
 }
 
-/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned with its own episode number/name rather than the series name. */
+/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned "N. Name" (matches the official Jellyfin app) with a watched checkmark overlay when already seen. */
 @Composable
 private fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
     Column(modifier = Modifier.width(160.dp)) {
@@ -319,15 +350,46 @@ private fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Uni
                 } else {
                     Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
                 }
+                if (episode.isPlayed) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = "Watched",
+                        tint = Palette.Accent,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
+                    )
+                }
             }
         }
         Text(
-            text = listOfNotNull(episode.indexNumber?.let { "Episode $it" }, episode.name.takeIf { it.isNotBlank() }).joinToString(" · "),
+            text = listOfNotNull(episode.indexNumber?.let { "$it." }, episode.name.takeIf { it.isNotBlank() }).joinToString(" "),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             color = Palette.TextPrimary,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+/** TV equivalent of the phone ExternalLinksRow - a "IMDb, Trakt, ..." line of tappable links, shared by both TV detail screens (same package). tvFocusBorder is needed here (unlike Button/Card) since this is a plain clickable Text, same reasoning as every other custom clickable row in this file. */
+@Composable
+fun ExternalLinksRowTv(links: List<Pair<String, String>>, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Row(modifier = modifier.fillMaxWidth().padding(24.dp, 4.dp)) {
+        links.forEachIndexed { index, (name, url) ->
+            if (index > 0) {
+                Text(text = ", ", color = Palette.TextMuted)
+            }
+            val interactionSource = remember { MutableInteractionSource() }
+            Text(
+                text = name,
+                color = Palette.Accent,
+                modifier = Modifier
+                    .tvFocusBorder(interactionSource)
+                    .clickable(interactionSource = interactionSource, indication = null) {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    },
+            )
+        }
     }
 }
 

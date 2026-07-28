@@ -18,7 +18,18 @@ data class JellyfinSeriesDetailUiState(
     val seasons: List<JellyfinItemInfo> = emptyList(),
     val episodesBySeasonNumber: Map<Int, List<JellyfinItemInfo>> = emptyMap(),
     val similarShows: List<JellyfinItemInfo> = emptyList(),
+    // Null once the whole series is caught up (or nothing's ever been started) - "Next Up" section
+    // is hidden entirely in that case rather than shown empty.
+    val nextUpEpisode: JellyfinItemInfo? = null,
     val errorMessage: String? = null,
+)
+
+private data class LoadedSeries(
+    val series: JellyfinItemInfo?,
+    val seasons: List<JellyfinItemInfo>,
+    val episodesBySeasonNumber: Map<Int, List<JellyfinItemInfo>>,
+    val similarShows: List<JellyfinItemInfo>,
+    val nextUpEpisode: JellyfinItemInfo?,
 )
 
 @HiltViewModel
@@ -45,16 +56,17 @@ class JellyfinSeriesDetailViewModel @Inject constructor(
                     (season.indexNumber ?: 0) to browseRepository.getEpisodes(seriesId, season.id)
                 }
                 val similarShows = runCatching { browseRepository.getSimilarShows(seriesId) }.getOrDefault(emptyList())
-                Triple(series, seasons, episodesBySeason) to similarShows
-            }.onSuccess { (seriesData, similarShows) ->
-                val (series, seasons, episodesBySeason) = seriesData
+                val nextUpEpisode = runCatching { browseRepository.getNextUp(seriesId) }.getOrNull()
+                LoadedSeries(series, seasons, episodesBySeason, similarShows, nextUpEpisode)
+            }.onSuccess { loaded ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        series = series,
-                        seasons = seasons,
-                        episodesBySeasonNumber = episodesBySeason,
-                        similarShows = similarShows,
+                        series = loaded.series,
+                        seasons = loaded.seasons,
+                        episodesBySeasonNumber = loaded.episodesBySeasonNumber,
+                        similarShows = loaded.similarShows,
+                        nextUpEpisode = loaded.nextUpEpisode,
                     )
                 }
             }.onFailure { e ->

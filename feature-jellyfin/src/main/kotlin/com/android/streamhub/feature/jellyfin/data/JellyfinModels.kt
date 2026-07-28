@@ -94,6 +94,19 @@ data class JellyfinItemInfo(
     val playedPercentage: Float?,
     val resumePositionTicks: Long,
     val cast: List<JellyfinCastMember>,
+    // Crew/guest-star/tags/studios/external-links are all default-empty for the same cache-JSON
+    // compatibility reason as episodeThumbnailUrl/logoImageUrl above.
+    //
+    // An episode's own people payload doesn't repeat the series' regular cast at all (that's what
+    // `cast` already covers, populated for movies/series) - just its own director(s) and any
+    // episode-specific guest stars, which is exactly what crew/guestStars hold.
+    val crew: List<JellyfinCastMember> = emptyList(),
+    val guestStars: List<JellyfinCastMember> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val studios: List<String> = emptyList(),
+    // (link label, URL) pairs - e.g. IMDb/Trakt - straight from Jellyfin's own externalUrls, not
+    // hand-built from providerIds.
+    val externalLinks: List<Pair<String, String>> = emptyList(),
 )
 
 /**

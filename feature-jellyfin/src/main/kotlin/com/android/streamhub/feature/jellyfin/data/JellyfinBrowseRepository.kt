@@ -14,6 +14,7 @@ import org.jellyfin.sdk.api.client.extensions.userViewsApi
 import org.jellyfin.sdk.api.client.extensions.videosApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.BaseItemPerson
 import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.ItemFields
@@ -97,6 +98,13 @@ class JellyfinBrowseRepository @Inject constructor(
     suspend fun getNextUp(limit: Int = 20): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
         return api.tvShowsApi.getNextUp(userId = currentUserId(), limit = limit).content.items.map { it.toItemInfo(api) }
+    }
+
+    /** The one episode a series' own detail screen should surface as "Next Up" - null once the whole series is caught up, or if nothing's ever been started. */
+    suspend fun getNextUp(seriesId: String): JellyfinItemInfo? {
+        val api = apiOrNull() ?: return null
+        return api.tvShowsApi.getNextUp(userId = currentUserId(), seriesId = UUID.fromString(seriesId), limit = 1)
+            .content.items.firstOrNull()?.toItemInfo(api)
     }
 
     /**
@@ -446,18 +454,27 @@ class JellyfinBrowseRepository @Inject constructor(
             isPlayed = userData?.played ?: false,
             playedPercentage = userData?.playedPercentage?.toFloat(),
             resumePositionTicks = userData?.playbackPositionTicks ?: 0L,
-            cast = people.orEmpty()
-                .filter { it.type == PersonKind.ACTOR }
-                .map { person ->
-                    JellyfinCastMember(
-                        id = person.id.toString(),
-                        name = person.name.orEmpty(),
-                        role = person.role,
-                        imageUrl = person.primaryImageTag?.let { tag ->
-                            api.imageApi.getPersonImageUrl(name = person.name.orEmpty(), imageType = ImageType.PRIMARY, tag = tag).withApiKey()
-                        },
-                    )
-                },
+            cast = people.orEmpty().toCastMembers(api, PersonKind.ACTOR),
+            // An episode's own people payload doesn't repeat the series' regular cast (that's
+            // `cast` above, populated for movies/series) - just its own director(s) and any
+            // episode-specific guest stars.
+            crew = people.orEmpty().toCastMembers(api, PersonKind.DIRECTOR),
+            guestStars = people.orEmpty().toCastMembers(api, PersonKind.GUEST_STAR),
+            tags = tags.orEmpty(),
+            studios = studios.orEmpty().mapNotNull { it.name },
+            externalLinks = externalUrls.orEmpty().mapNotNull { link -> link.name?.let { name -> link.url?.let { url -> name to url } } },
         )
     }
+
+    private fun List<BaseItemPerson>.toCastMembers(api: ApiClient, kind: PersonKind): List<JellyfinCastMember> =
+        filter { it.type == kind }.map { person ->
+            JellyfinCastMember(
+                id = person.id.toString(),
+                name = person.name.orEmpty(),
+                role = person.role,
+                imageUrl = person.primaryImageTag?.let { tag ->
+                    api.imageApi.getPersonImageUrl(name = person.name.orEmpty(), imageType = ImageType.PRIMARY, tag = tag).withApiKey()
+                },
+            )
+        }
 }

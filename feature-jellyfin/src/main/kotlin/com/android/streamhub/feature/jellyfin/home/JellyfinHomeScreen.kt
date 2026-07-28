@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -265,9 +267,14 @@ private fun MediaCard(label: String, onClick: () -> Unit) {
     }
 }
 
-/** [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count) - null renders nothing extra, the plain poster look every existing caller already expects. */
+/**
+ * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's episode count)
+ * - null renders nothing extra, the plain poster look every existing caller already expects.
+ * [showWatchedBadge] overlays a small checkmark circle top-end (e.g. a fully-watched season) -
+ * a separate corner from [badge] so the two never collide when both are present.
+ */
 @Composable
-fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? = null) {
+fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? = null, showWatchedBadge: Boolean = false) {
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
@@ -295,6 +302,14 @@ fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? =
                         .clip(AppShapes.small)
                         .background(Palette.Surface.copy(alpha = 0.85f))
                         .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            if (showWatchedBadge) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = "Watched",
+                    tint = Palette.Accent,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
                 )
             }
         }
