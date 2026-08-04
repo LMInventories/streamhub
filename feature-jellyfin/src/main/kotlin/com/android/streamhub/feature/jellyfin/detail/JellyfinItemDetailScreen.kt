@@ -183,16 +183,20 @@ private fun JellyfinItemDetailContent(
     val playFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { playFocusRequester.requestFocus() }
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-        // Episodes get a 16:9 scene-thumbnail hero instead of the narrow 2:3 poster - a poster-
-        // shaped box for an episode either shows the series' own poster (confusing next to an
-        // episode-specific page) or a stretched scene-grab, neither of which reads as intentional
-        // the way a proper 16:9 hero does.
-        if (isEpisode) {
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-                val heroUrl = item.episodeThumbnailUrl ?: item.primaryImageUrl
-                if (heroUrl != null) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            // Episodes get a small 16:9 scene-thumbnail instead of the narrow 2:3 poster - a
+            // poster-shaped box for an episode either shows the series' own poster (confusing next
+            // to an episode-specific page) or a stretched scene-grab, neither of which reads as
+            // intentional the way a proper 16:9 thumbnail does. Sized to sit beside the title/
+            // metadata/buttons rather than as a full-bleed hero above them.
+            Box(
+                modifier = (if (isEpisode) Modifier.width(110.dp).aspectRatio(16f / 9f) else Modifier.width(120.dp).height(180.dp))
+                    .clip(AppShapes.small),
+            ) {
+                val imageUrl = if (isEpisode) item.episodeThumbnailUrl ?: item.primaryImageUrl else item.primaryImageUrl
+                if (imageUrl != null) {
                     AsyncImage(
-                        model = heroUrl,
+                        model = imageUrl,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
@@ -201,25 +205,8 @@ private fun JellyfinItemDetailContent(
                     Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
                 }
             }
-        }
 
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            if (!isEpisode) {
-                Box(modifier = Modifier.width(120.dp).height(180.dp).clip(AppShapes.small)) {
-                    if (item.primaryImageUrl != null) {
-                        AsyncImage(
-                            model = item.primaryImageUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
-                    }
-                }
-            }
-
-            Column(modifier = if (isEpisode) Modifier else Modifier.padding(start = 16.dp)) {
+            Column(modifier = Modifier.padding(start = 16.dp)) {
                 // Promoted to a bold two-line heading (show name, then "Season X · Episode Y -
                 // Title") rather than a single muted micro-text line - the show/episode title is
                 // the single most important thing on this screen, and TopAppBar's own title is too
@@ -239,7 +226,9 @@ private fun JellyfinItemDetailContent(
                     )
                 }
                 val metaParts = listOfNotNull(
-                    item.productionYear?.toString(),
+                    // Episodes show their actual air date (when Jellyfin has one) rather than just
+                    // the series' production year, which is a lot less useful per-episode.
+                    if (isEpisode) item.premiereDateLabel ?: item.productionYear?.toString() else item.productionYear?.toString(),
                     item.runtimeMinutes?.let { "$it min" },
                     item.communityRating?.let { "★ %.1f".format(it) },
                 )
@@ -309,6 +298,7 @@ private fun JellyfinItemDetailContent(
                 text = overview,
                 color = Palette.TextPrimary,
                 overflow = TextOverflow.Clip,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp),
             )
         }
@@ -415,8 +405,8 @@ private fun MediaInfoSection(
 @Composable
 private fun MediaInfoRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = label, color = Palette.TextMuted, modifier = Modifier.width(90.dp))
-        Text(text = value, color = Palette.TextPrimary)
+        Text(text = label, color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(90.dp))
+        Text(text = value, color = Palette.TextPrimary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -439,7 +429,7 @@ private fun SubtitleSelectorRow(
     val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = "Subtitles", color = Palette.TextMuted, modifier = Modifier.width(90.dp))
+        Text(text = "Subtitles", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(90.dp))
         Box {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -450,7 +440,7 @@ private fun SubtitleSelectorRow(
                     .clickable { expanded = true }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                Text(text = selectedLabel, color = Palette.TextPrimary)
+                Text(text = selectedLabel, color = Palette.TextPrimary, style = MaterialTheme.typography.bodyMedium)
                 Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = Palette.TextMuted, modifier = Modifier.padding(start = 6.dp).size(18.dp))
             }
             DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {

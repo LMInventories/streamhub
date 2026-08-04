@@ -30,6 +30,8 @@ import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SortOrder
 import kotlinx.coroutines.flow.first
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,6 +39,10 @@ import javax.inject.Singleton
 // 1 tick = 100ns (Jellyfin's .NET-derived convention throughout its API) - 600_000_000 ticks/min.
 private const val TICKS_PER_MINUTE = 600_000_000L
 private const val TICKS_PER_MS = 10_000L
+
+// BaseItemDto.premiereDate is a bare java.time.LocalDateTime (no zone) - formatted once here so
+// every screen that renders it gets the same "Aug 15, 2023" shape without re-implementing it.
+private val PREMIERE_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())
 
 // Matches WatchProgress.isNearlyComplete (core-common) - close enough to the end that the server
 // should treat this the same as an explicit "mark watched" rather than just a resume point.
@@ -438,6 +444,7 @@ class JellyfinBrowseRepository @Inject constructor(
             primaryImageUrl = primaryImageUrl,
             backdropImageUrl = backdropImageUrl,
             episodeThumbnailUrl = episodeThumbnailUrl,
+            premiereDateLabel = premiereDate?.format(PREMIERE_DATE_FORMATTER),
             childCount = childCount,
             unplayedItemCount = userData?.unplayedItemCount,
             logoImageUrl = logoImageUrl,

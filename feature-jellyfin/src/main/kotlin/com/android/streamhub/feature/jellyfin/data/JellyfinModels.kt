@@ -61,6 +61,10 @@ data class JellyfinItemInfo(
     // applies for episodes (see toItemInfo's comment) - null for non-episodes. Default null for
     // cache-compatibility, same reasoning as logoImageUrl below.
     val episodeThumbnailUrl: String? = null,
+    // Pre-formatted premiere/air date (e.g. "Aug 15, 2023") from Jellyfin's PremiereDate - null
+    // when the server has no date for this item. Default null for the same cache-compatibility
+    // reason as episodeThumbnailUrl above.
+    val premiereDateLabel: String? = null,
     // Episode count for a season item; null for every other item type. Default null for the same
     // cache-compatibility reason as episodeThumbnailUrl above.
     val childCount: Int? = null,

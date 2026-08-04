@@ -171,32 +171,24 @@ private fun JellyfinItemDetailContentTv(
     LaunchedEffect(Unit) { playFocusRequester.requestFocus() }
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        if (isEpisode) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-                    val heroUrl = item.episodeThumbnailUrl ?: item.primaryImageUrl
-                    if (heroUrl != null) {
-                        AsyncImage(model = heroUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        item {
+            Row(modifier = Modifier.fillMaxWidth().padding(24.dp, 16.dp)) {
+                // Episodes get a small 16:9 scene-thumbnail instead of the narrow 2:3 poster - see
+                // the phone screen's matching comment for why. Sized to sit beside the title/
+                // metadata/buttons rather than as a full-bleed hero above them.
+                Box(
+                    modifier = (if (isEpisode) Modifier.width(200.dp).aspectRatio(16f / 9f) else Modifier.width(140.dp).height(210.dp))
+                        .clip(AppShapes.small),
+                ) {
+                    val imageUrl = if (isEpisode) item.episodeThumbnailUrl ?: item.primaryImageUrl else item.primaryImageUrl
+                    if (imageUrl != null) {
+                        AsyncImage(model = imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     } else {
                         Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
                     }
                 }
-            }
-        }
 
-        item {
-            Row(modifier = Modifier.fillMaxWidth().padding(24.dp, 16.dp)) {
-                if (!isEpisode) {
-                    Box(modifier = Modifier.width(140.dp).height(210.dp).clip(AppShapes.small)) {
-                        if (item.primaryImageUrl != null) {
-                            AsyncImage(model = item.primaryImageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                        } else {
-                            Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
-                        }
-                    }
-                }
-
-                Column(modifier = if (isEpisode) Modifier else Modifier.padding(start = 20.dp)) {
+                Column(modifier = Modifier.padding(start = 20.dp)) {
                     // Promoted to a bold two-line heading - see JellyfinItemDetailScreen's matching
                     // comment for why a single muted micro-text line wasn't enough here.
                     if (isEpisode && item.seriesName != null) {
@@ -214,7 +206,9 @@ private fun JellyfinItemDetailContentTv(
                         )
                     }
                     val metaParts = listOfNotNull(
-                        item.productionYear?.toString(),
+                        // Episodes show their actual air date (when Jellyfin has one) rather than
+                        // just the series' production year - see the phone screen's matching logic.
+                        if (isEpisode) item.premiereDateLabel ?: item.productionYear?.toString() else item.productionYear?.toString(),
                         item.runtimeMinutes?.let { "$it min" },
                         item.communityRating?.let { "★ %.1f".format(it) },
                     )
@@ -270,7 +264,12 @@ private fun JellyfinItemDetailContentTv(
 
         item.overview?.let { overview ->
             item {
-                Text(text = overview, color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp))
+                Text(
+                    text = overview,
+                    color = Palette.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp),
+                )
             }
         }
 
@@ -443,8 +442,8 @@ private fun MediaInfoSectionTv(
 @Composable
 private fun MediaInfoRowTv(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = label, color = Palette.TextMuted, modifier = Modifier.width(100.dp))
-        Text(text = value, color = Palette.TextPrimary)
+        Text(text = label, color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(100.dp))
+        Text(text = value, color = Palette.TextPrimary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -459,9 +458,9 @@ private fun SubtitlePickerRowTv(
     val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: "Off"
 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = "Subtitles", color = Palette.TextMuted, modifier = Modifier.width(100.dp))
+        Text(text = "Subtitles", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(100.dp))
         Button(onClick = { expanded = true }) {
-            Text(selectedLabel)
+            Text(selectedLabel, style = MaterialTheme.typography.bodyMedium)
         }
     }
 
