@@ -90,13 +90,9 @@ fun JellyfinItemDetailScreenTv(
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            Text(
-                text = uiState.item?.name.orEmpty(),
-                style = MaterialTheme.typography.headlineSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp).weight(1f),
-            )
+            // No title here on purpose - see the phone screen's matching comment. The Spacer keeps
+            // the watched/favourite actions pinned right now that nothing else claims the space.
+            Spacer(modifier = Modifier.weight(1f))
             uiState.item?.let { item ->
                 IconButton(onClick = viewModel::toggleWatched) {
                     Icon(

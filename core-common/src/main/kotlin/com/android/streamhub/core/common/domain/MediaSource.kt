@@ -54,7 +54,31 @@ interface MediaSource {
      * (Jellyfin) need to override this.
      */
     suspend fun resolveSubtitlePreference(itemId: String): SubtitlePreference = SubtitlePreference()
+
+    /**
+     * The item that should play after [itemId] finishes - drives the player's "Next Episode"
+     * prompt. Default null ("this source has no next-item concept"), the same default-no-op shape
+     * as [recordViewed]/[onPlaybackStarted] above, so the player can ask unconditionally without
+     * knowing which sources have episodic content. Live channels, movies and one-off VOD items all
+     * correctly answer null, which is what keeps the prompt from ever appearing for them.
+     */
+    suspend fun resolveNextItem(itemId: String): NextPlaybackItem? = null
 }
+
+/**
+ * Enough of the following item to preview it without the player having to depend on any source's
+ * own richer model - deliberately flattened for the same reason PlaybackItem is. [episodeLabel] is
+ * pre-formatted by the source (e.g. "Season 2 · Episode 5") since only the source knows whether
+ * its content is even episode-shaped.
+ */
+data class NextPlaybackItem(
+    val id: String,
+    val title: String,
+    val seriesName: String?,
+    val episodeLabel: String?,
+    val description: String?,
+    val thumbnailUrl: String?,
+)
 
 /** [preferredLanguage] mirrors PlaybackItem's own field; [off] is the hard "Off means Off" override - see PlaybackItem.subtitlesOff's doc for why that's distinct from just no language preference. */
 data class SubtitlePreference(

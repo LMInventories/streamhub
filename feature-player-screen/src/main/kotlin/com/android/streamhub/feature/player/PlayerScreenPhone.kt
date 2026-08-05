@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -106,6 +107,17 @@ fun PlayerScreenPhone(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentItem by viewModel.currentItem.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+    val nextItem by viewModel.nextItem.collectAsStateWithLifecycle()
+
+    // Non-null only in the last ten seconds of an episode that actually has a follow-up - see
+    // nextEpisodeCountdownSeconds. Live content never qualifies (no meaningful duration).
+    val nextEpisodeCountdown = nextItem
+        ?.takeIf { currentItem?.isLive == false }
+        ?.let { nextEpisodeCountdownSeconds(uiState.positionMs, uiState.durationMs) }
+
+    LaunchedEffect(nextEpisodeCountdown) {
+        if (nextEpisodeCountdown == 0) viewModel.playNextItem()
+    }
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
@@ -214,6 +226,33 @@ fun PlayerScreenPhone(
                 onOpenExternally = { interactionTick++; viewModel.openExternally(context) },
                 onSwitchChannel = { interactionTick++; viewModel.switchChannel(it) },
             )
+        }
+
+        // Drawn last so it sits above the controls - if both are up, answering the prompt is the
+        // more urgent action and shouldn't be behind a transport bar. The scrim consumes taps so
+        // the root detectTapGestures above can't toggle the controls out from under it.
+        AnimatedVisibility(visible = nextEpisodeCountdown != null, enter = fadeIn(), exit = fadeOut()) {
+            val prompt = nextItem
+            if (prompt != null) {
+                Box(modifier = Modifier.pointerInput(Unit) { detectTapGestures { } }) {
+                    NextEpisodePromptScrim {
+                        NextEpisodePromptBody(
+                            nextItem = prompt,
+                            secondsRemaining = nextEpisodeCountdown ?: 0,
+                        ) {
+                            Button(onClick = viewModel::playNextItem) {
+                                Text("Watch Now")
+                            }
+                            // Cancel returns to wherever playback was launched from (the episode
+                            // list or detail page), rather than just dismissing to a finished video
+                            // sitting on its last frame with nothing left to do.
+                            Button(onClick = onBack) {
+                                Text("Cancel")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

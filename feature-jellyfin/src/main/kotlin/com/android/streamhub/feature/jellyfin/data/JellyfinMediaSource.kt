@@ -1,6 +1,7 @@
 package com.android.streamhub.feature.jellyfin.data
 
 import com.android.streamhub.core.common.domain.MediaSource
+import com.android.streamhub.core.common.domain.NextPlaybackItem
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.domain.SubtitlePreference
@@ -80,6 +81,52 @@ class JellyfinMediaSource @Inject constructor(
             off = subtitlesOff,
         )
     }
+
+    /**
+     * Deliberately computed from the season's own episode list rather than Jellyfin's Next Up API:
+     * Next Up is driven by *watched* state, so asking it mid-episode returns the episode currently
+     * playing, not the one after it. Walks to the next episode in this season by index, then falls
+     * through to the first episode of the next season when the current one runs out - so finishing
+     * a season finale rolls into the new season the way it should, instead of just stopping.
+     */
+    override suspend fun resolveNextItem(itemId: String): NextPlaybackItem? {
+        val current = browseRepository.getItem(itemId) ?: return null
+        if (current.type != JellyfinItemType.EPISODE) return null
+        val seriesId = current.seriesId ?: return null
+        val currentIndex = current.indexNumber
+
+        val sameSeasonNext = current.seasonId
+            ?.let { seasonId -> browseRepository.getEpisodes(seriesId, seasonId) }
+            ?.filter { it.indexNumber != null && currentIndex != null && it.indexNumber > currentIndex }
+            ?.minByOrNull { it.indexNumber!! }
+
+        val next = sameSeasonNext ?: nextSeasonFirstEpisode(seriesId, current.parentIndexNumber)
+        return next?.toNextPlaybackItem()
+    }
+
+    private suspend fun nextSeasonFirstEpisode(seriesId: String, currentSeasonNumber: Int?): JellyfinItemInfo? {
+        if (currentSeasonNumber == null) return null
+        val nextSeason = browseRepository.getSeasons(seriesId)
+            .filter { it.indexNumber != null && it.indexNumber > currentSeasonNumber }
+            .minByOrNull { it.indexNumber!! }
+            ?: return null
+        return browseRepository.getEpisodes(seriesId, nextSeason.id).minByOrNull { it.indexNumber ?: Int.MAX_VALUE }
+    }
+
+    private fun JellyfinItemInfo.toNextPlaybackItem(): NextPlaybackItem = NextPlaybackItem(
+        id = id,
+        title = name,
+        seriesName = seriesName,
+        episodeLabel = if (parentIndexNumber != null && indexNumber != null) {
+            "Season $parentIndexNumber · Episode $indexNumber"
+        } else {
+            null
+        },
+        description = overview,
+        // Same "prefer the real scene grab over the series-poster override" rule the detail screen's
+        // own episode thumbnails use - see JellyfinBrowseRepository.toItemInfo.
+        thumbnailUrl = episodeThumbnailUrl ?: primaryImageUrl,
+    )
 
     override suspend fun onPlaybackStarted(itemId: String) = browseRepository.reportPlaybackStart(itemId)
 

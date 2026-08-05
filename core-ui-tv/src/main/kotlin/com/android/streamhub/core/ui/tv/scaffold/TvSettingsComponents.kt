@@ -95,16 +95,21 @@ fun TvSettingsRow(
     icon: ImageVector? = null,
     enabled: Boolean = true,
     showChevron: Boolean = true,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .tvFocusBorder(interactionSource)
+            // Inset before tvFocusBorder so the focus highlight is a rounded pill floating inside
+            // the section card rather than a square block butting against its 20dp rounded border.
+            // The inset is subtracted from the inner padding below, so row metrics are unchanged.
+            .padding(horizontal = SettingsRowFocusInset, vertical = 4.dp)
+            .tvFocusBorder(interactionSource, AppShapes.small)
             .clickable(interactionSource = interactionSource, indication = null, enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp - SettingsRowFocusInset, vertical = 14.dp),
     ) {
         if (icon != null) {
             Icon(
@@ -126,6 +131,13 @@ fun TvSettingsRow(
     }
 }
 
+/**
+ * How far a row's focus highlight is inset from the section card's own edge. Kept as a named
+ * constant because the row's inner padding subtracts it to hold the overall row metrics steady,
+ * and the divider indents past it so it lines up with the row text rather than the highlight.
+ */
+private val SettingsRowFocusInset = 8.dp
+
 /** A non-clickable divider matching TvSettingsSection's row spacing - use between TvSettingsRows in the same section. */
 @Composable
 fun TvSettingsRowDivider() {
@@ -134,15 +146,17 @@ fun TvSettingsRowDivider() {
 
 /** A TvSettingsRow variant for a boolean setting - a checkmark instead of a chevron, no tv-material3 Switch dependency needed. */
 @Composable
-fun TvSettingsToggleRow(label: String, subtitle: String? = null, checked: Boolean, onToggle: () -> Unit) {
+fun TvSettingsToggleRow(label: String, subtitle: String? = null, checked: Boolean, modifier: Modifier = Modifier, onToggle: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .tvFocusBorder(interactionSource)
+            // Same rounded-highlight inset as TvSettingsRow - see its comment.
+            .padding(horizontal = SettingsRowFocusInset, vertical = 4.dp)
+            .tvFocusBorder(interactionSource, AppShapes.small)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onToggle)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp - SettingsRowFocusInset, vertical = 14.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = label, color = Palette.TextPrimary)

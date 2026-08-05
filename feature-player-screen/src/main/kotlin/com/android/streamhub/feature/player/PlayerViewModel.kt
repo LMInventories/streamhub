@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.common.domain.MediaSource
+import com.android.streamhub.core.common.domain.NextPlaybackItem
 import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.domain.SubtitlePreference
@@ -19,6 +20,7 @@ import com.android.streamhub.feature.player.cast.PlayerCastController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +72,20 @@ class PlayerViewModel @Inject constructor(
     private val _currentItem = MutableStateFlow<PlaybackItem?>(null)
     val currentItem: StateFlow<PlaybackItem?> = _currentItem
 
+    /**
+     * The episode queued up after this one, or null when there isn't one (movies, live TV, series
+     * finales, and every non-episodic source - see MediaSource.resolveNextItem's default). The
+     * "Next Episode" prompt keys off this being non-null rather than off a source-type check, so
+     * sources without episodic content are unaffected without the UI knowing they exist.
+     */
+    private val _nextItem = MutableStateFlow<NextPlaybackItem?>(null)
+    val nextItem: StateFlow<NextPlaybackItem?> = _nextItem
+
+    // Cancelled and relaunched per load - chaining into the next episode calls loadAndPrepare
+    // again, and without holding the Job each chained episode would leave its predecessor's
+    // while(true) reporting loop running for the rest of the session.
+    private var progressReportingJob: Job? = null
+
     /** Empty for non-live sources (MediaSource.observeRecentlyViewed() defaults to an empty Flow) - the overlay only shows this strip when currentItem.isLive anyway. */
     val recentChannels: StateFlow<List<PlaybackItem>> =
         (mediaSource?.observeRecentlyViewed() ?: flowOf(emptyList()))
@@ -95,7 +111,25 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { loadAndPrepare(newItemId, applyResumePoint = false) }
     }
 
+    /**
+     * Chains straight into the queued next episode in the same player, rather than popping back to
+     * the detail screen and re-navigating - same in-place re-prepare switchChannel already uses, so
+     * playback continues in the one ExoPlayer instance with no black-screen teardown between
+     * episodes. Starts from the beginning, never a resume point: the whole premise is that this
+     * episode hasn't been watched yet.
+     */
+    fun playNextItem() {
+        val next = _nextItem.value ?: return
+        _nextItem.value = null
+        viewModelScope.launch { loadAndPrepare(next.id, applyResumePoint = false) }
+    }
+
     private suspend fun loadAndPrepare(id: String, applyResumePoint: Boolean) {
+        // Tell the source the outgoing item is done *before* swapping it out. Without this, chaining
+        // into the next episode means the one just finished never gets its stop report, so the
+        // server never marks it watched and Next Up stays stuck on it - previously unreachable,
+        // since the only way to leave an item was onCleared(), which does report it.
+        reportOutgoingItemStopped()
         runCatching {
             val downloaded = downloadTracker.downloads.value
                 .firstOrNull { it.id == id && it.sourceType == sourceType && it.state == DownloadState.COMPLETED }
@@ -140,9 +174,37 @@ class PlayerViewModel @Inject constructor(
             } else {
                 mediaSource?.let { source -> viewModelScope.launch { source.onPlaybackStarted(item.id) } }
                 startProgressReporting()
+                resolveNextItem(item.id)
             }
         }.onFailure { throwable ->
             playerController.reportError(throwable.message ?: "Failed to resolve playback item")
+        }
+    }
+
+    /**
+     * Resolved once per load rather than lazily when the prompt is about to show - it's a couple of
+     * network round-trips, and doing it with ten seconds left would race the prompt it exists to
+     * populate. Failure is silent on purpose: not knowing the next episode just means no prompt,
+     * which is the same as a series finale and not worth interrupting playback over.
+     */
+    private fun resolveNextItem(id: String) {
+        _nextItem.value = null
+        val source = mediaSource ?: return
+        viewModelScope.launch {
+            _nextItem.value = runCatching { source.resolveNextItem(id) }.getOrNull()
+        }
+    }
+
+    private fun reportOutgoingItemStopped() {
+        val outgoing = _currentItem.value ?: return
+        if (outgoing.isLive) return
+        val state = uiState.value
+        if (state.durationMs <= 0) return
+        mediaSource?.let { source ->
+            viewModelScope.launch { source.onPlaybackStopped(outgoing.id, state.positionMs, state.durationMs) }
+        }
+        viewModelScope.launch {
+            watchProgressRepository.saveProgress(sourceType, outgoing.id, state.positionMs, state.durationMs)
         }
     }
 
@@ -174,7 +236,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun startProgressReporting() {
-        viewModelScope.launch {
+        progressReportingJob?.cancel()
+        progressReportingJob = viewModelScope.launch {
             while (true) {
                 delay(PROGRESS_SAVE_INTERVAL_MS)
                 saveProgressNow()

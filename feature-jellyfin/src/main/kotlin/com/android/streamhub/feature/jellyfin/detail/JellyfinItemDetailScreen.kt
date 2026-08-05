@@ -96,7 +96,10 @@ fun JellyfinItemDetailScreen(
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 TopAppBar(
-                    title = { Text(uiState.item?.name.orEmpty()) },
+                    // No title here on purpose - the item's name is already the bold heading in the
+                    // content below, and repeating it in the app bar's own (differently styled)
+                    // typography read as inconsistent rather than helpful.
+                    title = {},
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

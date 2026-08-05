@@ -101,8 +101,27 @@ fun PlayerScreenTv(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentItem by viewModel.currentItem.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+    val nextItem by viewModel.nextItem.collectAsStateWithLifecycle()
 
     KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
+
+    // Non-null only in the last ten seconds of an episode that actually has a follow-up - see
+    // nextEpisodeCountdownSeconds. Live content never qualifies (no meaningful duration).
+    val nextEpisodeCountdown = nextItem
+        ?.takeIf { currentItem?.isLive == false }
+        ?.let { nextEpisodeCountdownSeconds(uiState.positionMs, uiState.durationMs) }
+    val nextEpisodePromptVisible = nextEpisodeCountdown != null
+
+    LaunchedEffect(nextEpisodeCountdown) {
+        if (nextEpisodeCountdown == 0) viewModel.playNextItem()
+    }
+
+    val watchNowFocusRequester = remember { FocusRequester() }
+    // Same requestFocus-on-appear reasoning as the controls below, and the same runCatching guard
+    // against the button not being attached on the exact frame this effect runs.
+    LaunchedEffect(nextEpisodePromptVisible) {
+        if (nextEpisodePromptVisible) runCatching { watchNowFocusRequester.requestFocus() }
+    }
 
     var overlayMode by remember { mutableStateOf(TvOverlayMode.CONTROLS) }
     var showAudioPicker by remember { mutableStateOf(false) }
@@ -175,6 +194,10 @@ fun PlayerScreenTv(
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // While the Next Episode prompt is up it owns the D-pad - without this the
+                // shortcuts below would swallow Left/Right/OK before its own buttons ever saw
+                // them, leaving the prompt visible but impossible to actually answer.
+                if (nextEpisodePromptVisible) return@onPreviewKeyEvent false
                 if (overlayMode != TvOverlayMode.HIDDEN) interactionTick++
                 when (event.key) {
                     Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
@@ -256,6 +279,33 @@ fun PlayerScreenTv(
                 onOpenExternally = { viewModel.openExternally(context) },
                 onSwitchChannel = viewModel::switchChannel,
             )
+        }
+
+        // Drawn last so it sits above the controls - if both are up, answering the prompt is the
+        // more urgent action and shouldn't be behind a transport bar.
+        AnimatedVisibility(visible = nextEpisodePromptVisible, enter = fadeIn(), exit = fadeOut()) {
+            val prompt = nextItem
+            if (prompt != null) {
+                NextEpisodePromptScrim {
+                    NextEpisodePromptBody(
+                        nextItem = prompt,
+                        secondsRemaining = nextEpisodeCountdown ?: 0,
+                    ) {
+                        Button(
+                            onClick = viewModel::playNextItem,
+                            modifier = Modifier.focusRequester(watchNowFocusRequester),
+                        ) {
+                            Text("Watch Now")
+                        }
+                        // Cancel returns to wherever playback was launched from (the episode list
+                        // or detail page), rather than just dismissing to a finished video sitting
+                        // on its last frame with nothing left to do.
+                        Button(onClick = onBack) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
         }
     }
 
