@@ -12,6 +12,7 @@ import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinPlaybackPreferenceStore
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleChoice
+import com.android.streamhub.feature.jellyfin.data.resolveDefaultSubtitleChoice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
