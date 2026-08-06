@@ -215,21 +215,14 @@ class JellyfinBrowseRepository @Inject constructor(
     }
 
     // Unlike the plural /Items list endpoint (itemsApi.getItems, used by search() above), this
-    // single-item endpoint doesn't need an explicit `fields` request for MediaStreams - Jellyfin
-    // returns a full detail view (streams, people, overview, etc.) here by default, which is
-    // exactly why every official client uses this same endpoint to build its own detail screen.
-    // MediaSources (needed for the Version picker's alternate-encode list) is requested explicitly
-    // anyway - unlike MediaStreams, it's not consistently guaranteed part of that default view
-    // across server versions, and asking for a field that's already included by default is a no-op.
+    // single-item endpoint doesn't take an explicit `fields` request at all (no such parameter on
+    // its generated signature) - Jellyfin returns a full detail view (streams, sources, people,
+    // overview, etc.) here unconditionally, which is exactly why every official client uses this
+    // same endpoint to build its own detail screen.
     suspend fun getItem(itemId: String): JellyfinItemInfo? {
         val api = apiOrNull() ?: return null
-        return runCatching {
-            api.userLibraryApi.getItem(
-                itemId = UUID.fromString(itemId),
-                userId = currentUserId(),
-                fields = listOf(ItemFields.MEDIA_SOURCES),
-            ).content
-        }.getOrNull()?.toItemInfo(api)
+        return runCatching { api.userLibraryApi.getItem(itemId = UUID.fromString(itemId), userId = currentUserId()).content }
+            .getOrNull()?.toItemInfo(api)
     }
 
     /** Returns the new played state on success, null if the call failed (caller should leave the UI state unchanged) - same "optimistic, reconcile with the server" shape as toggleFavorite above. */
