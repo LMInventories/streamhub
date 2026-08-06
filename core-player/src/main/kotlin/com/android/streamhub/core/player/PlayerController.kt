@@ -42,6 +42,20 @@ class PlayerController @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var positionTicker: Job? = null
 
+    // Consumed by the very next onTracksChanged after prepare() (one-shot, cleared as soon as it's
+    // acted on) - group/track indices for a forced track aren't known until tracks actually load, so
+    // this carries the *language* to search for across that gap. forcedSubtitleFallbackToOff mirrors
+    // the item's own subtitlesOff at prepare() time: if no forced track is actually found once
+    // tracks load, that's when Off gets genuinely enforced (see onTracksChanged).
+    private var pendingForcedSubtitleLanguage: String? = null
+    private var forcedSubtitleFallbackToOff: Boolean = false
+
+    // Durable (not one-shot) for the currently prepared item - unlike pendingForcedSubtitleLanguage
+    // above, this survives past the initial post-prepare search so clearTextTrack() (the in-player
+    // "Off" tap, mid-playback) can also re-pin the forced track instead of hard-disabling it, the
+    // same "Off means no regular subtitles, forced still shows" rule the initial load applies.
+    private var currentForcedSubtitleLanguage: String? = null
+
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState
 
@@ -79,6 +93,15 @@ class PlayerController @Inject constructor(
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            pendingForcedSubtitleLanguage?.let { language ->
+                pendingForcedSubtitleLanguage = null
+                val applied = applyForcedTextOverride(tracks, language)
+                if (!applied && forcedSubtitleFallbackToOff) {
+                    exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build()
+                }
+            }
             val subtitlesOff = exoPlayer.trackSelectionParameters
                 .disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
             val videoFormat = exoPlayer.videoFormat
@@ -154,17 +177,30 @@ class PlayerController @Inject constructor(
             )
             .build()
 
+        // A forced track (item.forcedSubtitleLanguage) is searched for precisely once tracks load
+        // (see onTracksChanged/applyForcedTextOverride) rather than trusted to setPreferredTextLanguage
+        // below - a forced and a full track can share the same language, which plain language
+        // preference can't disambiguate. Its presence also keeps TEXT enabled up front even when
+        // subtitlesOff is true, since a forced track is meant to survive an explicit Off (see
+        // PlaybackItem.forcedSubtitleLanguage's own doc) - onTracksChanged falls back to a genuine
+        // hard-disable if the search comes up empty.
+        pendingForcedSubtitleLanguage = item.forcedSubtitleLanguage
+        forcedSubtitleFallbackToOff = item.subtitlesOff
+        currentForcedSubtitleLanguage = item.forcedSubtitleLanguage
+
         // Sets ExoPlayer's own preferred-language track selection parameters rather than manually
         // scanning onTracksChanged for a matching group - null clears the preference, which is
         // exactly "use the player's default selection", so this needs no branching for the
-        // no-preference case either. setTrackTypeDisabled is explicitly set (not just left alone)
-        // on every prepare() call - without that, an explicit Off chosen for a previous item in
-        // this same PlayerController instance (e.g. via clearTextTrack()) would otherwise silently
-        // carry over and suppress subtitles for a new item that never asked for that.
+        // no-preference case either. setTrackTypeDisabled/clearOverridesOfType are explicitly set
+        // (not just left alone) on every prepare() call - without that, an explicit Off or track
+        // override chosen for a previous item in this same PlayerController instance (e.g. via
+        // clearTextTrack()/selectTextTrack()) would otherwise silently carry over to a new item that
+        // never asked for that.
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
             .setPreferredAudioLanguage(item.preferredAudioLanguage)
             .setPreferredTextLanguage(item.preferredSubtitleLanguage)
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, item.subtitlesOff)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, item.subtitlesOff && item.forcedSubtitleLanguage == null)
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .build()
 
         exoPlayer.setMediaItem(mediaItem, item.startPositionMs)
@@ -211,10 +247,42 @@ class PlayerController @Inject constructor(
     }
 
     fun clearTextTrack() {
+        val forced = currentForcedSubtitleLanguage
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .build()
+        // Re-pin the forced track (if this item has one) straight after disabling everything else -
+        // "Off" means no regular subtitles, not "ignore dialogue the viewer can't otherwise follow".
+        if (forced != null) applyForcedTextOverride(exoPlayer.currentTracks, forced)
+    }
+
+    /**
+     * Finds the track in [language] flagged C.SELECTION_FLAG_FORCED and pins it via the same
+     * override mechanism as selectTrack, preferring it over any same-language non-forced track
+     * (e.g. a "Full" track sharing a language with a "Forced/Signs" one). Falls back to the only
+     * same-language candidate when none carries the flag - some containers/transcodes don't
+     * preserve it, so the language match alone is still the best available signal. Returns false
+     * (nothing applied) when there's no candidate in that language at all.
+     */
+    private fun applyForcedTextOverride(tracks: Tracks, language: String): Boolean {
+        val candidates = tracks.groups.withIndex()
+            .filter { (_, group) -> group.type == C.TRACK_TYPE_TEXT }
+            .flatMap { (groupIndex, group) ->
+                (0 until group.length).map { trackIndexInGroup -> Triple(groupIndex, trackIndexInGroup, group.getTrackFormat(trackIndexInGroup)) }
+            }
+            .filter { (_, _, format) -> language.equals(format.language, ignoreCase = true) }
+        val (groupIndex, trackIndexInGroup, _) = candidates.firstOrNull { (_, _, format) ->
+            format.selectionFlags and C.SELECTION_FLAG_FORCED != 0
+        } ?: candidates.firstOrNull() ?: return false
+
+        val group = tracks.groups[groupIndex]
+        val override = TrackSelectionOverride(group.mediaTrackGroup, listOf(trackIndexInGroup))
+        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .setOverrideForType(override)
+            .build()
+        return true
     }
 
     private fun selectTrack(trackType: Int, trackId: String) {

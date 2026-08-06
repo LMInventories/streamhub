@@ -164,6 +164,7 @@ class PlayerViewModel @Inject constructor(
                     isLive = false,
                     preferredSubtitleLanguage = subtitlePreference.preferredLanguage,
                     subtitlesOff = subtitlePreference.off,
+                    forcedSubtitleLanguage = subtitlePreference.forcedLanguage,
                 )
             } else {
                 val source = mediaSource ?: error("No MediaSource registered for $sourceType")

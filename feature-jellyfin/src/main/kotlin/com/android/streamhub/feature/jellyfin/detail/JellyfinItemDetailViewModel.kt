@@ -86,26 +86,23 @@ class JellyfinItemDetailViewModel @Inject constructor(
      * this screen had (the field simply stayed null - always displayed as "Off" - until the user
      * acted, while resolveSubtitlePreference() could still fall through to an app-wide language
      * preference the screen never reflected). An existing store entry (this item was already
-     * visited this session) wins; otherwise falls back to the app-wide preferred-subtitle-language
-     * setting matched against this item's own tracks; otherwise explicit Off. Writes to both
-     * uiState (what the dropdown shows) and the store (what resolvePlayback() reads) together, so
-     * the two can never disagree by the time Play is pressed from this screen.
+     * visited this session) wins; otherwise defers to resolveDefaultSubtitleChoice, the same
+     * function JellyfinMediaSource.resolveSubtitlePreference falls back to for the Downloads-bypass
+     * path, so the two can never resolve differently for the same item. Writes to both uiState
+     * (what the dropdown shows) and the store (what resolvePlayback() reads) together, so the two
+     * can never disagree by the time Play is pressed from this screen.
      */
     private suspend fun hydrateDefaultSubtitle(item: JellyfinItemInfo) {
         val existing = playbackPreferenceStore.get(itemId)?.subtitle
         val resolved = existing ?: run {
             val preferredLanguage = appSettingsRepository.settingsFlow.first().preferredSubtitleLanguage
-            val match = preferredLanguage?.let { lang -> item.subtitleTracks.firstOrNull { it.language == lang } }
-            if (match != null) JellyfinSubtitleChoice.Track(match.language) else JellyfinSubtitleChoice.Off
+            item.resolveDefaultSubtitleChoice(preferredLanguage)
         }
         playbackPreferenceStore.setSubtitle(itemId, resolved)
         _uiState.update {
             when (resolved) {
                 is JellyfinSubtitleChoice.Off -> it.copy(selectedSubtitleIndex = null, subtitlesExplicitlyOff = true)
-                is JellyfinSubtitleChoice.Track -> it.copy(
-                    selectedSubtitleIndex = item.subtitleTracks.firstOrNull { track -> track.language == resolved.language }?.index,
-                    subtitlesExplicitlyOff = false,
-                )
+                is JellyfinSubtitleChoice.Track -> it.copy(selectedSubtitleIndex = resolved.index, subtitlesExplicitlyOff = false)
             }
         }
     }
@@ -179,7 +176,7 @@ class JellyfinItemDetailViewModel @Inject constructor(
         }
         val track = _uiState.value.item?.subtitleTracks?.firstOrNull { it.index == index } ?: return
         _uiState.update { it.copy(selectedSubtitleIndex = index, subtitlesExplicitlyOff = false) }
-        playbackPreferenceStore.setSubtitle(itemId, JellyfinSubtitleChoice.Track(track.language))
+        playbackPreferenceStore.setSubtitle(itemId, JellyfinSubtitleChoice.Track(track.index, track.language))
     }
 
     fun selectAudioTrack(index: Int) {

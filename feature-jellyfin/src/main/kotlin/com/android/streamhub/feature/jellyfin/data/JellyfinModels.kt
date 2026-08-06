@@ -36,13 +36,17 @@ data class JellyfinCastMember(
  * needed to identify it back to the server (not an ExoPlayer track group index). [language] is
  * the raw ISO code (e.g. "eng"), separate from the human-readable [label] - playback selects a
  * track by feeding this straight into ExoPlayer's own preferred-text-language mechanism, the same
- * one the app-wide subtitle language setting already uses.
+ * one the app-wide subtitle language setting already uses. [isForced] mirrors the server's own
+ * "forced" flag (dialogue/on-screen-text translations meant to show even with subtitles otherwise
+ * off, e.g. the one non-English scene in an otherwise-English film) - see
+ * JellyfinMediaSource.resolveSubtitlePreference for how it changes default selection.
  */
 @Serializable
 data class JellyfinSubtitleTrackInfo(
     val index: Int,
     val label: String,
     val language: String? = null,
+    val isForced: Boolean = false,
 )
 
 /** An audio stream muxed into the media source - same shape/purpose as JellyfinSubtitleTrackInfo above, plus [isDefault] since (unlike subtitles) audio always needs a track selected, so hydrating a picker's default needs to know which one the server itself considers default. */

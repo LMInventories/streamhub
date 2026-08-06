@@ -43,6 +43,14 @@ data class PlaybackItem(
     // track selector auto-pick a forced/default-flagged embedded track. This is a hard disable,
     // for the case where a source's own per-item picker was explicitly set to Off.
     val subtitlesOff: Boolean = false,
+    // A specific forced-flagged track's language the player should pin, deliberately kept separate
+    // from preferredSubtitleLanguage: it's meant to survive subtitlesOff being true (a forced track
+    // - e.g. the one foreign-language scene in an otherwise-English film - is meant to keep showing
+    // even once the viewer turned regular subtitles off), and it needs the player to search for the
+    // specific track carrying C.SELECTION_FLAG_FORCED once tracks load rather than just trusting
+    // ExoPlayer's own language-based auto-selection, which can't disambiguate a forced and a full
+    // track that happen to share the same language (common on e.g. anime releases).
+    val forcedSubtitleLanguage: String? = null,
     // Enough to build/render trickplay scrubbing-preview thumbnails without the player needing to
     // know which source they came from - same "populated once at resolvePlayback() time, source-
     // agnostic from here on" pattern as liveProgramInfo above. Null for sources/items with no

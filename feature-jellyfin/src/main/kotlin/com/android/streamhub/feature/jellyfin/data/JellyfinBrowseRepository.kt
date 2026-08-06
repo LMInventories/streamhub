@@ -478,6 +478,7 @@ class JellyfinBrowseRepository @Inject constructor(
                     index = stream.index ?: 0,
                     label = stream.displayTitle ?: stream.language ?: "Subtitle",
                     language = stream.language,
+                    isForced = stream.isForced == true,
                 )
             }
         val audioTracks = audioStreams.map { stream ->

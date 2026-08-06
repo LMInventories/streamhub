@@ -437,6 +437,8 @@ private fun MediaInfoRow(label: String, value: String) {
     }
 }
 
+private fun forcedSuffix(track: JellyfinSubtitleTrackInfo): String = if (track.isForced) " (Forced)" else ""
+
 @Composable
 private fun SubtitleSelectorRow(
     tracks: List<JellyfinSubtitleTrackInfo>,
@@ -445,7 +447,7 @@ private fun SubtitleSelectorRow(
     onSelect: (Int?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: "Off"
+    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.let { it.label + forcedSuffix(it) } ?: "Off"
 
     // Same two-part TV D-pad fix as every other DropdownMenu in the app: grab focus into the menu
     // when it opens (a plain Popup never does this on its own), and hand focus back to the row
@@ -474,13 +476,30 @@ private fun SubtitleSelectorRow(
                 val firstItemFocusRequester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
                 DropdownMenuItem(
-                    text = { Text(if (explicitlyOff) "Off ✓" else "Off") },
+                    text = {
+                        Column {
+                            Text(if (explicitlyOff) "Off ✓" else "Off")
+                            // Off only hard-disables regular subtitles - a forced track (e.g. the
+                            // one foreign-language scene in an otherwise-English film) still shows,
+                            // so this needs calling out here or the behavior looks like a bug.
+                            if (tracks.any { it.isForced }) {
+                                Text(
+                                    "Forced subtitles still show when available",
+                                    color = Palette.TextMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    },
                     modifier = Modifier.focusRequester(firstItemFocusRequester),
                     onClick = { onSelect(null); closeMenu() },
                 )
                 tracks.forEach { track ->
                     DropdownMenuItem(
-                        text = { Text(if (track.index == selectedIndex) "${track.label} ✓" else track.label) },
+                        text = {
+                            val label = track.label + forcedSuffix(track)
+                            Text(if (track.index == selectedIndex) "$label ✓" else label)
+                        },
                         onClick = { onSelect(track.index); closeMenu() },
                     )
                 }

@@ -91,10 +91,18 @@ data class NextPlaybackItem(
     val thumbnailUrl: String?,
 )
 
-/** [preferredLanguage] mirrors PlaybackItem's own field; [off] is the hard "Off means Off" override - see PlaybackItem.subtitlesOff's doc for why that's distinct from just no language preference. */
+/**
+ * [preferredLanguage] mirrors PlaybackItem's own field; [off] is the hard "Off means Off" override
+ * - see PlaybackItem.subtitlesOff's doc for why that's distinct from just no language preference.
+ * [forcedLanguage] mirrors PlaybackItem.forcedSubtitleLanguage - set whenever the resolved
+ * selection is specifically a forced track, so it can be pinned precisely rather than by language
+ * alone, and so it can survive [off] being true (a forced track is meant to show even when the
+ * viewer turned regular subtitles off).
+ */
 data class SubtitlePreference(
     val preferredLanguage: String? = null,
     val off: Boolean = false,
+    val forcedLanguage: String? = null,
 )
 
 /** [introEndMs] is where a Skip Intro button (if shown) seeks to. [outroStartMs] is the existing Next Episode prompt trigger point - see MediaSource.resolvePlaybackSegments. Either half can be present without the other (an item can have an analyzed intro but no outro, or vice versa). */

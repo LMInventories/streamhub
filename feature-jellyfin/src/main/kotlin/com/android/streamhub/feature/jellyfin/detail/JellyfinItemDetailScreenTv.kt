@@ -471,6 +471,8 @@ private fun MediaInfoRowTv(label: String, value: String) {
     }
 }
 
+private fun forcedSuffixTv(track: JellyfinSubtitleTrackInfo): String = if (track.isForced) " (Forced)" else ""
+
 @Composable
 private fun SubtitlePickerRowTv(
     tracks: List<JellyfinSubtitleTrackInfo>,
@@ -479,7 +481,7 @@ private fun SubtitlePickerRowTv(
     onSelect: (Int?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: "Off"
+    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.let { it.label + forcedSuffixTv(it) } ?: "Off"
 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(text = "Subtitles", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(100.dp))
@@ -504,9 +506,22 @@ private fun SubtitlePickerRowTv(
                     onClick = { onSelect(null); expanded = false },
                     modifier = Modifier.focusRequester(firstItemFocusRequester),
                 )
+                // Off only hard-disables regular subtitles - a forced track (e.g. the one
+                // foreign-language scene in an otherwise-English film) still shows, so this needs
+                // calling out here or the behavior looks like a bug. Plain TvDialogRow has no
+                // secondary-text slot, so this gets its own muted row rather than changing that
+                // shared component (also used by the audio/version pickers) just for this.
+                if (tracks.any { it.isForced }) {
+                    Text(
+                        "Forced subtitles still show when available",
+                        color = Palette.TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
+                    )
+                }
                 tracks.forEach { track ->
                     TvDialogRow(
-                        label = if (track.index == selectedIndex) "${track.label} ✓" else track.label,
+                        label = (track.label + forcedSuffixTv(track)).let { if (track.index == selectedIndex) "$it ✓" else it },
                         onClick = { onSelect(track.index); expanded = false },
                     )
                 }

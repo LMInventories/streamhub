@@ -40,7 +40,16 @@ class JellyfinMediaSource @Inject constructor(
                 JellyfinLibraryType.TV_SHOWS -> JellyfinItemType.SERIES
             }
             browseRepository.getItems(library.id, itemType, startIndex = 0, limit = 500)
-        }.map { it.toPlaybackItem(streamUri = "", preferredAudio = null, preferredSubtitle = null, subtitlesOff = false, trickplay = null) }
+        }.map {
+            it.toPlaybackItem(
+                streamUri = "",
+                preferredAudio = null,
+                preferredSubtitle = null,
+                subtitlesOff = false,
+                forcedSubtitle = null,
+                trickplay = null,
+            )
+        }
     }
 
     override suspend fun resolvePlayback(itemId: String): PlaybackItem {
@@ -49,7 +58,7 @@ class JellyfinMediaSource @Inject constructor(
         val streamUrl = browseRepository.getStreamUrl(itemId, preference?.mediaSourceId)
             ?: error("No Jellyfin stream URL for: $itemId")
         val settings = appSettingsRepository.settingsFlow.first()
-        val subtitlePreference = resolveSubtitlePreference(itemId)
+        val subtitlePreference = resolveSubtitlePreference(item, settings, preference)
         // Same "explicit per-item choice overrides the app-wide setting" precedence subtitles
         // already use below - no store entry (the Downloads-list bypass path, which never visits
         // the detail screen) falls straight through to the app-wide setting exactly as before this
@@ -60,6 +69,7 @@ class JellyfinMediaSource @Inject constructor(
             preferredAudio = preferredAudio,
             preferredSubtitle = subtitlePreference.preferredLanguage,
             subtitlesOff = subtitlePreference.off,
+            forcedSubtitle = subtitlePreference.forcedLanguage,
             trickplay = item.trickplayInfo?.let { info ->
                 browseRepository.trickplayTileUrlTemplate(itemId, info)?.let { template ->
                     TrickplayInfo(
@@ -78,30 +88,48 @@ class JellyfinMediaSource @Inject constructor(
 
     // An explicit per-item choice from the detail page's subtitle dropdown (if any) overrides the
     // app-wide language preference below - that's the whole point of offering a per-item picker at
-    // all. No choice recorded for this item falls through to the app-wide language setting IF one
-    // is actually configured - but if neither exists, this must still default to hard-off (not just
-    // "no language preference"), because the detail page's own dropdown already displays "Off" as
-    // its default, untouched state. Leaving subtitlesOff false here let Media3's default track
-    // selector auto-pick a forced/default-flagged embedded track regardless of any of this, which is
-    // exactly what broke the "Off means Off" contract. Also consulted for already-downloaded
-    // playback (see PlayerViewModel.loadAndPrepare) - that path never calls resolvePlayback() above
-    // at all (deliberately, to stay usable offline), so without this override subtitles for a
-    // downloaded item would always fall back to PlaybackItem's own default (subtitlesOff = false).
+    // all. No choice recorded for this item falls through to resolveDefaultSubtitleChoice's own
+    // precedence (app-wide language match, else a forced track, else hard Off) - the detail page's
+    // own dropdown resolves and commits the exact same default via that shared function, so the two
+    // can never disagree by the time Play is pressed. Also consulted for already-downloaded playback
+    // (see PlayerViewModel.loadAndPrepare) - that path never calls resolvePlayback() above at all
+    // (deliberately, to stay usable offline), so without this the default here would always fall
+    // back to PlaybackItem's own default (subtitlesOff = false) instead of a real decision.
     override suspend fun resolveSubtitlePreference(itemId: String): SubtitlePreference {
+        val item = browseRepository.getItem(itemId) ?: return SubtitlePreference()
         val settings = appSettingsRepository.settingsFlow.first()
-        val subtitleChoice = playbackPreferenceStore.get(itemId)?.subtitle
-        val subtitlesOff = when (subtitleChoice) {
-            is JellyfinSubtitleChoice.Off -> true
-            is JellyfinSubtitleChoice.Track -> false
-            null -> settings.preferredSubtitleLanguage == null
+        return resolveSubtitlePreference(item, settings, playbackPreferenceStore.get(itemId))
+    }
+
+    // A forced track is deliberately allowed to survive an explicit Off choice below (unlike every
+    // other subtitle behavior, which Off hard-disables) - "Off" means "no regular subtitles", not
+    // "ignore dialogue the viewer can't otherwise follow". Off with no forced track available still
+    // falls through to true hard-off exactly as before. A Track choice only carries forcedLanguage
+    // when the chosen track itself happens to be a forced one (e.g. the user picked it directly from
+    // the picker, or resolveDefaultSubtitleChoice already landed on it) - that still routes through
+    // PlayerController's precise forced-track search instead of plain language matching, since a
+    // forced and a full track can share the same language (common on e.g. anime releases).
+    private fun resolveSubtitlePreference(
+        item: JellyfinItemInfo,
+        settings: JellyfinAppSettings,
+        preference: JellyfinPlaybackPreference?,
+    ): SubtitlePreference {
+        val subtitleChoice = preference?.subtitle ?: item.resolveDefaultSubtitleChoice(settings.preferredSubtitleLanguage)
+        return when (subtitleChoice) {
+            is JellyfinSubtitleChoice.Off -> {
+                val forcedTracks = item.subtitleTracks.filter { it.isForced }
+                val forced = forcedTracks.firstOrNull { it.language == settings.preferredSubtitleLanguage } ?: forcedTracks.firstOrNull()
+                SubtitlePreference(preferredLanguage = forced?.language, off = forced == null, forcedLanguage = forced?.language)
+            }
+            is JellyfinSubtitleChoice.Track -> {
+                val isForced = item.subtitleTracks.firstOrNull { it.index == subtitleChoice.index }?.isForced == true
+                SubtitlePreference(
+                    preferredLanguage = subtitleChoice.language,
+                    off = false,
+                    forcedLanguage = subtitleChoice.language.takeIf { isForced },
+                )
+            }
         }
-        return SubtitlePreference(
-            preferredLanguage = when (subtitleChoice) {
-                is JellyfinSubtitleChoice.Track -> subtitleChoice.language
-                else -> settings.preferredSubtitleLanguage
-            },
-            off = subtitlesOff,
-        )
     }
 
     override suspend fun resolvePlaybackSegments(itemId: String): PlaybackSegments? = browseRepository.getMediaSegments(itemId)
@@ -165,6 +193,7 @@ class JellyfinMediaSource @Inject constructor(
         preferredAudio: String?,
         preferredSubtitle: String?,
         subtitlesOff: Boolean,
+        forcedSubtitle: String?,
         trickplay: TrickplayInfo?,
     ): PlaybackItem = PlaybackItem(
         id = id,
@@ -178,6 +207,7 @@ class JellyfinMediaSource @Inject constructor(
         preferredAudioLanguage = preferredAudio,
         preferredSubtitleLanguage = preferredSubtitle,
         subtitlesOff = subtitlesOff,
+        forcedSubtitleLanguage = forcedSubtitle,
         trickplay = trickplay,
     )
 }
