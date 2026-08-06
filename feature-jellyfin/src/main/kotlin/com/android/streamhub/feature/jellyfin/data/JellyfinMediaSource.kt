@@ -3,8 +3,10 @@ package com.android.streamhub.feature.jellyfin.data
 import com.android.streamhub.core.common.domain.MediaSource
 import com.android.streamhub.core.common.domain.NextPlaybackItem
 import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.common.domain.PlaybackSegments
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.domain.SubtitlePreference
+import com.android.streamhub.core.common.domain.TrickplayInfo
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,7 +40,7 @@ class JellyfinMediaSource @Inject constructor(
                 JellyfinLibraryType.TV_SHOWS -> JellyfinItemType.SERIES
             }
             browseRepository.getItems(library.id, itemType, startIndex = 0, limit = 500)
-        }.map { it.toPlaybackItem(streamUri = "", preferredAudio = null, preferredSubtitle = null, subtitlesOff = false) }
+        }.map { it.toPlaybackItem(streamUri = "", preferredAudio = null, preferredSubtitle = null, subtitlesOff = false, trickplay = null) }
     }
 
     override suspend fun resolvePlayback(itemId: String): PlaybackItem {
@@ -58,6 +60,19 @@ class JellyfinMediaSource @Inject constructor(
             preferredAudio = preferredAudio,
             preferredSubtitle = subtitlePreference.preferredLanguage,
             subtitlesOff = subtitlePreference.off,
+            trickplay = item.trickplayInfo?.let { info ->
+                browseRepository.trickplayTileUrlTemplate(itemId, info)?.let { template ->
+                    TrickplayInfo(
+                        tileUrlTemplate = template,
+                        width = info.width,
+                        height = info.height,
+                        tileGridColumns = info.tileGridColumns,
+                        tileGridRows = info.tileGridRows,
+                        thumbnailCount = info.thumbnailCount,
+                        intervalMs = info.intervalMs,
+                    )
+                }
+            },
         )
     }
 
@@ -89,7 +104,7 @@ class JellyfinMediaSource @Inject constructor(
         )
     }
 
-    override suspend fun resolveCreditsStartPosition(itemId: String): Long? = browseRepository.getOutroStartMs(itemId)
+    override suspend fun resolvePlaybackSegments(itemId: String): PlaybackSegments? = browseRepository.getMediaSegments(itemId)
 
     /**
      * Deliberately computed from the season's own episode list rather than Jellyfin's Next Up API:
@@ -150,6 +165,7 @@ class JellyfinMediaSource @Inject constructor(
         preferredAudio: String?,
         preferredSubtitle: String?,
         subtitlesOff: Boolean,
+        trickplay: TrickplayInfo?,
     ): PlaybackItem = PlaybackItem(
         id = id,
         sourceType = SourceType.JELLYFIN,
@@ -162,5 +178,6 @@ class JellyfinMediaSource @Inject constructor(
         preferredAudioLanguage = preferredAudio,
         preferredSubtitleLanguage = preferredSubtitle,
         subtitlesOff = subtitlesOff,
+        trickplay = trickplay,
     )
 }

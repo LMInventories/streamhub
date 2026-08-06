@@ -24,4 +24,8 @@ data class AppUiSettings(
     val themeMode: ThemeMode = ThemeMode.DARK,
     val textScale: TextScale = TextScale.DEFAULT,
     val launchDestination: AppLaunchDestination = AppLaunchDestination.LIVE_TV,
+    // TV-only (see PlayerScreenTv) - default off since behavior varies by TV/HDMI-chain
+    // combination (some handle the mode switch smoothly, some flash black or show a brief
+    // resolution-change banner), so this is opt-in rather than assumed universally safe.
+    val matchRefreshRate: Boolean = false,
 )

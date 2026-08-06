@@ -65,14 +65,15 @@ interface MediaSource {
     suspend fun resolveNextItem(itemId: String): NextPlaybackItem? = null
 
     /**
-     * Where credits/outro begin in *this* currently-playing item (ms from start), if the source can
-     * determine it - distinct from [resolveNextItem], which is about what plays after this one.
-     * Default null ("this source has no credits-detection concept", or nothing was found for this
-     * particular item), the same default-no-op shape as [resolveNextItem] above - the Next Episode
-     * prompt falls back to its fixed-lead-time-before-raw-duration-end behavior whenever this is
-     * null.
+     * Intro/outro timing for *this* currently-playing item, if the source can determine it -
+     * distinct from [resolveNextItem], which is about what plays after this one. A single method
+     * (rather than two) so a source backed by one network call (Jellyfin's Media Segments) only
+     * needs to make that call once per item load instead of twice. Default null ("this source has
+     * no segment-detection concept", or nothing was found for this particular item) - the Next
+     * Episode prompt falls back to its fixed-lead-time-before-raw-duration-end behavior, and no
+     * Skip Intro button appears, whenever this is null or its individual fields are null.
      */
-    suspend fun resolveCreditsStartPosition(itemId: String): Long? = null
+    suspend fun resolvePlaybackSegments(itemId: String): PlaybackSegments? = null
 }
 
 /**
@@ -94,4 +95,11 @@ data class NextPlaybackItem(
 data class SubtitlePreference(
     val preferredLanguage: String? = null,
     val off: Boolean = false,
+)
+
+/** [introEndMs] is where a Skip Intro button (if shown) seeks to. [outroStartMs] is the existing Next Episode prompt trigger point - see MediaSource.resolvePlaybackSegments. Either half can be present without the other (an item can have an analyzed intro but no outro, or vice versa). */
+data class PlaybackSegments(
+    val introStartMs: Long? = null,
+    val introEndMs: Long? = null,
+    val outroStartMs: Long? = null,
 )

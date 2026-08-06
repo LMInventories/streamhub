@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.jellyfin.data
 
+import com.android.streamhub.core.common.domain.PlaybackSegments
 import com.android.streamhub.core.common.search.FuzzyMatch
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
@@ -372,23 +373,42 @@ class JellyfinBrowseRepository @Inject constructor(
     }
 
     /**
-     * Earliest "Outro" Media Segment for this item (10.10+ servers that have run segment analysis
-     * for it), ms from item start - null on older servers, unanalyzed content, or any failure; the
-     * Next Episode prompt falls back cleanly to its fixed-lead-time behavior in every one of those
-     * cases. Chapters (BaseItemDto.chapters) are deliberately not used as a fallback signal here -
-     * unlike Media Segments they carry no type info at all, so there's no reliable "this chapter is
-     * the credits" marker to build one from.
+     * Earliest Intro and Outro Media Segments for this item in one call (10.10+ servers that have
+     * run segment analysis for it) - a single request rather than two separate ones since both
+     * segment types come back from the same endpoint regardless, and this is on the critical path
+     * of every episode load. Null (or individual null fields) on older servers, unanalyzed content,
+     * or any failure - the Skip Intro button/Next Episode prompt fall back cleanly to having no
+     * segment data in every one of those cases. Chapters (BaseItemDto.chapters) are deliberately
+     * not used as a fallback signal here - unlike Media Segments they carry no type info at all, so
+     * there's no reliable "this chapter is the intro/credits" marker to build one from.
      */
-    suspend fun getOutroStartMs(itemId: String): Long? {
+    suspend fun getMediaSegments(itemId: String): PlaybackSegments? {
         val api = apiOrNull() ?: return null
-        return runCatching {
+        val segments = runCatching {
             api.mediaSegmentsApi.getItemSegments(
                 itemId = UUID.fromString(itemId),
-                includeSegmentTypes = listOf(MediaSegmentType.OUTRO),
+                includeSegmentTypes = listOf(MediaSegmentType.INTRO, MediaSegmentType.OUTRO),
             ).content.items
-        }.getOrNull()
-            ?.minByOrNull { it.startTicks }
-            ?.let { it.startTicks / TICKS_PER_MS }
+        }.getOrNull() ?: return null
+        val intro = segments.filter { it.type == MediaSegmentType.INTRO }.minByOrNull { it.startTicks }
+        val outro = segments.filter { it.type == MediaSegmentType.OUTRO }.minByOrNull { it.startTicks }
+        return PlaybackSegments(
+            introStartMs = intro?.startTicks?.div(TICKS_PER_MS),
+            introEndMs = intro?.endTicks?.div(TICKS_PER_MS),
+            outroStartMs = outro?.startTicks?.div(TICKS_PER_MS),
+        )
+    }
+
+    /**
+     * A URL template with a literal "{index}" placeholder for the 0-based tile image index - the
+     * player substitutes it per tile it actually needs while the user is scrubbing, since which
+     * indices matter depends on where they drag and isn't known ahead of time (unlike every other
+     * URL builder in this file, which always resolves to one concrete resource).
+     */
+    suspend fun trickplayTileUrlTemplate(itemId: String, trickplayInfo: JellyfinTrickplayInfo): String? {
+        apiOrNull() ?: return null
+        val base = cachedConfig?.serverUrl.orEmpty().trimEnd('/')
+        return "$base/Videos/$itemId/Trickplay/${trickplayInfo.width}/{index}.jpg?MediaSourceId=${trickplayInfo.mediaSourceId}".withApiKey()
     }
 
     private fun String.withApiKey(): String {
@@ -479,6 +499,24 @@ class JellyfinBrowseRepository @Inject constructor(
                 )
             }
             .orEmpty()
+        // Picks the first media source's largest available resolution - there's rarely more than
+        // one mediaSource with trickplay analyzed anyway, and "biggest available" is a fine default
+        // the same way other places in this mapper don't bother picking among near-equivalent
+        // options. Null (no scrubbing-preview thumbnails) whenever the server hasn't analyzed this
+        // item yet - same graceful-absence contract Media Segments already has.
+        val trickplayInfo = trickplay?.entries?.firstOrNull()?.let { (sourceId, byWidth) ->
+            byWidth.values.maxByOrNull { it.width }?.let { info ->
+                JellyfinTrickplayInfo(
+                    mediaSourceId = sourceId,
+                    width = info.width,
+                    height = info.height,
+                    tileGridColumns = info.tileWidth,
+                    tileGridRows = info.tileHeight,
+                    thumbnailCount = info.thumbnailCount,
+                    intervalMs = info.interval,
+                )
+            }
+        }
         return JellyfinItemInfo(
             id = id.toString(),
             name = name.orEmpty(),
@@ -502,6 +540,7 @@ class JellyfinBrowseRepository @Inject constructor(
             subtitleTracks = subtitleTracks,
             audioTracks = audioTracks,
             videoVersions = videoVersions,
+            trickplayInfo = trickplayInfo,
             seriesId = seriesId?.toString(),
             seriesName = seriesName,
             seasonId = seasonId?.toString(),

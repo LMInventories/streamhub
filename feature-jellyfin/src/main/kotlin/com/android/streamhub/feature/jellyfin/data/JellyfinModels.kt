@@ -61,6 +61,25 @@ data class JellyfinVersionInfo(
     val label: String,
 )
 
+/**
+ * The server's own analyzed scrubbing-preview sprite sheets for one media source (Jellyfin 10.9+,
+ * "Trickplay" - only present once the server has actually run analysis for this item). [width]/
+ * [height] are one individual thumbnail's pixel dimensions; [tileGridColumns]/[tileGridRows] are
+ * how many thumbnails are packed into one sprite-sheet image (so a client can compute both which
+ * image a given playback position falls in and where within it, without a per-position network
+ * round trip). [intervalMs] is the time between consecutive thumbnails.
+ */
+@Serializable
+data class JellyfinTrickplayInfo(
+    val mediaSourceId: String,
+    val width: Int,
+    val height: Int,
+    val tileGridColumns: Int,
+    val tileGridRows: Int,
+    val thumbnailCount: Int,
+    val intervalMs: Int,
+)
+
 @Serializable
 data class JellyfinItemInfo(
     val id: String,
@@ -106,6 +125,7 @@ data class JellyfinItemInfo(
     // Default empty for the same cache-JSON-compatibility reason as episodeThumbnailUrl above.
     val audioTracks: List<JellyfinAudioTrackInfo> = emptyList(),
     val videoVersions: List<JellyfinVersionInfo> = emptyList(),
+    val trickplayInfo: JellyfinTrickplayInfo? = null,
     val seriesId: String?,
     val seriesName: String?,
     val seasonId: String?,

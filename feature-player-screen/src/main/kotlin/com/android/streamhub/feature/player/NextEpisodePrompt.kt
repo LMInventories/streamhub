@@ -36,7 +36,7 @@ const val NEXT_EPISODE_PROMPT_LEAD_MS = 10_000L
  * it brings the prompt back, and pausing freezes the countdown (PlayerController stops its position
  * ticker while paused), which is what a viewer pausing at the credits obviously expects.
  *
- * [creditsStartMs], when known (see MediaSource.resolveCreditsStartPosition - a Jellyfin server's
+ * [creditsStartMs], when known (see MediaSource.resolvePlaybackSegments - a Jellyfin server's
  * own analyzed Outro Media Segment for this episode), substitutes for [durationMs] as the "end"
  * this countdown is measured against - reusing the exact same last-10-seconds math below, just
  * anchored to where credits actually begin instead of the file's real end. That makes the prompt

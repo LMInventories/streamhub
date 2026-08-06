@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.player
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -31,11 +32,13 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.MaterialTheme as MaterialTheme3
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -68,6 +71,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.android.streamhub.core.common.domain.LiveProgramInfo
 import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.common.domain.TrickplayInfo
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
 import com.android.streamhub.core.design.tvFocusBorder
@@ -77,12 +81,18 @@ import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.VideoSurface
 import com.android.streamhub.core.player.audioChannelsLabel
 import com.android.streamhub.core.player.aspectRatioLabel
+import com.android.streamhub.core.player.bitrateLabel
+import com.android.streamhub.core.player.codecLabel
 import com.android.streamhub.core.player.formatPositionMs
 import com.android.streamhub.core.player.frameRateLabel
 import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
+import com.android.streamhub.core.player.PLAYBACK_SPEED_OPTIONS
+import com.android.streamhub.core.player.playbackSpeedLabel
 import com.android.streamhub.core.player.resolutionLabel
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private const val SEEK_STEP_MS = 10_000L
 
@@ -95,6 +105,7 @@ private enum class TvOverlayMode { HIDDEN, CONTROLS, INFO }
 @Composable
 fun PlayerScreenTv(
     onBack: () -> Unit,
+    matchRefreshRate: Boolean = false,
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
@@ -103,8 +114,17 @@ fun PlayerScreenTv(
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
     val nextItem by viewModel.nextItem.collectAsStateWithLifecycle()
     val creditsStartMs by viewModel.creditsStartMs.collectAsStateWithLifecycle()
+    val introRange by viewModel.introRange.collectAsStateWithLifecycle()
 
     KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
+    MatchRefreshRateWhilePlaying(enabled = matchRefreshRate, contentFrameRate = uiState.videoFrameRate)
+
+    // Visible only while actually inside the analyzed intro window - see MediaSource.resolvePlaybackSegments.
+    val skipIntroVisible = introRange?.let { uiState.positionMs in it } == true && currentItem?.isLive == false
+    val skipIntroFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(skipIntroVisible) {
+        if (skipIntroVisible) runCatching { skipIntroFocusRequester.requestFocus() }
+    }
 
     // Non-null once the episode's real credits start (if known) or, failing that, in the last ten
     // seconds of an episode that actually has a follow-up - see nextEpisodeCountdownSeconds. Live
@@ -129,6 +149,7 @@ fun PlayerScreenTv(
     var showAudioPicker by remember { mutableStateOf(false) }
     var showSubtitlePicker by remember { mutableStateOf(false) }
     var showAspectPicker by remember { mutableStateOf(false) }
+    var showSpeedPicker by remember { mutableStateOf(false) }
     // Defaults to Play/Pause (not Back) - Back used to be the button that grabbed initial focus,
     // so the very first OK press on entering this screen (a completely natural first thing to
     // try) closed playback instead of doing anything play-related. Play/Pause is both the most
@@ -200,6 +221,9 @@ fun PlayerScreenTv(
                 // shortcuts below would swallow Left/Right/OK before its own buttons ever saw
                 // them, leaving the prompt visible but impossible to actually answer.
                 if (nextEpisodePromptVisible) return@onPreviewKeyEvent false
+                // Same reasoning as the Next Episode prompt above - while Skip Intro is showing,
+                // its own button owns the D-pad rather than these shortcuts swallowing OK before it.
+                if (skipIntroVisible) return@onPreviewKeyEvent false
                 if (overlayMode != TvOverlayMode.HIDDEN) interactionTick++
                 when (event.key) {
                     Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
@@ -278,9 +302,27 @@ fun PlayerScreenTv(
                 onAudioTrackClick = { showAudioPicker = true },
                 onSubtitleTrackClick = { showSubtitlePicker = true },
                 onAspectModeClick = { showAspectPicker = true },
+                onPlaybackSpeedClick = { showSpeedPicker = true },
                 onOpenExternally = { viewModel.openExternally(context) },
                 onSwitchChannel = viewModel::switchChannel,
             )
+        }
+
+        // Floating rather than folded into TvPlayerControls - visible even while the transport bar
+        // is hidden (the common case right after an episode starts, before the user has touched
+        // anything), matching every other player's "skip intro appears on its own" behavior.
+        AnimatedVisibility(
+            visible = skipIntroVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(32.dp),
+        ) {
+            Button(
+                onClick = { introRange?.let { viewModel.seekTo(it.last) } },
+                modifier = Modifier.focusRequester(skipIntroFocusRequester),
+            ) {
+                Text("Skip Intro")
+            }
         }
 
         // Drawn last so it sits above the controls - if both are up, answering the prompt is the
@@ -332,6 +374,22 @@ fun PlayerScreenTv(
         }
     }
 
+    if (showSpeedPicker) {
+        Dialog(onDismissRequest = { showSpeedPicker = false }) {
+            MaterialTheme {
+                Column(modifier = Modifier.background(Palette.SurfaceElevated).padding(24.dp)) {
+                    Text(text = "Playback speed", color = Color.White)
+                    Spacer(modifier = Modifier.padding(top = 12.dp))
+                    PLAYBACK_SPEED_OPTIONS.forEach { speed ->
+                        Button(onClick = { viewModel.setPlaybackSpeed(speed); showSpeedPicker = false }) {
+                            Text(if (speed == uiState.playbackSpeed) "✓ ${playbackSpeedLabel(speed)}" else playbackSpeedLabel(speed))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (showAudioPicker) {
         TvTrackPickerDialog(
             title = "Audio",
@@ -373,12 +431,7 @@ private fun TvMediaInfoPanel(uiState: PlayerUiState, currentItem: PlaybackItem?)
                     Text(text = subtitle, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.padding(top = 2.dp))
                 }
                 Row(modifier = Modifier.padding(top = 8.dp)) {
-                    listOf(
-                        aspectRatioLabel(uiState.videoWidth, uiState.videoHeight),
-                        resolutionLabel(uiState.videoWidth, uiState.videoHeight),
-                        frameRateLabel(uiState.videoFrameRate),
-                        audioChannelsLabel(uiState.audioChannelCount),
-                    ).filter { it.isNotBlank() }.forEach { label ->
+                    statBadgeLabels(uiState).forEach { label ->
                         Box(modifier = Modifier.padding(end = 8.dp).background(Color.White.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
                             Text(text = label, color = Color.White)
                         }
@@ -388,6 +441,19 @@ private fun TvMediaInfoPanel(uiState: PlayerUiState, currentItem: PlaybackItem?)
         }
     }
 }
+
+/** Shared stats-for-nerds badge list - aspect/resolution/FPS/channels (already shown pre-this-feature) plus codec/bitrate/HDR, used by both TvMediaInfoPanel (VOD/Jellyfin) and TvLiveProgramHeader (Live TV) so the two don't drift into showing different stats for what's otherwise the same panel. */
+private fun statBadgeLabels(uiState: PlayerUiState): List<String> = listOf(
+    aspectRatioLabel(uiState.videoWidth, uiState.videoHeight),
+    resolutionLabel(uiState.videoWidth, uiState.videoHeight),
+    frameRateLabel(uiState.videoFrameRate),
+    codecLabel(uiState.videoCodecMimeType),
+    bitrateLabel(uiState.videoBitrateBps),
+    uiState.hdrType.orEmpty(),
+    audioChannelsLabel(uiState.audioChannelCount),
+    codecLabel(uiState.audioCodecMimeType),
+    bitrateLabel(uiState.audioBitrateBps),
+).filter { it.isNotBlank() }
 
 @Composable
 private fun TvPlayerControls(
@@ -403,6 +469,7 @@ private fun TvPlayerControls(
     onAudioTrackClick: () -> Unit,
     onSubtitleTrackClick: () -> Unit,
     onAspectModeClick: () -> Unit,
+    onPlaybackSpeedClick: () -> Unit,
     onOpenExternally: () -> Unit,
     onSwitchChannel: (String) -> Unit,
 ) {
@@ -430,7 +497,7 @@ private fun TvPlayerControls(
         if (nowStart != null && nowEnd != null) {
             TvLiveProgressBar(nowStartAtEpochMs = nowStart, nowEndAtEpochMs = nowEnd)
         } else {
-            TvSeekBar(uiState = uiState, onSeek = onSeek)
+            TvSeekBar(uiState = uiState, trickplay = currentItem?.trickplay, onSeek = onSeek)
         }
         uiState.errorMessage?.let { Text(text = it, color = Palette.Error) }
 
@@ -452,6 +519,11 @@ private fun TvPlayerControls(
                 TvIconButton(Icons.Filled.Audiotrack, "Audio track", onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty())
                 TvIconButton(Icons.Filled.ClosedCaption, "Subtitles", onClick = onSubtitleTrackClick)
                 TvIconButton(Icons.Filled.AspectRatio, "Aspect ratio", onClick = onAspectModeClick)
+                // Live content isn't meaningfully speed-adjustable (it's a real-time broadcast) -
+                // same liveInfo == null gate the phone player's own speed control uses.
+                if (liveInfo == null) {
+                    TvIconButton(Icons.Filled.Speed, "Playback speed", onClick = onPlaybackSpeedClick)
+                }
                 TvIconButton(Icons.Filled.OpenInNew, "Open externally", onClick = onOpenExternally)
             }
         }
@@ -509,12 +581,7 @@ private fun TvLiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiStat
             }
             Text(text = "${liveInfo.channelName}$timeRange", color = Color.White.copy(alpha = 0.75f))
             Row(modifier = Modifier.padding(top = 4.dp)) {
-                listOf(
-                    aspectRatioLabel(uiState.videoWidth, uiState.videoHeight),
-                    resolutionLabel(uiState.videoWidth, uiState.videoHeight),
-                    frameRateLabel(uiState.videoFrameRate),
-                    audioChannelsLabel(uiState.audioChannelCount),
-                ).filter { it.isNotBlank() }.forEach { label ->
+                statBadgeLabels(uiState).forEach { label ->
                     Box(modifier = Modifier.padding(end = 8.dp).background(Color.White.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
                         Text(text = label, color = Color.White)
                     }
@@ -545,7 +612,7 @@ private val SEEK_BAR_STEP_MS_BY_HOLD = longArrayOf(5_000L, 10_000L, 20_000L, 30_
  * the D-pad focus state visible the same way every other custom focusable control in this app does.
  */
 @Composable
-private fun TvSeekBar(uiState: PlayerUiState, onSeek: (Long) -> Unit) {
+private fun TvSeekBar(uiState: PlayerUiState, trickplay: TrickplayInfo?, onSeek: (Long) -> Unit) {
     // Null = not currently scrubbing (display uiState's own real position). Set the moment
     // Left/Right is first pressed, cleared once SEEK_BAR_COMMIT_DEBOUNCE_MS passes with no further
     // presses - see the LaunchedEffect below, which is what actually calls onSeek.
@@ -592,6 +659,12 @@ private fun TvSeekBar(uiState: PlayerUiState, onSeek: (Long) -> Unit) {
             }
             .padding(vertical = 4.dp),
     ) {
+        // Only while actively scrubbing (previewPositionMs non-null) - showing it against the real,
+        // continuously-advancing position the rest of the time would mean constantly refetching
+        // tiles for no reason, and there's nothing useful to preview about "what's playing right now".
+        if (previewPositionMs != null && trickplay != null) {
+            TrickplayPreview(trickplay = trickplay, positionMs = displayPositionMs, modifier = Modifier.padding(bottom = 8.dp))
+        }
         MaterialTheme3(colorScheme = appColorScheme()) {
             Slider(
                 value = displayPositionMs.toFloat(),
@@ -693,4 +766,45 @@ private fun TvTrackPickerDialog(
             }
         }
     }
+}
+
+/**
+ * Switches the TV's own display mode to whichever supported refresh rate is a clean multiple of
+ * the content's frame rate (so 23.976/24fps content gets a 24/48/72Hz mode instead of judder-prone
+ * 60Hz pulldown), and restores the system default the moment this composable leaves composition -
+ * same "capture nothing, just reset to 0 (system default) on the way out" shape as
+ * RestoreBrightnessOnDispose's own reasoning on the phone screen, except display mode has an
+ * explicit "system default" sentinel (0) rather than needing to remember a previous value.
+ * Re-evaluated per contentFrameRate change (a new item, or ExoPlayer settling on a different
+ * decoded frame rate mid-session) rather than once - only meaningfully changes when frame rate
+ * does, so LaunchedEffect's own equality check already skips redundant mode switches on its own.
+ */
+@Composable
+private fun MatchRefreshRateWhilePlaying(enabled: Boolean, contentFrameRate: Float) {
+    if (!enabled) return
+    val activity = LocalContext.current as? Activity ?: return
+
+    LaunchedEffect(contentFrameRate) {
+        if (contentFrameRate <= 0f) return@LaunchedEffect
+        @Suppress("DEPRECATION") // getSupportedModes() has no display-agnostic replacement before API 30
+        val supportedModes = activity.windowManager.defaultDisplay?.supportedModes ?: return@LaunchedEffect
+        val bestMode = supportedModes
+            .filter { mode -> isCleanRefreshRateMultiple(mode.refreshRate, contentFrameRate) }
+            .minByOrNull { mode -> mode.refreshRate }
+            ?: return@LaunchedEffect
+        activity.window.attributes = activity.window.attributes.apply { preferredDisplayModeId = bestMode.modeId }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { activity.window.attributes = activity.window.attributes.apply { preferredDisplayModeId = 0 } }
+    }
+}
+
+/** Within 2% of a whole-number ratio counts as "clean" - real refresh rates are rarely perfectly exact (23.976 vs 24, 59.94 vs 60), so a strict equality check would reject every legitimate match. */
+private fun isCleanRefreshRateMultiple(refreshRate: Float, contentFrameRate: Float): Boolean {
+    if (contentFrameRate <= 0f || refreshRate <= 0f) return false
+    val ratio = refreshRate / contentFrameRate
+    val nearestWhole = ratio.roundToInt()
+    if (nearestWhole < 1) return false
+    return abs(ratio - nearestWhole) < 0.02f
 }

@@ -59,3 +59,29 @@ fun aspectRatioLabel(width: Int, height: Int): String {
         else -> "%.2f:1".format(ratio)
     }
 }
+
+/** Friendly codec name from ExoPlayer's raw sample MIME type subtype (e.g. "video/hevc" -> "H.265") - falls back to the raw subtype uppercased for anything not explicitly mapped, rather than showing nothing for a codec this list just hasn't been taught about yet. */
+fun codecLabel(sampleMimeType: String?): String {
+    val subtype = sampleMimeType?.substringAfter('/') ?: return ""
+    return when (subtype) {
+        "avc" -> "H.264"
+        "hevc" -> "H.265"
+        "av01" -> "AV1"
+        "vp9" -> "VP9"
+        "vp8" -> "VP8"
+        "mp4a-latm" -> "AAC"
+        "ac3" -> "AC3"
+        "eac3" -> "E-AC3"
+        "opus" -> "Opus"
+        "flac" -> "FLAC"
+        "raw" -> "PCM"
+        else -> subtype.uppercase()
+    }
+}
+
+/** Mbps once the stream clears 1 Mbps (the common case for video), kbps below that (the common case for audio) - matches how bitrate is conventionally reported for each. */
+fun bitrateLabel(bitrateBps: Int): String {
+    if (bitrateBps <= 0) return ""
+    val mbps = bitrateBps / 1_000_000f
+    return if (mbps >= 1f) "%.1f Mbps".format(mbps) else "${bitrateBps / 1000} kbps"
+}

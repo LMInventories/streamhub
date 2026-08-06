@@ -1,14 +1,19 @@
 package com.android.streamhub.feature.player
 
 import android.app.Activity
+import android.content.Context
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,15 +34,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -64,6 +74,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -82,21 +93,39 @@ import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
 import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
+import com.android.streamhub.core.player.PLAYBACK_SPEED_OPTIONS
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
 import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.VideoSurface
 import com.android.streamhub.core.player.audioChannelsLabel
 import com.android.streamhub.core.player.aspectRatioLabel
+import com.android.streamhub.core.player.bitrateLabel
+import com.android.streamhub.core.player.codecLabel
 import com.android.streamhub.core.player.formatPositionMs
 import com.android.streamhub.core.player.frameRateLabel
+import com.android.streamhub.core.player.playbackSpeedLabel
 import com.android.streamhub.core.player.resolutionLabel
 import com.android.streamhub.feature.player.cast.CastButton
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 // Hardcoded for now, not read from anywhere - this becomes a real setting once general player
 // settings exist, but there's nowhere for that to live yet.
 private const val DOUBLE_TAP_SEEK_MS = 10_000L
+
+// A full-width horizontal drag seeks 90 seconds - fast enough to cross a long movie without an
+// unreasonably long swipe, gentle enough that a short correction near the end of a drag doesn't
+// blow past the intended target.
+private const val SEEK_GESTURE_SPAN_MS = 90_000L
+
+// Below this many pixels of total movement, a drag-in-progress isn't classified into
+// seek/brightness/volume yet - keeps a genuine tap (which necessarily wobbles a pixel or two
+// before lifting) from ever being misread as the start of a gesture.
+private const val GESTURE_SLOP_PX = 12f
+
+private enum class PhoneGestureMode { SEEK, BRIGHTNESS, VOLUME }
 
 @Composable
 fun PlayerScreenPhone(
@@ -109,6 +138,7 @@ fun PlayerScreenPhone(
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
     val nextItem by viewModel.nextItem.collectAsStateWithLifecycle()
     val creditsStartMs by viewModel.creditsStartMs.collectAsStateWithLifecycle()
+    val introRange by viewModel.introRange.collectAsStateWithLifecycle()
 
     // Non-null once the episode's real credits start (if known) or, failing that, in the last ten
     // seconds of an episode that actually has a follow-up - see nextEpisodeCountdownSeconds. Live
@@ -121,6 +151,9 @@ fun PlayerScreenPhone(
         if (nextEpisodeCountdown == 0) viewModel.playNextItem()
     }
 
+    // Visible only while actually inside the analyzed intro window - see MediaSource.resolvePlaybackSegments.
+    val skipIntroVisible = introRange?.let { uiState.positionMs in it } == true && currentItem?.isLive == false
+
     var controlsVisible by remember { mutableStateOf(true) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showSubtitlePicker by remember { mutableStateOf(false) }
@@ -129,6 +162,7 @@ fun PlayerScreenPhone(
 
     LockLandscapeWhilePlaying()
     HideSystemBarsWhilePlaying()
+    RestoreBrightnessOnDispose()
     KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
 
     // Back closes the control overlay rather than leaving playback whenever the overlay is up -
@@ -167,10 +201,105 @@ fun PlayerScreenPhone(
         }
     }
 
+    // Gesture-drag state - null means "not currently showing that feedback". Continuously
+    // reassigned while a finger is down (see the drag handler below), so each LaunchedEffect below
+    // keeps restarting its hide-delay for as long as the value keeps changing, then actually hides
+    // it 700ms after the last change - same "reset countdown on continued activity" shape
+    // controlsVisible's own LaunchedEffect above already uses.
+    var seekPreviewMs by remember { mutableStateOf<Long?>(null) }
+    var brightnessLevel by remember { mutableStateOf<Float?>(null) }
+    var volumeLevel by remember { mutableStateOf<Float?>(null) }
+
+    LaunchedEffect(brightnessLevel) {
+        if (brightnessLevel != null) { delay(700); brightnessLevel = null }
+    }
+    LaunchedEffect(volumeLevel) {
+        if (volumeLevel != null) { delay(700); volumeLevel = null }
+    }
+
+    val activity = context as? Activity
+    val audioManager = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .pointerInput(Unit) {
+                // One continuous drag can only ever mean one of these three things - which one is
+                // decided once real movement clears GESTURE_SLOP_PX (so a drag that turns out to be
+                // a near-stationary tap never gets misclassified), then locked in for the rest of
+                // that same gesture so a slightly diagonal finger movement can't flip between
+                // seeking and adjusting volume/brightness mid-drag.
+                var mode: PhoneGestureMode? = null
+                var startX = 0f
+                var accumX = 0f
+                var accumY = 0f
+                var startBrightness = 0.5f
+                var startVolumeFraction = 0f
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        mode = null
+                        startX = offset.x
+                        accumX = 0f
+                        accumY = 0f
+                        startBrightness = activity?.window?.attributes?.screenBrightness
+                            ?.takeIf { it in 0f..1f } ?: 0.5f
+                        startVolumeFraction = audioManager?.let { manager ->
+                            val max = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                            manager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+                        } ?: 0f
+                    },
+                    onDragEnd = {
+                        seekPreviewMs?.let { viewModel.seekTo(it) }
+                        seekPreviewMs = null
+                        mode = null
+                    },
+                    onDragCancel = {
+                        seekPreviewMs = null
+                        mode = null
+                    },
+                ) { change, dragAmount ->
+                    change.consume()
+                    accumX += dragAmount.x
+                    accumY += dragAmount.y
+                    if (mode == null) {
+                        if (abs(accumX) < GESTURE_SLOP_PX && abs(accumY) < GESTURE_SLOP_PX) return@detectDragGestures
+                        mode = when {
+                            abs(accumX) > abs(accumY) -> PhoneGestureMode.SEEK
+                            startX < size.width / 2f -> PhoneGestureMode.BRIGHTNESS
+                            else -> PhoneGestureMode.VOLUME
+                        }
+                    }
+                    when (mode) {
+                        PhoneGestureMode.SEEK -> {
+                            val item = latestCurrentItem
+                            if (item != null && !item.isLive) {
+                                val durationMs = latestUiState.durationMs.coerceAtLeast(0L)
+                                // accumX is the total drag distance since this gesture started, not
+                                // a per-frame delta - so this is always relative to the position
+                                // playback was actually at when the finger went down, not to
+                                // whatever seekPreviewMs last displayed.
+                                val deltaMs = (accumX / size.width.coerceAtLeast(1) * SEEK_GESTURE_SPAN_MS).toLong()
+                                seekPreviewMs = (latestUiState.positionMs + deltaMs).coerceIn(0L, durationMs)
+                            }
+                        }
+                        PhoneGestureMode.BRIGHTNESS -> {
+                            val level = (startBrightness - accumY / size.height.coerceAtLeast(1)).coerceIn(0.01f, 1f)
+                            activity?.window?.let { window -> window.attributes = window.attributes.apply { screenBrightness = level } }
+                            brightnessLevel = level
+                        }
+                        PhoneGestureMode.VOLUME -> {
+                            val level = (startVolumeFraction - accumY / size.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+                            audioManager?.let { manager ->
+                                val max = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                manager.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).roundToInt(), 0)
+                            }
+                            volumeLevel = level
+                        }
+                        null -> {}
+                    }
+                }
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { controlsVisible = !controlsVisible; interactionTick++ },
@@ -212,6 +341,28 @@ fun PlayerScreenPhone(
             )
         }
 
+        seekPreviewMs?.let { previewMs ->
+            GesturePill(
+                icon = if (previewMs >= uiState.positionMs) Icons.Filled.FastForward else Icons.Filled.FastRewind,
+                text = "${formatPositionMs(previewMs)} / ${formatPositionMs(uiState.durationMs)}",
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+        brightnessLevel?.let { level ->
+            GesturePill(
+                icon = Icons.Filled.BrightnessMedium,
+                text = "${(level * 100).roundToInt()}%",
+                modifier = Modifier.align(Alignment.CenterStart).padding(32.dp),
+            )
+        }
+        volumeLevel?.let { level ->
+            GesturePill(
+                icon = if (level <= 0f) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                text = "${(level * 100).roundToInt()}%",
+                modifier = Modifier.align(Alignment.CenterEnd).padding(32.dp),
+            )
+        }
+
         AnimatedVisibility(visible = controlsVisible, enter = fadeIn(), exit = fadeOut()) {
             PhonePlayerControls(
                 uiState = uiState,
@@ -225,9 +376,24 @@ fun PlayerScreenPhone(
                 onAudioTrackClick = { interactionTick++; showAudioPicker = true },
                 onSubtitleTrackClick = { interactionTick++; showSubtitlePicker = true },
                 onAspectModeSelected = { interactionTick++; viewModel.setAspectMode(it) },
+                onPlaybackSpeedSelected = { interactionTick++; viewModel.setPlaybackSpeed(it) },
                 onOpenExternally = { interactionTick++; viewModel.openExternally(context) },
                 onSwitchChannel = { interactionTick++; viewModel.switchChannel(it) },
             )
+        }
+
+        // Floating rather than folded into PhonePlayerControls - visible even while the transport
+        // bar is hidden (the common case right after an episode starts, before the user has
+        // touched anything), matching every other player's "skip intro appears on its own" behavior.
+        AnimatedVisibility(
+            visible = skipIntroVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
+        ) {
+            Button(onClick = { introRange?.let { viewModel.seekTo(it.last) } }) {
+                Text("Skip Intro")
+            }
         }
 
         // Drawn last so it sits above the controls - if both are up, answering the prompt is the
@@ -312,6 +478,17 @@ private fun HideSystemBarsWhilePlaying() {
     }
 }
 
+/** The brightness-gesture handler in PlayerScreenPhone writes straight to the window's own attributes (there's no other way to change screen brightness short of the system Settings brightness, which isn't per-app) - captured/restored the same way orientation and system-bar visibility already are above, so leaving the player doesn't leave the rest of the OS at whatever brightness the user last dragged to mid-video. */
+@Composable
+private fun RestoreBrightnessOnDispose() {
+    val activity = LocalContext.current as? Activity ?: return
+    DisposableEffect(Unit) {
+        val window = activity.window
+        val previousBrightness = window.attributes.screenBrightness
+        onDispose { window.attributes = window.attributes.apply { screenBrightness = previousBrightness } }
+    }
+}
+
 @Composable
 private fun PhonePlayerControls(
     uiState: PlayerUiState,
@@ -325,10 +502,13 @@ private fun PhonePlayerControls(
     onAudioTrackClick: () -> Unit,
     onSubtitleTrackClick: () -> Unit,
     onAspectModeSelected: (VideoAspectMode) -> Unit,
+    onPlaybackSpeedSelected: (Float) -> Unit,
     onOpenExternally: () -> Unit,
     onSwitchChannel: (String) -> Unit,
 ) {
     var showAspectMenu by remember { mutableStateOf(false) }
+    var showSpeedMenu by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
     val liveInfo = currentItem?.liveProgramInfo
 
     Column(
@@ -373,10 +553,23 @@ private fun PhonePlayerControls(
             if (nowStart != null && nowEnd != null) {
                 LiveProgressBar(nowStartAtEpochMs = nowStart, nowEndAtEpochMs = nowEnd)
             } else {
+                val sliderInteractionSource = remember { MutableInteractionSource() }
+                val isDraggingSlider by sliderInteractionSource.collectIsDraggedAsState()
+                val trickplay = currentItem?.trickplay
+                // Only while the finger is actually down - see TvSeekBar's matching comment for why
+                // this doesn't also show against the real, continuously-advancing position.
+                if (isDraggingSlider && trickplay != null) {
+                    TrickplayPreview(
+                        trickplay = trickplay,
+                        positionMs = uiState.positionMs,
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp),
+                    )
+                }
                 Slider(
                     value = uiState.positionMs.toFloat(),
                     onValueChange = { onSeek(it.toLong()) },
                     valueRange = 0f..uiState.durationMs.coerceAtLeast(1L).toFloat(),
+                    interactionSource = sliderInteractionSource,
                     colors = SliderDefaults.colors(
                         thumbColor = Palette.Accent,
                         activeTrackColor = Palette.Accent,
@@ -386,6 +579,13 @@ private fun PhonePlayerControls(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(text = formatPositionMs(uiState.positionMs), color = Color.White)
                     Text(text = "-${formatPositionMs((uiState.durationMs - uiState.positionMs).coerceAtLeast(0L))}", color = Color.White)
+                }
+                // VOD has no always-on header to hang stats off of the way LiveProgramHeader does
+                // for live - shown here instead, gated behind the toggle in the controls row below.
+                if (showStats) {
+                    Row(modifier = Modifier.padding(top = 6.dp)) {
+                        statBadgeLabels(uiState).forEach { StatBadge(it) }
+                    }
                 }
             }
 
@@ -411,6 +611,11 @@ private fun PhonePlayerControls(
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
+                if (liveInfo == null) {
+                    IconButton(onClick = { showStats = !showStats }) {
+                        Icon(Icons.Filled.Info, contentDescription = "Stream info", tint = if (showStats) Palette.Accent else Color.White)
+                    }
+                }
                 IconButton(onClick = onAudioTrackClick, enabled = uiState.audioTracks.isNotEmpty()) {
                     Icon(Icons.Filled.Audiotrack, contentDescription = "Audio track", tint = Color.White)
                 }
@@ -426,6 +631,23 @@ private fun PhonePlayerControls(
                         AspectMenuItem("Fill", VideoAspectMode.FILL, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
                         AspectMenuItem("4:3", VideoAspectMode.RATIO_4_3, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
                         AspectMenuItem("16:9", VideoAspectMode.RATIO_16_9, uiState.aspectMode, onAspectModeSelected) { showAspectMenu = false }
+                    }
+                }
+                // Live content isn't meaningfully speed-adjustable (it's a real-time broadcast) -
+                // same liveInfo == null gate the seek buttons already use.
+                if (liveInfo == null) {
+                    Box {
+                        IconButton(onClick = { showSpeedMenu = true }) {
+                            Icon(Icons.Filled.Speed, contentDescription = "Playback speed", tint = Color.White)
+                        }
+                        DropdownMenu(expanded = showSpeedMenu, onDismissRequest = { showSpeedMenu = false }) {
+                            PLAYBACK_SPEED_OPTIONS.forEach { speed ->
+                                DropdownMenuItem(
+                                    text = { Text(if (speed == uiState.playbackSpeed) "${playbackSpeedLabel(speed)} ✓" else playbackSpeedLabel(speed)) },
+                                    onClick = { onPlaybackSpeedSelected(speed); showSpeedMenu = false },
+                                )
+                            }
+                        }
                     }
                 }
                 IconButton(onClick = onOpenExternally) {
@@ -483,10 +705,7 @@ private fun LiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiState)
                 modifier = Modifier.padding(top = 2.dp),
             )
             Row(modifier = Modifier.padding(top = 4.dp)) {
-                StatBadge(aspectRatioLabel(uiState.videoWidth, uiState.videoHeight))
-                StatBadge(resolutionLabel(uiState.videoWidth, uiState.videoHeight))
-                StatBadge(frameRateLabel(uiState.videoFrameRate))
-                StatBadge(audioChannelsLabel(uiState.audioChannelCount))
+                statBadgeLabels(uiState).forEach { StatBadge(it) }
             }
             liveInfo.nextTitle?.let { nextTitle ->
                 val nextTime = liveInfo.nextStartAtEpochMs?.let { " at ${formatClockTime(it)}" }.orEmpty()
@@ -502,6 +721,19 @@ private fun LiveProgramHeader(liveInfo: LiveProgramInfo, uiState: PlayerUiState)
         }
     }
 }
+
+/** Shared stats-for-nerds badge list - aspect/resolution/FPS/channels (already shown pre-this-feature) plus codec/bitrate/HDR. Used both by LiveProgramHeader (Live TV, always visible) and the VOD stats toggle below (since VOD playback has no always-on header to hang these off of). */
+private fun statBadgeLabels(uiState: PlayerUiState): List<String> = listOf(
+    aspectRatioLabel(uiState.videoWidth, uiState.videoHeight),
+    resolutionLabel(uiState.videoWidth, uiState.videoHeight),
+    frameRateLabel(uiState.videoFrameRate),
+    codecLabel(uiState.videoCodecMimeType),
+    bitrateLabel(uiState.videoBitrateBps),
+    uiState.hdrType.orEmpty(),
+    audioChannelsLabel(uiState.audioChannelCount),
+    codecLabel(uiState.audioCodecMimeType),
+    bitrateLabel(uiState.audioBitrateBps),
+).filter { it.isNotBlank() }
 
 @Composable
 private fun StatBadge(text: String) {
@@ -532,6 +764,21 @@ private fun SeekFeedbackIndicator(forward: Boolean, seekSeconds: Int, modifier: 
             tint = Color.White,
         )
         Text(text = "${seekSeconds}s", color = Color.White, modifier = Modifier.padding(start = 4.dp))
+    }
+}
+
+/** Same pill styling as SeekFeedbackIndicator above - shared by the seek/brightness/volume drag-gesture feedback, which all just want an icon plus a short piece of text. */
+@Composable
+private fun GesturePill(icon: ImageVector, text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(AppShapes.large)
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = Color.White)
+        Text(text = text, color = Color.White, modifier = Modifier.padding(start = 6.dp))
     }
 }
 

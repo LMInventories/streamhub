@@ -36,6 +36,7 @@ private val THEME_OPTIONS = listOf(ThemeMode.DARK to "Dark", ThemeMode.LIGHT to 
 private val TEXT_SCALE_OPTIONS = TextScale.entries.toList()
 private val LAUNCH_DESTINATION_OPTIONS = AppLaunchDestination.entries.toList()
 private val PREVIEW_SIZE_OPTIONS = PreviewPlayerSize.entries.toList()
+private val MATCH_REFRESH_RATE_OPTIONS = listOf(false to "Off", true to "On")
 
 /** Same "wrap own MaterialTheme locally" reasoning as every other settings sub-screen - reachable from the TV nav host too. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -160,6 +161,22 @@ fun AppUiSettingsScreenTv(
                     )
                     TvText(
                         text = "Which screen the app opens into when launched fresh (not just resumed from background). Live TV also resumes whatever channel was last viewed.",
+                        color = Palette.TextMuted,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                }
+            }
+
+            TvSettingsSection(title = "Match content refresh rate") {
+                Column {
+                    PillToggle(
+                        options = MATCH_REFRESH_RATE_OPTIONS.map { it.second },
+                        selectedIndex = MATCH_REFRESH_RATE_OPTIONS.indexOfFirst { it.first == uiState.matchRefreshRate }.coerceAtLeast(0),
+                        onSelect = { index -> viewModel.setMatchRefreshRate(MATCH_REFRESH_RATE_OPTIONS[index].first) },
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    )
+                    TvText(
+                        text = "Switches the TV's output to match each video's frame rate during playback, to reduce judder. Restored to normal when playback stops. Some TVs/HDMI setups handle this better than others - try it and turn it back off if you see a flash or resolution banner you'd rather avoid.",
                         color = Palette.TextMuted,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     )

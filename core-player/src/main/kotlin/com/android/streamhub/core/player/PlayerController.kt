@@ -2,8 +2,11 @@ package com.android.streamhub.core.player
 
 import android.content.Context
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -78,12 +81,19 @@ class PlayerController @Inject constructor(
         override fun onTracksChanged(tracks: Tracks) {
             val subtitlesOff = exoPlayer.trackSelectionParameters
                 .disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+            val videoFormat = exoPlayer.videoFormat
+            val audioFormat = exoPlayer.audioFormat
             _uiState.update {
                 it.copy(
                     audioTracks = tracks.toTrackOptions(C.TRACK_TYPE_AUDIO),
                     subtitleTracks = tracks.toTrackOptions(C.TRACK_TYPE_TEXT),
                     subtitlesOff = subtitlesOff,
-                    audioChannelCount = exoPlayer.audioFormat?.channelCount ?: 0,
+                    audioChannelCount = audioFormat?.channelCount ?: 0,
+                    videoCodecMimeType = videoFormat?.sampleMimeType,
+                    videoBitrateBps = videoFormat?.bitrate?.takeIf { bitrate -> bitrate != Format.NO_VALUE } ?: 0,
+                    audioCodecMimeType = audioFormat?.sampleMimeType,
+                    audioBitrateBps = audioFormat?.bitrate?.takeIf { bitrate -> bitrate != Format.NO_VALUE } ?: 0,
+                    hdrType = hdrLabel(videoFormat),
                 )
             }
         }
@@ -117,7 +127,18 @@ class PlayerController @Inject constructor(
         // callback happens to fire - otherwise switching to a new channel would keep showing the
         // previous one's stats badges for a moment.
         _uiState.update {
-            it.copy(videoWidth = 0, videoHeight = 0, videoFrameRate = 0f, audioChannelCount = 0, errorMessage = null)
+            it.copy(
+                videoWidth = 0,
+                videoHeight = 0,
+                videoFrameRate = 0f,
+                audioChannelCount = 0,
+                videoCodecMimeType = null,
+                videoBitrateBps = 0,
+                audioCodecMimeType = null,
+                audioBitrateBps = 0,
+                hdrType = null,
+                errorMessage = null,
+            )
         }
         val mediaItem = MediaItem.Builder()
             .setUri(item.streamUri)
@@ -174,6 +195,12 @@ class PlayerController @Inject constructor(
         _uiState.update { it.copy(aspectMode = mode) }
     }
 
+    /** Not reset in prepare() - like aspectMode, a chosen speed carries across a chained Next Episode load within the same player screen/PlayerController instance, which is what a viewer bingeing at e.g. 1.5x actually wants. */
+    fun setPlaybackSpeed(speed: Float) {
+        exoPlayer.playbackParameters = PlaybackParameters(speed)
+        _uiState.update { it.copy(playbackSpeed = speed) }
+    }
+
     fun selectAudioTrack(trackId: String) = selectTrack(C.TRACK_TYPE_AUDIO, trackId)
 
     fun selectTextTrack(trackId: String) {
@@ -225,5 +252,21 @@ class PlayerController @Inject constructor(
         stopPositionTicker()
         exoPlayer.removeListener(playerListener)
         exoPlayer.release()
+    }
+
+    /**
+     * Dolby Vision is its own MIME type (a distinct elementary stream, not just a color-metadata
+     * flag on an HEVC/AV1 one) - checked first since a DV stream also reports an ST2084 transfer
+     * for HDR10-fallback compatibility, which would otherwise misreport it as plain HDR10. HLG (used
+     * by some broadcast/IPTV sources) doesn't use PQ transfer at all, so it needs its own branch.
+     */
+    private fun hdrLabel(format: Format?): String? {
+        if (format == null) return null
+        if (format.sampleMimeType == MimeTypes.VIDEO_DOLBY_VISION) return "Dolby Vision"
+        return when (format.colorInfo?.colorTransfer) {
+            C.COLOR_TRANSFER_ST2084 -> "HDR10"
+            C.COLOR_TRANSFER_HLG -> "HLG"
+            else -> null
+        }
     }
 }

@@ -82,12 +82,17 @@ class PlayerViewModel @Inject constructor(
     val nextItem: StateFlow<NextPlaybackItem?> = _nextItem
 
     /**
-     * Where credits/outro begin in the *current* item, if known - see
-     * MediaSource.resolveCreditsStartPosition. Null means "no segment data for this item", which
-     * NextEpisodePrompt.nextEpisodeCountdownSeconds treats as "fall back to raw-duration timing".
+     * Outro/credits start in the *current* item, if known - see MediaSource.resolvePlaybackSegments.
+     * Null means "no segment data for this item", which NextEpisodePrompt.nextEpisodeCountdownSeconds
+     * treats as "fall back to raw-duration timing". Kept as its own StateFlow (rather than exposing
+     * the raw PlaybackSegments) since that's exactly the shape the prompt already consumes.
      */
     private val _creditsStartMs = MutableStateFlow<Long?>(null)
     val creditsStartMs: StateFlow<Long?> = _creditsStartMs
+
+    /** Intro start/end in the *current* item, if known - drives the Skip Intro button. Same null-means-no-data contract as [_creditsStartMs], and resolved from the same single MediaSource.resolvePlaybackSegments call - see [resolvePlaybackSegments] below. */
+    private val _introRange = MutableStateFlow<LongRange?>(null)
+    val introRange: StateFlow<LongRange?> = _introRange
 
     // Cancelled and relaunched per load - chaining into the next episode calls loadAndPrepare
     // again, and without holding the Job each chained episode would leave its predecessor's
@@ -183,7 +188,7 @@ class PlayerViewModel @Inject constructor(
                 mediaSource?.let { source -> viewModelScope.launch { source.onPlaybackStarted(item.id) } }
                 startProgressReporting()
                 resolveNextItem(item.id)
-                resolveCreditsStart(item.id)
+                resolvePlaybackSegments(item.id)
             }
         }.onFailure { throwable ->
             playerController.reportError(throwable.message ?: "Failed to resolve playback item")
@@ -204,12 +209,18 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /** Same "resolved once per load, silent on failure" shape as resolveNextItem above. */
-    private fun resolveCreditsStart(id: String) {
+    /** Same "resolved once per load, silent on failure" shape as resolveNextItem above - one call covers both the Skip Intro button and the Next Episode prompt's credits timing, see MediaSource.resolvePlaybackSegments. */
+    private fun resolvePlaybackSegments(id: String) {
         _creditsStartMs.value = null
+        _introRange.value = null
         val source = mediaSource ?: return
         viewModelScope.launch {
-            _creditsStartMs.value = runCatching { source.resolveCreditsStartPosition(id) }.getOrNull()
+            val segments = runCatching { source.resolvePlaybackSegments(id) }.getOrNull()
+            _creditsStartMs.value = segments?.outroStartMs
+            _introRange.value = segments?.introStartMs?.let { start ->
+                val end = segments.introEndMs ?: return@let null
+                if (end > start) start..end else null
+            }
         }
     }
 
@@ -246,6 +257,8 @@ class PlayerViewModel @Inject constructor(
     fun clearSubtitles() = playerController.clearTextTrack()
 
     fun setAspectMode(mode: VideoAspectMode) = playerController.setAspectMode(mode)
+
+    fun setPlaybackSpeed(speed: Float) = playerController.setPlaybackSpeed(speed)
 
     /** Returns true if handoff to an external player actually launched. */
     fun openExternally(context: Context): Boolean {

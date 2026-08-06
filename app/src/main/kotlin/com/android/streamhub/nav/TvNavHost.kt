@@ -46,6 +46,7 @@ import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.placeholder.ComingSoonScreen
 import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreenTv
+import com.android.streamhub.settings.AppUiSettingsViewModel
 import com.android.streamhub.settings.SettingsScreenTv
 
 private val TAB_ROUTES = setOf(
@@ -298,7 +299,12 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     navArgument("itemId") { type = NavType.StringType },
                 ),
             ) {
-                PlayerScreenTv(onBack = { navController.popBackStack() })
+                // AppUiSettingsViewModel rather than a player-module settings repo of its own -
+                // matchRefreshRate lives on the same shared AppUiSettings every other appearance
+                // toggle does, and :app (unlike feature-player-screen) can already read it.
+                val appUiSettingsViewModel: AppUiSettingsViewModel = hiltViewModel()
+                val appUiState by appUiSettingsViewModel.uiState.collectAsStateWithLifecycle()
+                PlayerScreenTv(onBack = { navController.popBackStack() }, matchRefreshRate = appUiState.matchRefreshRate)
             }
         }
     }

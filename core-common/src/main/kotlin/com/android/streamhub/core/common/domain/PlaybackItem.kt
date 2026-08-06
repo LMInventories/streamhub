@@ -43,6 +43,30 @@ data class PlaybackItem(
     // track selector auto-pick a forced/default-flagged embedded track. This is a hard disable,
     // for the case where a source's own per-item picker was explicitly set to Off.
     val subtitlesOff: Boolean = false,
+    // Enough to build/render trickplay scrubbing-preview thumbnails without the player needing to
+    // know which source they came from - same "populated once at resolvePlayback() time, source-
+    // agnostic from here on" pattern as liveProgramInfo above. Null for sources/items with no
+    // trickplay data (IPTV/live, or Jellyfin content the server hasn't analyzed yet).
+    val trickplay: TrickplayInfo? = null,
+)
+
+/**
+ * [tileUrlTemplate] carries a literal "{index}" placeholder for the 0-based tile image index -
+ * the player substitutes it per tile it actually needs while the user is scrubbing, rather than
+ * every source having to expose its own URL-building logic to the player directly. [width]/
+ * [height] are one individual thumbnail's pixel dimensions; [tileGridColumns]/[tileGridRows] are
+ * how many thumbnails are packed into one tile image, together with [thumbnailCount] and
+ * [intervalMs] enough to compute both which tile a playback position falls in and where within
+ * it, with no network round trip needed just to look that up.
+ */
+data class TrickplayInfo(
+    val tileUrlTemplate: String,
+    val width: Int,
+    val height: Int,
+    val tileGridColumns: Int,
+    val tileGridRows: Int,
+    val thumbnailCount: Int,
+    val intervalMs: Int,
 )
 
 data class LiveProgramInfo(

@@ -44,4 +44,8 @@ class AppUiSettingsViewModel @Inject constructor(
     fun setPreviewPlayerSize(size: PreviewPlayerSize) {
         viewModelScope.launch { iptvAppSettingsRepository.update { it.copy(previewPlayerSize = size) } }
     }
+
+    fun setMatchRefreshRate(enabled: Boolean) {
+        viewModelScope.launch { repository.update { it.copy(matchRefreshRate = enabled) } }
+    }
 }
