@@ -45,6 +45,22 @@ data class JellyfinSubtitleTrackInfo(
     val language: String? = null,
 )
 
+/** An audio stream muxed into the media source - same shape/purpose as JellyfinSubtitleTrackInfo above, plus [isDefault] since (unlike subtitles) audio always needs a track selected, so hydrating a picker's default needs to know which one the server itself considers default. */
+@Serializable
+data class JellyfinAudioTrackInfo(
+    val index: Int,
+    val label: String,
+    val language: String? = null,
+    val isDefault: Boolean = false,
+)
+
+/** One alternate encode/rip of the same library item (Jellyfin's own "Version" concept) - [id] is the MediaSourceInfo id fed back into getStreamUrl to select it. */
+@Serializable
+data class JellyfinVersionInfo(
+    val id: String,
+    val label: String,
+)
+
 @Serializable
 data class JellyfinItemInfo(
     val id: String,
@@ -87,6 +103,9 @@ data class JellyfinItemInfo(
     val videoLabel: String? = null,
     val audioLabel: String? = null,
     val subtitleTracks: List<JellyfinSubtitleTrackInfo> = emptyList(),
+    // Default empty for the same cache-JSON-compatibility reason as episodeThumbnailUrl above.
+    val audioTracks: List<JellyfinAudioTrackInfo> = emptyList(),
+    val videoVersions: List<JellyfinVersionInfo> = emptyList(),
     val seriesId: String?,
     val seriesName: String?,
     val seasonId: String?,

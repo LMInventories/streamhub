@@ -81,6 +81,14 @@ class PlayerViewModel @Inject constructor(
     private val _nextItem = MutableStateFlow<NextPlaybackItem?>(null)
     val nextItem: StateFlow<NextPlaybackItem?> = _nextItem
 
+    /**
+     * Where credits/outro begin in the *current* item, if known - see
+     * MediaSource.resolveCreditsStartPosition. Null means "no segment data for this item", which
+     * NextEpisodePrompt.nextEpisodeCountdownSeconds treats as "fall back to raw-duration timing".
+     */
+    private val _creditsStartMs = MutableStateFlow<Long?>(null)
+    val creditsStartMs: StateFlow<Long?> = _creditsStartMs
+
     // Cancelled and relaunched per load - chaining into the next episode calls loadAndPrepare
     // again, and without holding the Job each chained episode would leave its predecessor's
     // while(true) reporting loop running for the rest of the session.
@@ -175,6 +183,7 @@ class PlayerViewModel @Inject constructor(
                 mediaSource?.let { source -> viewModelScope.launch { source.onPlaybackStarted(item.id) } }
                 startProgressReporting()
                 resolveNextItem(item.id)
+                resolveCreditsStart(item.id)
             }
         }.onFailure { throwable ->
             playerController.reportError(throwable.message ?: "Failed to resolve playback item")
@@ -192,6 +201,15 @@ class PlayerViewModel @Inject constructor(
         val source = mediaSource ?: return
         viewModelScope.launch {
             _nextItem.value = runCatching { source.resolveNextItem(id) }.getOrNull()
+        }
+    }
+
+    /** Same "resolved once per load, silent on failure" shape as resolveNextItem above. */
+    private fun resolveCreditsStart(id: String) {
+        _creditsStartMs.value = null
+        val source = mediaSource ?: return
+        viewModelScope.launch {
+            _creditsStartMs.value = runCatching { source.resolveCreditsStartPosition(id) }.getOrNull()
         }
     }
 

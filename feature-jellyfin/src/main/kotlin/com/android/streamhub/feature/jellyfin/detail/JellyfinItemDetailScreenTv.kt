@@ -65,10 +65,12 @@ import com.android.streamhub.core.design.SignalBar
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadState
+import com.android.streamhub.feature.jellyfin.data.JellyfinAudioTrackInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleTrackInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinVersionInfo
 
 /** TV-native sibling of JellyfinItemDetailScreen - same JellyfinItemDetailViewModel, tv-material3 components + TvFocusBorder on the custom (non-Card/Button) rows. */
 @Composable
@@ -132,6 +134,10 @@ fun JellyfinItemDetailScreenTv(
                     selectedSubtitleIndex = uiState.selectedSubtitleIndex,
                     subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
                     onSelectSubtitle = viewModel::selectSubtitle,
+                    selectedAudioIndex = uiState.selectedAudioIndex,
+                    onSelectAudioTrack = viewModel::selectAudioTrack,
+                    selectedVersionId = uiState.selectedVersionId,
+                    onSelectVideoVersion = viewModel::selectVideoVersion,
                     onPlay = onPlay,
                     onOpenSeries = onOpenSeries,
                     onOpenEpisode = onOpenEpisode,
@@ -153,6 +159,10 @@ private fun JellyfinItemDetailContentTv(
     selectedSubtitleIndex: Int?,
     subtitlesExplicitlyOff: Boolean,
     onSelectSubtitle: (Int?) -> Unit,
+    selectedAudioIndex: Int?,
+    onSelectAudioTrack: (Int) -> Unit,
+    selectedVersionId: String?,
+    onSelectVideoVersion: (String) -> Unit,
     onPlay: () -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenEpisode: (String) -> Unit,
@@ -255,6 +265,10 @@ private fun JellyfinItemDetailContentTv(
                 selectedSubtitleIndex = selectedSubtitleIndex,
                 subtitlesExplicitlyOff = subtitlesExplicitlyOff,
                 onSelectSubtitle = onSelectSubtitle,
+                selectedAudioIndex = selectedAudioIndex,
+                onSelectAudioTrack = onSelectAudioTrack,
+                selectedVersionId = selectedVersionId,
+                onSelectVideoVersion = onSelectVideoVersion,
             )
         }
 
@@ -418,12 +432,26 @@ private fun MediaInfoSectionTv(
     selectedSubtitleIndex: Int?,
     subtitlesExplicitlyOff: Boolean,
     onSelectSubtitle: (Int?) -> Unit,
+    selectedAudioIndex: Int?,
+    onSelectAudioTrack: (Int) -> Unit,
+    selectedVersionId: String?,
+    onSelectVideoVersion: (String) -> Unit,
 ) {
-    if (item.videoLabel == null && item.audioLabel == null && item.subtitleTracks.isEmpty()) return
+    if (item.videoLabel == null && item.audioLabel == null && item.subtitleTracks.isEmpty() &&
+        item.videoVersions.isEmpty() && item.audioTracks.isEmpty()
+    ) {
+        return
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(24.dp, 8.dp)) {
-        item.videoLabel?.let { label -> MediaInfoRowTv(label = "Video", value = label) }
-        item.audioLabel?.let { label -> MediaInfoRowTv(label = "Audio", value = label) }
+        when {
+            item.videoVersions.size > 1 -> VersionPickerRowTv(item.videoVersions, selectedVersionId, onSelectVideoVersion)
+            item.videoLabel != null -> MediaInfoRowTv(label = "Video", value = item.videoLabel)
+        }
+        when {
+            item.audioTracks.size > 1 -> AudioPickerRowTv(item.audioTracks, selectedAudioIndex, onSelectAudioTrack)
+            item.audioLabel != null -> MediaInfoRowTv(label = "Audio", value = item.audioLabel)
+        }
         if (item.subtitleTracks.isNotEmpty()) {
             SubtitlePickerRowTv(
                 tracks = item.subtitleTracks,
@@ -480,6 +508,78 @@ private fun SubtitlePickerRowTv(
                     TvDialogRow(
                         label = if (track.index == selectedIndex) "${track.label} ✓" else track.label,
                         onClick = { onSelect(track.index); expanded = false },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Same shape as SubtitlePickerRowTv above, minus the "Off" entry - there's no off-concept for audio, a track is always selected. */
+@Composable
+private fun AudioPickerRowTv(tracks: List<JellyfinAudioTrackInfo>, selectedIndex: Int?, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: tracks.first().label
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(text = "Audio", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(100.dp))
+        Button(onClick = { expanded = true }) {
+            Text(selectedLabel, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    if (expanded) {
+        Dialog(onDismissRequest = { expanded = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShapes.large)
+                    .background(Palette.Surface)
+                    .padding(vertical = 8.dp),
+            ) {
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+                tracks.forEachIndexed { i, track ->
+                    TvDialogRow(
+                        label = if (track.index == selectedIndex) "${track.label} ✓" else track.label,
+                        onClick = { onSelect(track.index); expanded = false },
+                        modifier = if (i == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Same shape as AudioPickerRowTv above, keyed by JellyfinVersionInfo.id (a String) instead of a track index. */
+@Composable
+private fun VersionPickerRowTv(versions: List<JellyfinVersionInfo>, selectedId: String?, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = versions.firstOrNull { it.id == selectedId }?.label ?: versions.first().label
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(text = "Version", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(100.dp))
+        Button(onClick = { expanded = true }) {
+            Text(selectedLabel, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    if (expanded) {
+        Dialog(onDismissRequest = { expanded = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(AppShapes.large)
+                    .background(Palette.Surface)
+                    .padding(vertical = 8.dp),
+            ) {
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+                versions.forEachIndexed { i, version ->
+                    TvDialogRow(
+                        label = if (version.id == selectedId) "${version.label} ✓" else version.label,
+                        onClick = { onSelect(version.id); expanded = false },
+                        modifier = if (i == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
                     )
                 }
             }

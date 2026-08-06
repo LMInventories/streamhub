@@ -22,7 +22,7 @@ private const val TICKS_PER_MS = 10_000L
 class JellyfinMediaSource @Inject constructor(
     private val browseRepository: JellyfinBrowseRepository,
     private val appSettingsRepository: JellyfinAppSettingsRepository,
-    private val subtitlePreferenceStore: JellyfinSubtitlePreferenceStore,
+    private val playbackPreferenceStore: JellyfinPlaybackPreferenceStore,
 ) : MediaSource {
 
     override val sourceType: SourceType = SourceType.JELLYFIN
@@ -43,12 +43,19 @@ class JellyfinMediaSource @Inject constructor(
 
     override suspend fun resolvePlayback(itemId: String): PlaybackItem {
         val item = browseRepository.getItem(itemId) ?: error("Jellyfin item not found: $itemId")
-        val streamUrl = browseRepository.getStreamUrl(itemId) ?: error("No Jellyfin stream URL for: $itemId")
+        val preference = playbackPreferenceStore.get(itemId)
+        val streamUrl = browseRepository.getStreamUrl(itemId, preference?.mediaSourceId)
+            ?: error("No Jellyfin stream URL for: $itemId")
         val settings = appSettingsRepository.settingsFlow.first()
         val subtitlePreference = resolveSubtitlePreference(itemId)
+        // Same "explicit per-item choice overrides the app-wide setting" precedence subtitles
+        // already use below - no store entry (the Downloads-list bypass path, which never visits
+        // the detail screen) falls straight through to the app-wide setting exactly as before this
+        // picker existed.
+        val preferredAudio = preference?.audio?.language ?: settings.preferredAudioLanguage
         return item.toPlaybackItem(
             streamUri = streamUrl,
-            preferredAudio = settings.preferredAudioLanguage,
+            preferredAudio = preferredAudio,
             preferredSubtitle = subtitlePreference.preferredLanguage,
             subtitlesOff = subtitlePreference.off,
         )
@@ -67,7 +74,7 @@ class JellyfinMediaSource @Inject constructor(
     // downloaded item would always fall back to PlaybackItem's own default (subtitlesOff = false).
     override suspend fun resolveSubtitlePreference(itemId: String): SubtitlePreference {
         val settings = appSettingsRepository.settingsFlow.first()
-        val subtitleChoice = subtitlePreferenceStore.get(itemId)
+        val subtitleChoice = playbackPreferenceStore.get(itemId)?.subtitle
         val subtitlesOff = when (subtitleChoice) {
             is JellyfinSubtitleChoice.Off -> true
             is JellyfinSubtitleChoice.Track -> false
@@ -81,6 +88,8 @@ class JellyfinMediaSource @Inject constructor(
             off = subtitlesOff,
         )
     }
+
+    override suspend fun resolveCreditsStartPosition(itemId: String): Long? = browseRepository.getOutroStartMs(itemId)
 
     /**
      * Deliberately computed from the season's own episode list rather than Jellyfin's Next Up API:

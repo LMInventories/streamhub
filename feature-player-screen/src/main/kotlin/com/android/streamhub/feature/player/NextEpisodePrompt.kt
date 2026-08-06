@@ -35,10 +35,20 @@ const val NEXT_EPISODE_PROMPT_LEAD_MS = 10_000L
  * never disagree: seeking backwards out of the window dismisses the prompt, seeking forwards into
  * it brings the prompt back, and pausing freezes the countdown (PlayerController stops its position
  * ticker while paused), which is what a viewer pausing at the credits obviously expects.
+ *
+ * [creditsStartMs], when known (see MediaSource.resolveCreditsStartPosition - a Jellyfin server's
+ * own analyzed Outro Media Segment for this episode), substitutes for [durationMs] as the "end"
+ * this countdown is measured against - reusing the exact same last-10-seconds math below, just
+ * anchored to where credits actually begin instead of the file's real end. That makes the prompt
+ * appear the instant credits start (rather than buried mid-roll, or barely visible at all, for a
+ * show with a long credits sequence) while auto-advance still only takes the familiar 10 seconds,
+ * not the whole remaining credits runtime. Ignored (falls back to [durationMs]) when null - older
+ * servers, unanalyzed content, or a failed lookup - or nonsensical (outside the episode itself).
  */
-fun nextEpisodeCountdownSeconds(positionMs: Long, durationMs: Long): Int? {
+fun nextEpisodeCountdownSeconds(positionMs: Long, durationMs: Long, creditsStartMs: Long? = null): Int? {
     if (durationMs <= 0L) return null
-    val remainingMs = durationMs - positionMs
+    val effectiveDurationMs = creditsStartMs?.takeIf { it in 0..durationMs }?.plus(NEXT_EPISODE_PROMPT_LEAD_MS) ?: durationMs
+    val remainingMs = effectiveDurationMs - positionMs
     if (remainingMs > NEXT_EPISODE_PROMPT_LEAD_MS) return null
     val leadSeconds = (NEXT_EPISODE_PROMPT_LEAD_MS / 1000L).toInt()
     // Rounds up so a full ten seconds remaining reads "10" rather than briefly flashing "9".

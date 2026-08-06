@@ -6,14 +6,17 @@ import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadTracker
+import com.android.streamhub.feature.jellyfin.data.JellyfinAppSettingsRepository
+import com.android.streamhub.feature.jellyfin.data.JellyfinAudioChoice
 import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinPlaybackPreferenceStore
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleChoice
-import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitlePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -24,12 +27,16 @@ data class JellyfinItemDetailUiState(
     val isLoading: Boolean = true,
     val item: JellyfinItemInfo? = null,
     val errorMessage: String? = null,
-    // null = no explicit choice made yet this visit - displayed as "Off" but, unlike an actual
-    // Off tap, doesn't force-disable subtitles at playback time (falls through to the app-wide
-    // language preference instead). See JellyfinSubtitlePreferenceStore's own doc for why this
-    // needs to be threaded to a different screen entirely rather than just local UI state.
+    // Always resolved to a definitive value by the time isLoading flips false (see
+    // hydrateDefaultSubtitle) - never "untouched" the way this used to default to null, which is
+    // the whole point of this fix. See JellyfinPlaybackPreferenceStore's own doc for why this needs
+    // to be threaded to a different screen entirely rather than just local UI state.
     val selectedSubtitleIndex: Int? = null,
     val subtitlesExplicitlyOff: Boolean = false,
+    // Same "resolved before any tap" hydration as subtitles above - null only when the item has
+    // fewer than 2 options and there's nothing to pick between (see hydrateDefaultAudio/Version).
+    val selectedAudioIndex: Int? = null,
+    val selectedVersionId: String? = null,
     // Only populated for episodes (excludes the current item) - "More from Season X" row.
     val seasonEpisodes: List<JellyfinItemInfo> = emptyList(),
 )
@@ -38,7 +45,8 @@ data class JellyfinItemDetailUiState(
 class JellyfinItemDetailViewModel @Inject constructor(
     private val browseRepository: JellyfinBrowseRepository,
     private val downloadTracker: DownloadTracker,
-    private val subtitlePreferenceStore: JellyfinSubtitlePreferenceStore,
+    private val appSettingsRepository: JellyfinAppSettingsRepository,
+    private val playbackPreferenceStore: JellyfinPlaybackPreferenceStore,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -57,6 +65,12 @@ class JellyfinItemDetailViewModel @Inject constructor(
             val item = runCatching { browseRepository.getItem(itemId) }.getOrNull()
             _uiState.update { it.copy(isLoading = false, item = item, errorMessage = if (item == null) "Item not found" else null) }
 
+            if (item != null) {
+                hydrateDefaultSubtitle(item)
+                hydrateDefaultAudio(item)
+                hydrateDefaultVersion(item)
+            }
+
             val seriesId = item?.seriesId
             val seasonId = item?.seasonId
             if (item != null && seriesId != null && seasonId != null) {
@@ -64,6 +78,54 @@ class JellyfinItemDetailViewModel @Inject constructor(
                 _uiState.update { it.copy(seasonEpisodes = episodes.filter { episode -> episode.id != itemId }) }
             }
         }
+    }
+
+    /**
+     * Resolves and commits a definitive default the moment the item loads, before any tap -
+     * eliminates the "dropdown shows Off but something else plays" divergence a previous version of
+     * this screen had (the field simply stayed null - always displayed as "Off" - until the user
+     * acted, while resolveSubtitlePreference() could still fall through to an app-wide language
+     * preference the screen never reflected). An existing store entry (this item was already
+     * visited this session) wins; otherwise falls back to the app-wide preferred-subtitle-language
+     * setting matched against this item's own tracks; otherwise explicit Off. Writes to both
+     * uiState (what the dropdown shows) and the store (what resolvePlayback() reads) together, so
+     * the two can never disagree by the time Play is pressed from this screen.
+     */
+    private suspend fun hydrateDefaultSubtitle(item: JellyfinItemInfo) {
+        val existing = playbackPreferenceStore.get(itemId)?.subtitle
+        val resolved = existing ?: run {
+            val preferredLanguage = appSettingsRepository.settingsFlow.first().preferredSubtitleLanguage
+            val match = preferredLanguage?.let { lang -> item.subtitleTracks.firstOrNull { it.language == lang } }
+            if (match != null) JellyfinSubtitleChoice.Track(match.language) else JellyfinSubtitleChoice.Off
+        }
+        playbackPreferenceStore.setSubtitle(itemId, resolved)
+        _uiState.update {
+            when (resolved) {
+                is JellyfinSubtitleChoice.Off -> it.copy(selectedSubtitleIndex = null, subtitlesExplicitlyOff = true)
+                is JellyfinSubtitleChoice.Track -> it.copy(
+                    selectedSubtitleIndex = item.subtitleTracks.firstOrNull { track -> track.language == resolved.language }?.index,
+                    subtitlesExplicitlyOff = false,
+                )
+            }
+        }
+    }
+
+    /** Same hydrate-before-any-tap shape as hydrateDefaultSubtitle above - existing choice, else the stream the server itself flags as default, else the first one. No "Off" concept for audio - a picker only makes sense once there's more than one track (see the detail screens' own size > 1 gating), so a single-track item is left unhydrated. */
+    private fun hydrateDefaultAudio(item: JellyfinItemInfo) {
+        if (item.audioTracks.size <= 1) return
+        val existing = playbackPreferenceStore.get(itemId)?.audio
+        val resolved = existing ?: (item.audioTracks.firstOrNull { it.isDefault } ?: item.audioTracks.first())
+            .let { JellyfinAudioChoice(it.index, it.language) }
+        playbackPreferenceStore.setAudio(itemId, resolved)
+        _uiState.update { it.copy(selectedAudioIndex = resolved.index) }
+    }
+
+    /** Same shape again - existing choice, else the first version (server's own listed order). Only meaningful once there's more than one version to pick between; see the detail screens' own size > 1 gating. */
+    private fun hydrateDefaultVersion(item: JellyfinItemInfo) {
+        if (item.videoVersions.size <= 1) return
+        val resolved = playbackPreferenceStore.get(itemId)?.mediaSourceId ?: item.videoVersions.first().id
+        playbackPreferenceStore.setMediaSourceId(itemId, resolved)
+        _uiState.update { it.copy(selectedVersionId = resolved) }
     }
 
     fun toggleFavorite() {
@@ -112,12 +174,23 @@ class JellyfinItemDetailViewModel @Inject constructor(
     fun selectSubtitle(index: Int?) {
         if (index == null) {
             _uiState.update { it.copy(selectedSubtitleIndex = null, subtitlesExplicitlyOff = true) }
-            subtitlePreferenceStore.set(itemId, JellyfinSubtitleChoice.Off)
+            playbackPreferenceStore.setSubtitle(itemId, JellyfinSubtitleChoice.Off)
             return
         }
         val track = _uiState.value.item?.subtitleTracks?.firstOrNull { it.index == index } ?: return
         _uiState.update { it.copy(selectedSubtitleIndex = index, subtitlesExplicitlyOff = false) }
-        subtitlePreferenceStore.set(itemId, JellyfinSubtitleChoice.Track(track.language))
+        playbackPreferenceStore.setSubtitle(itemId, JellyfinSubtitleChoice.Track(track.language))
+    }
+
+    fun selectAudioTrack(index: Int) {
+        val track = _uiState.value.item?.audioTracks?.firstOrNull { it.index == index } ?: return
+        _uiState.update { it.copy(selectedAudioIndex = index) }
+        playbackPreferenceStore.setAudio(itemId, JellyfinAudioChoice(track.index, track.language))
+    }
+
+    fun selectVideoVersion(mediaSourceId: String) {
+        _uiState.update { it.copy(selectedVersionId = mediaSourceId) }
+        playbackPreferenceStore.setMediaSourceId(itemId, mediaSourceId)
     }
 
     fun pauseDownload() = downloadTracker.pauseDownload(itemId)

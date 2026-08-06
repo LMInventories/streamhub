@@ -7,6 +7,7 @@ import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
+import org.jellyfin.sdk.api.client.extensions.mediaSegmentsApi
 import org.jellyfin.sdk.api.client.extensions.playStateApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
@@ -19,6 +20,7 @@ import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.MediaSegmentType
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PersonKind
 import org.jellyfin.sdk.model.api.PlayMethod
@@ -216,10 +218,18 @@ class JellyfinBrowseRepository @Inject constructor(
     // single-item endpoint doesn't need an explicit `fields` request for MediaStreams - Jellyfin
     // returns a full detail view (streams, people, overview, etc.) here by default, which is
     // exactly why every official client uses this same endpoint to build its own detail screen.
+    // MediaSources (needed for the Version picker's alternate-encode list) is requested explicitly
+    // anyway - unlike MediaStreams, it's not consistently guaranteed part of that default view
+    // across server versions, and asking for a field that's already included by default is a no-op.
     suspend fun getItem(itemId: String): JellyfinItemInfo? {
         val api = apiOrNull() ?: return null
-        return runCatching { api.userLibraryApi.getItem(itemId = UUID.fromString(itemId), userId = currentUserId()).content }
-            .getOrNull()?.toItemInfo(api)
+        return runCatching {
+            api.userLibraryApi.getItem(
+                itemId = UUID.fromString(itemId),
+                userId = currentUserId(),
+                fields = listOf(ItemFields.MEDIA_SOURCES),
+            ).content
+        }.getOrNull()?.toItemInfo(api)
     }
 
     /** Returns the new played state on success, null if the call failed (caller should leave the UI state unchanged) - same "optimistic, reconcile with the server" shape as toggleFavorite above. */
@@ -336,16 +346,21 @@ class JellyfinBrowseRepository @Inject constructor(
      * URL ourselves - deliberately not building a DeviceProfile to go with it, so the server falls
      * back to a conservative default rather than us guessing this device's real decode support.
      */
-    suspend fun getStreamUrl(itemId: String): String? {
+    suspend fun getStreamUrl(itemId: String, mediaSourceId: String? = null): String? {
         val api = apiOrNull() ?: return null
         val uuid = UUID.fromString(itemId)
         val maxBitrateBps = appSettingsRepository.settingsFlow.first().maxStreamingBitrateMbps?.let { it * 1_000_000 }
-        val mediaSource = runCatching {
+        val mediaSources = runCatching {
             api.mediaInfoApi.getPostedPlaybackInfo(
                 itemId = uuid,
                 data = PlaybackInfoDto(userId = currentUserId(), maxStreamingBitrate = maxBitrateBps),
             ).content
-        }.getOrNull()?.mediaSources?.firstOrNull()
+        }.getOrNull()?.mediaSources.orEmpty()
+        // An explicit per-item version choice from the detail page's Version picker (if any) selects
+        // a specific entry out of this same list PlaybackInfo already returns for every version -
+        // falls back to the first (server's own default) when no choice was made, same as before
+        // this picker existed.
+        val mediaSource = mediaSources.firstOrNull { it.id == mediaSourceId } ?: mediaSources.firstOrNull()
 
         val transcodingUrl = mediaSource?.transcodingUrl
         if (mediaSource != null && !mediaSource.supportsDirectPlay && transcodingUrl != null) {
@@ -361,6 +376,26 @@ class JellyfinBrowseRepository @Inject constructor(
             container = mediaSource?.container,
         )
         return url.withApiKey()
+    }
+
+    /**
+     * Earliest "Outro" Media Segment for this item (10.10+ servers that have run segment analysis
+     * for it), ms from item start - null on older servers, unanalyzed content, or any failure; the
+     * Next Episode prompt falls back cleanly to its fixed-lead-time behavior in every one of those
+     * cases. Chapters (BaseItemDto.chapters) are deliberately not used as a fallback signal here -
+     * unlike Media Segments they carry no type info at all, so there's no reliable "this chapter is
+     * the credits" marker to build one from.
+     */
+    suspend fun getOutroStartMs(itemId: String): Long? {
+        val api = apiOrNull() ?: return null
+        return runCatching {
+            api.mediaSegmentsApi.getItemSegments(
+                itemId = UUID.fromString(itemId),
+                includeSegmentTypes = listOf(MediaSegmentType.OUTRO),
+            ).content.items
+        }.getOrNull()
+            ?.minByOrNull { it.startTicks }
+            ?.let { it.startTicks / TICKS_PER_MS }
     }
 
     private fun String.withApiKey(): String {
@@ -432,6 +467,25 @@ class JellyfinBrowseRepository @Inject constructor(
                     language = stream.language,
                 )
             }
+        val audioTracks = audioStreams.map { stream ->
+            JellyfinAudioTrackInfo(
+                index = stream.index ?: 0,
+                label = stream.displayTitle ?: stream.language ?: "Audio",
+                language = stream.language,
+                isDefault = stream.isDefault == true,
+            )
+        }
+        // Only worth surfacing as a picker when there's an actual choice - a single-version item
+        // (the overwhelming majority) just keeps using the plain read-only Video row instead.
+        val videoVersions = mediaSources.orEmpty()
+            .takeIf { it.size > 1 }
+            ?.mapIndexed { index, source ->
+                JellyfinVersionInfo(
+                    id = source.id ?: id.toString(),
+                    label = source.name?.takeIf { it.isNotBlank() } ?: "Version ${index + 1}",
+                )
+            }
+            .orEmpty()
         return JellyfinItemInfo(
             id = id.toString(),
             name = name.orEmpty(),
@@ -453,6 +507,8 @@ class JellyfinBrowseRepository @Inject constructor(
             videoLabel = videoLabel,
             audioLabel = audioLabel,
             subtitleTracks = subtitleTracks,
+            audioTracks = audioTracks,
+            videoVersions = videoVersions,
             seriesId = seriesId?.toString(),
             seriesName = seriesName,
             seasonId = seasonId?.toString(),

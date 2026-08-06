@@ -63,6 +63,16 @@ interface MediaSource {
      * correctly answer null, which is what keeps the prompt from ever appearing for them.
      */
     suspend fun resolveNextItem(itemId: String): NextPlaybackItem? = null
+
+    /**
+     * Where credits/outro begin in *this* currently-playing item (ms from start), if the source can
+     * determine it - distinct from [resolveNextItem], which is about what plays after this one.
+     * Default null ("this source has no credits-detection concept", or nothing was found for this
+     * particular item), the same default-no-op shape as [resolveNextItem] above - the Next Episode
+     * prompt falls back to its fixed-lead-time-before-raw-duration-end behavior whenever this is
+     * null.
+     */
+    suspend fun resolveCreditsStartPosition(itemId: String): Long? = null
 }
 
 /**

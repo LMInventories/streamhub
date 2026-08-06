@@ -75,10 +75,12 @@ import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.feature.jellyfin.data.JellyfinAudioTrackInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemType
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleTrackInfo
+import com.android.streamhub.feature.jellyfin.data.JellyfinVersionInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,6 +149,10 @@ fun JellyfinItemDetailScreen(
                             selectedSubtitleIndex = uiState.selectedSubtitleIndex,
                             subtitlesExplicitlyOff = uiState.subtitlesExplicitlyOff,
                             onSelectSubtitle = viewModel::selectSubtitle,
+                            selectedAudioIndex = uiState.selectedAudioIndex,
+                            onSelectAudioTrack = viewModel::selectAudioTrack,
+                            selectedVersionId = uiState.selectedVersionId,
+                            onSelectVideoVersion = viewModel::selectVideoVersion,
                             onPlay = onPlay,
                             onOpenSeries = onOpenSeries,
                             onOpenEpisode = onOpenEpisode,
@@ -170,6 +176,10 @@ private fun JellyfinItemDetailContent(
     selectedSubtitleIndex: Int?,
     subtitlesExplicitlyOff: Boolean,
     onSelectSubtitle: (Int?) -> Unit,
+    selectedAudioIndex: Int?,
+    onSelectAudioTrack: (Int) -> Unit,
+    selectedVersionId: String?,
+    onSelectVideoVersion: (String) -> Unit,
     onPlay: () -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenEpisode: (String) -> Unit,
@@ -294,6 +304,10 @@ private fun JellyfinItemDetailContent(
             selectedSubtitleIndex = selectedSubtitleIndex,
             subtitlesExplicitlyOff = subtitlesExplicitlyOff,
             onSelectSubtitle = onSelectSubtitle,
+            selectedAudioIndex = selectedAudioIndex,
+            onSelectAudioTrack = onSelectAudioTrack,
+            selectedVersionId = selectedVersionId,
+            onSelectVideoVersion = onSelectVideoVersion,
         )
 
         item.overview?.let { overview ->
@@ -371,12 +385,12 @@ private fun JellyfinItemDetailContent(
 }
 
 /**
- * Video/Audio are read-only - Jellyfin's own displayTitle already summarizes the actual media
- * source's stream (e.g. "1080p H264", "5.1 English AC3"), there's nothing to choose between since
- * this app always plays the source's own default streams. Subtitles is the one real choice here -
- * picking "Off" or a track is threaded through JellyfinSubtitlePreferenceStore to the actual
- * player (see that class's doc), so the choice made here is what plays when Play is tapped, not
- * just a local display value.
+ * Video/Audio are plain read-only rows when there's only one stream/version - nothing to choose
+ * between since this app just plays the source's own default. When an item actually has more than
+ * one (a "Version" with multiple encodes, or multiple audio tracks), a picker takes the row's place
+ * instead. All three pickers work the same way: picking a value is threaded through
+ * JellyfinPlaybackPreferenceStore to the actual player (see that class's doc), so the choice made
+ * here is what plays when Play is tapped, not just a local display value.
  */
 @Composable
 private fun MediaInfoSection(
@@ -384,15 +398,25 @@ private fun MediaInfoSection(
     selectedSubtitleIndex: Int?,
     subtitlesExplicitlyOff: Boolean,
     onSelectSubtitle: (Int?) -> Unit,
+    selectedAudioIndex: Int?,
+    onSelectAudioTrack: (Int) -> Unit,
+    selectedVersionId: String?,
+    onSelectVideoVersion: (String) -> Unit,
 ) {
-    if (item.videoLabel == null && item.audioLabel == null && item.subtitleTracks.isEmpty()) return
+    if (item.videoLabel == null && item.audioLabel == null && item.subtitleTracks.isEmpty() &&
+        item.videoVersions.isEmpty() && item.audioTracks.isEmpty()
+    ) {
+        return
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp, 8.dp)) {
-        item.videoLabel?.let { label ->
-            MediaInfoRow(label = "Video", value = label)
+        when {
+            item.videoVersions.size > 1 -> VersionSelectorRow(item.videoVersions, selectedVersionId, onSelectVideoVersion)
+            item.videoLabel != null -> MediaInfoRow(label = "Video", value = item.videoLabel)
         }
-        item.audioLabel?.let { label ->
-            MediaInfoRow(label = "Audio", value = label)
+        when {
+            item.audioTracks.size > 1 -> AudioSelectorRow(item.audioTracks, selectedAudioIndex, onSelectAudioTrack)
+            item.audioLabel != null -> MediaInfoRow(label = "Audio", value = item.audioLabel)
         }
         if (item.subtitleTracks.isNotEmpty()) {
             SubtitleSelectorRow(
@@ -458,6 +482,82 @@ private fun SubtitleSelectorRow(
                     DropdownMenuItem(
                         text = { Text(if (track.index == selectedIndex) "${track.label} ✓" else track.label) },
                         onClick = { onSelect(track.index); closeMenu() },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Same shape/styling as SubtitleSelectorRow above, minus the "Off" entry - there's no off-concept for audio, a track is always selected. */
+@Composable
+private fun AudioSelectorRow(tracks: List<JellyfinAudioTrackInfo>, selectedIndex: Int?, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = tracks.firstOrNull { it.index == selectedIndex }?.label ?: tracks.first().label
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(text = "Audio", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(90.dp))
+        Box {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(AppShapes.small)
+                    .background(Palette.Surface)
+                    .focusRequester(anchorFocusRequester)
+                    .clickable { expanded = true }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(text = selectedLabel, color = Palette.TextPrimary, style = MaterialTheme.typography.bodyMedium)
+                Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = Palette.TextMuted, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+                tracks.forEachIndexed { i, track ->
+                    DropdownMenuItem(
+                        text = { Text(if (track.index == selectedIndex) "${track.label} ✓" else track.label) },
+                        modifier = if (i == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
+                        onClick = { onSelect(track.index); closeMenu() },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Same shape/styling as AudioSelectorRow above, keyed by JellyfinVersionInfo.id (a String) instead of a track index. */
+@Composable
+private fun VersionSelectorRow(versions: List<JellyfinVersionInfo>, selectedId: String?, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = versions.firstOrNull { it.id == selectedId }?.label ?: versions.first().label
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(text = "Version", color = Palette.TextMuted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(90.dp))
+        Box {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(AppShapes.small)
+                    .background(Palette.Surface)
+                    .focusRequester(anchorFocusRequester)
+                    .clickable { expanded = true }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(text = selectedLabel, color = Palette.TextPrimary, style = MaterialTheme.typography.bodyMedium)
+                Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = Palette.TextMuted, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+                versions.forEachIndexed { i, version ->
+                    DropdownMenuItem(
+                        text = { Text(if (version.id == selectedId) "${version.label} ✓" else version.label) },
+                        modifier = if (i == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
+                        onClick = { onSelect(version.id); closeMenu() },
                     )
                 }
             }

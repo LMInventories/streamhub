@@ -102,14 +102,16 @@ fun PlayerScreenTv(
     val currentItem by viewModel.currentItem.collectAsStateWithLifecycle()
     val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
     val nextItem by viewModel.nextItem.collectAsStateWithLifecycle()
+    val creditsStartMs by viewModel.creditsStartMs.collectAsStateWithLifecycle()
 
     KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
 
-    // Non-null only in the last ten seconds of an episode that actually has a follow-up - see
-    // nextEpisodeCountdownSeconds. Live content never qualifies (no meaningful duration).
+    // Non-null once the episode's real credits start (if known) or, failing that, in the last ten
+    // seconds of an episode that actually has a follow-up - see nextEpisodeCountdownSeconds. Live
+    // content never qualifies (no meaningful duration).
     val nextEpisodeCountdown = nextItem
         ?.takeIf { currentItem?.isLive == false }
-        ?.let { nextEpisodeCountdownSeconds(uiState.positionMs, uiState.durationMs) }
+        ?.let { nextEpisodeCountdownSeconds(uiState.positionMs, uiState.durationMs, creditsStartMs) }
     val nextEpisodePromptVisible = nextEpisodeCountdown != null
 
     LaunchedEffect(nextEpisodeCountdown) {
