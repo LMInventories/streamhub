@@ -26,4 +26,5 @@ include(
     ":feature-player-screen",
     ":feature-iptv",
     ":feature-jellyfin",
+    ":feature-emby",
 )

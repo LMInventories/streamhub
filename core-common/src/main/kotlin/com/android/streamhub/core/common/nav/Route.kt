@@ -15,6 +15,14 @@ sealed class Route {
 
     data object EmbyHome : Route()
 
+    data object EmbySettings : Route()
+
+    data class EmbyLibrary(val libraryId: String, val itemType: String) : Route()
+
+    data class EmbyItemDetail(val itemId: String) : Route()
+
+    data class EmbySeriesDetail(val seriesId: String) : Route()
+
     data object JellyfinHome : Route()
 
     data object Settings : Route()
@@ -50,6 +58,10 @@ sealed class Route {
         const val LIVE_TV_PATTERN = "live_tv"
         const val VOD_PATTERN = "vod"
         const val EMBY_HOME_PATTERN = "emby_home"
+        const val EMBY_SETTINGS_PATTERN = "emby_settings"
+        const val EMBY_LIBRARY_PATTERN = "emby_library/{libraryId}/{itemType}"
+        const val EMBY_ITEM_DETAIL_PATTERN = "emby_item_detail/{itemId}"
+        const val EMBY_SERIES_DETAIL_PATTERN = "emby_series_detail/{seriesId}"
         const val JELLYFIN_HOME_PATTERN = "jellyfin_home"
         const val SETTINGS_PATTERN = "settings"
         const val IPTV_SETTINGS_PATTERN = "iptv_settings"
@@ -84,6 +96,12 @@ sealed class Route {
         // itemType is a plain enum name (e.g. "MOVIE"/"SERIES") - no special characters, safe
         // as a raw path segment. The library's display name isn't passed here - the screen looks
         // it up itself, same reasoning as vodItemDetailRoute not carrying a title either.
+        fun embyLibraryRoute(libraryId: String, itemType: String): String = "emby_library/$libraryId/$itemType"
+
+        fun embyItemDetailRoute(itemId: String): String = "emby_item_detail/$itemId"
+
+        fun embySeriesDetailRoute(seriesId: String): String = "emby_series_detail/$seriesId"
+
         fun jellyfinLibraryRoute(libraryId: String, itemType: String): String = "jellyfin_library/$libraryId/$itemType"
 
         // kind is one of JellyfinHomeSectionKeys.CONTINUE_WATCHING/NEXT_UP (plain snake_case

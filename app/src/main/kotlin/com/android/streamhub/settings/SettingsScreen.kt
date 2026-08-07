@@ -62,6 +62,7 @@ data class SettingsSection(
  */
 fun buildSettingsSections(
     onIptvClick: () -> Unit,
+    onEmbyClick: () -> Unit,
     onJellyfinClick: () -> Unit,
     onJellyfinPlaybackClick: () -> Unit,
     onJellyfinLibrariesClick: () -> Unit,
@@ -126,7 +127,7 @@ fun buildSettingsSections(
     SettingsSection(
         title = "Emby",
         rows = listOf(
-            SettingsRow(label = "Source", subtitle = "Not set up yet", icon = Icons.Filled.Cloud, enabled = false, onClick = {}),
+            SettingsRow(label = "Source", subtitle = "Server sign-in", icon = Icons.Filled.Cloud, onClick = onEmbyClick),
         ),
     ),
 )
@@ -172,13 +173,13 @@ fun rememberUpdateRowClick(viewModel: SettingsViewModel): () -> Unit {
  * title and one row per setting underneath - "Source" (sign-in/server/playlist config) is the
  * first row every section has, with room for more (Jellyfin's Playback/Libraries/Home screen
  * order rows are the first sections to actually use that room). Live TV/VOD both read the same
- * Xtream/M3U config, so they share a single section rather than two - Emby is listed but disabled
- * until that integration lands (Milestone 4).
+ * Xtream/M3U config, so they share a single section rather than two.
  */
 @Composable
 fun SettingsScreen(
     paddingValues: PaddingValues,
     onIptvClick: () -> Unit,
+    onEmbyClick: () -> Unit,
     onJellyfinClick: () -> Unit,
     onJellyfinPlaybackClick: () -> Unit,
     onJellyfinLibrariesClick: () -> Unit,
@@ -194,6 +195,7 @@ fun SettingsScreen(
 
     val sections = buildSettingsSections(
         onIptvClick = onIptvClick,
+        onEmbyClick = onEmbyClick,
         onJellyfinClick = onJellyfinClick,
         onJellyfinPlaybackClick = onJellyfinPlaybackClick,
         onJellyfinLibrariesClick = onJellyfinLibrariesClick,

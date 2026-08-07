@@ -1,0 +1,111 @@
+package com.android.streamhub.feature.emby.data
+
+import com.android.streamhub.core.common.domain.MediaSource
+import com.android.streamhub.core.common.domain.NextPlaybackItem
+import com.android.streamhub.core.common.domain.PlaybackItem
+import com.android.streamhub.core.common.domain.SourceType
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Cross-source adapter (Master Search/Favorites, once those exist) over EmbyBrowseRepository -
+ * same role/shape as JellyfinMediaSource. The dedicated home/library/detail screens in this
+ * module talk to EmbyBrowseRepository directly instead of through here - PlaybackItem is a
+ * deliberately flattened, source-agnostic shape that would lose the season/episode/cast structure
+ * those screens need.
+ */
+@Singleton
+class EmbyMediaSource @Inject constructor(
+    private val browseRepository: EmbyBrowseRepository,
+) : MediaSource {
+
+    override val sourceType: SourceType = SourceType.EMBY
+
+    override suspend fun browse(): List<PlaybackItem> {
+        // A single reasonably-large page per library rather than looping every page - nothing
+        // depends on this being a fully exhaustive catalog yet (Master Search doesn't exist in
+        // this app), and resolvePlayback() below looks items up directly by id rather than
+        // scanning this list. Mirrors JellyfinMediaSource.browse exactly.
+        return browseRepository.getLibraries().flatMap { library ->
+            val itemType = when (library.type) {
+                EmbyLibraryType.MOVIES -> EmbyItemType.MOVIE
+                EmbyLibraryType.TV_SHOWS -> EmbyItemType.SERIES
+            }
+            browseRepository.getItems(library.id, itemType, startIndex = 0, limit = 500)
+        }.map { it.toPlaybackItem(streamUri = "") }
+    }
+
+    // No preference layer (audio/subtitle language, forced-track, trickplay) this pass - there's
+    // no per-item picker UI yet, so PlaybackItem's own defaults (no preference, subtitles not
+    // forced off) are left exactly as-is, unlike JellyfinMediaSource's equivalent function.
+    override suspend fun resolvePlayback(itemId: String): PlaybackItem {
+        val item = browseRepository.getItem(itemId) ?: error("Emby item not found: $itemId")
+        val streamUrl = browseRepository.getStreamUrl(itemId) ?: error("No Emby stream URL for: $itemId")
+        return item.toPlaybackItem(streamUri = streamUrl)
+    }
+
+    /**
+     * Deliberately computed from the season's own episode list rather than Emby's Next Up API,
+     * same reasoning as JellyfinMediaSource.resolveNextItem: Next Up is driven by *watched*
+     * state, so asking it mid-episode would return the episode currently playing, not the one
+     * after it. Walks to the next episode in this season by index, then falls through to the
+     * first episode of the next season when the current one runs out.
+     */
+    override suspend fun resolveNextItem(itemId: String): NextPlaybackItem? {
+        val current = browseRepository.getItem(itemId) ?: return null
+        if (current.type != EmbyItemType.EPISODE) return null
+        val seriesId = current.seriesId ?: return null
+        val currentIndex = current.indexNumber
+
+        val sameSeasonNext = current.seasonId
+            ?.let { seasonId -> browseRepository.getEpisodes(seriesId, seasonId) }
+            ?.filter { it.indexNumber != null && currentIndex != null && it.indexNumber > currentIndex }
+            ?.minByOrNull { it.indexNumber!! }
+
+        val next = sameSeasonNext ?: nextSeasonFirstEpisode(seriesId, current.parentIndexNumber)
+        return next?.toNextPlaybackItem()
+    }
+
+    private suspend fun nextSeasonFirstEpisode(seriesId: String, currentSeasonNumber: Int?): EmbyItemInfo? {
+        if (currentSeasonNumber == null) return null
+        val nextSeason = browseRepository.getSeasons(seriesId)
+            .filter { it.indexNumber != null && it.indexNumber > currentSeasonNumber }
+            .minByOrNull { it.indexNumber!! }
+            ?: return null
+        return browseRepository.getEpisodes(seriesId, nextSeason.id).minByOrNull { it.indexNumber ?: Int.MAX_VALUE }
+    }
+
+    private fun EmbyItemInfo.toNextPlaybackItem(): NextPlaybackItem = NextPlaybackItem(
+        id = id,
+        title = name,
+        seriesName = seriesName,
+        episodeLabel = if (parentIndexNumber != null && indexNumber != null) {
+            "Season $parentIndexNumber · Episode $indexNumber"
+        } else {
+            null
+        },
+        description = overview,
+        // Same "prefer the real scene grab over the series-poster override" rule the detail
+        // screen's own episode thumbnails use - see EmbyBrowseRepository.toItemInfo's comment.
+        thumbnailUrl = episodeThumbnailUrl ?: primaryImageUrl,
+    )
+
+    override suspend fun onPlaybackStarted(itemId: String) = browseRepository.reportPlaybackStart(itemId)
+
+    override suspend fun onPlaybackProgress(itemId: String, positionMs: Long, durationMs: Long, isPaused: Boolean) =
+        browseRepository.reportPlaybackProgress(itemId, positionMs, isPaused)
+
+    override suspend fun onPlaybackStopped(itemId: String, positionMs: Long, durationMs: Long) =
+        browseRepository.reportPlaybackStopped(itemId, positionMs, durationMs)
+
+    private fun EmbyItemInfo.toPlaybackItem(streamUri: String): PlaybackItem = PlaybackItem(
+        id = id,
+        sourceType = SourceType.EMBY,
+        title = name,
+        subtitle = seriesName,
+        posterUrl = primaryImageUrl,
+        streamUri = streamUri,
+        startPositionMs = resumePositionTicks / TICKS_PER_MS,
+        isLive = false,
+    )
+}

@@ -70,6 +70,7 @@ dependencies {
     implementation(project(":feature-player-screen"))
     implementation(project(":feature-iptv"))
     implementation(project(":feature-jellyfin"))
+    implementation(project(":feature-emby"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

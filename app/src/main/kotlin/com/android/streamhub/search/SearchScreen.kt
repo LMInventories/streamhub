@@ -63,6 +63,7 @@ import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.dpadMovesFocusVertically
 import com.android.streamhub.core.player.resolutionLabel
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.feature.emby.data.EmbyItemInfo
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
 import com.android.streamhub.feature.iptv.data.VodMovieInfo
@@ -92,6 +93,7 @@ fun SearchScreen(
     onOpenVodMovie: (itemId: String) -> Unit,
     onOpenVodShow: (seriesId: String) -> Unit,
     onOpenJellyfinItem: (JellyfinItemInfo) -> Unit,
+    onOpenEmbyItem: (EmbyItemInfo) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -146,7 +148,7 @@ fun SearchScreen(
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     when {
-                        uiState.query.isBlank() -> EmptyPrompt("Search across Live TV, EPG, VOD, and Jellyfin - all in one place.")
+                        uiState.query.isBlank() -> EmptyPrompt("Search across Live TV, EPG, VOD, Jellyfin, and Emby - all in one place.")
                         uiState.isSearching -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
@@ -157,6 +159,7 @@ fun SearchScreen(
                             onOpenVodMovie = onOpenVodMovie,
                             onOpenVodShow = onOpenVodShow,
                             onOpenJellyfinItem = onOpenJellyfinItem,
+                            onOpenEmbyItem = onOpenEmbyItem,
                             onRecord = { channel, program ->
                                 startAdjustMinutes = 0
                                 endAdjustMinutes = 0
@@ -230,6 +233,7 @@ private fun SearchResultsTabs(
     onOpenVodMovie: (String) -> Unit,
     onOpenVodShow: (String) -> Unit,
     onOpenJellyfinItem: (JellyfinItemInfo) -> Unit,
+    onOpenEmbyItem: (EmbyItemInfo) -> Unit,
     onRecord: (IptvChannelInfo, EpgProgram) -> Unit,
     onReminder: (IptvChannelInfo, EpgProgram) -> Unit,
     onExpandLiveTv: () -> Unit,
@@ -267,18 +271,17 @@ private fun SearchResultsTabs(
                 onExpand = onExpandVod,
             )
             SearchTab.JELLYFIN -> JellyfinResultsTab(results = uiState.jellyfinResults, onOpenItem = onOpenJellyfinItem)
-            SearchTab.EMBY -> EmptyPrompt("Emby integration isn't wired up yet.")
+            SearchTab.EMBY -> EmbyResultsTab(results = uiState.embyResults, onOpenItem = onOpenEmbyItem)
         }
     }
 }
 
 private fun tabLabel(tab: SearchTab, uiState: SearchUiState): String {
-    if (tab == SearchTab.EMBY) return tab.label
     val count = when (tab) {
         SearchTab.LIVE_TV -> uiState.epgResults.size
         SearchTab.VOD -> uiState.vodMovies.size + uiState.vodShows.size
         SearchTab.JELLYFIN -> uiState.jellyfinResults.size
-        SearchTab.EMBY -> 0
+        SearchTab.EMBY -> uiState.embyResults.size
     }
     return "${tab.label} ($count)"
 }
@@ -384,6 +387,25 @@ private fun JellyfinResultsTab(results: List<JellyfinItemInfo>, onOpenItem: (Jel
                 posterUrl = item.primaryImageUrl,
                 badgeColor = Palette.SourceJellyfin,
                 qualityLabel = item.videoHeight?.let { resolutionLabel(item.videoWidth ?: 0, it) }?.takeIf { it.isNotBlank() },
+                onClick = { onOpenItem(item) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmbyResultsTab(results: List<EmbyItemInfo>, onOpenItem: (EmbyItemInfo) -> Unit) {
+    if (results.isEmpty()) {
+        EmptyPrompt("No Emby matches.")
+        return
+    }
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        items(results, key = { "emby:${it.id}" }) { item ->
+            ResultRow(
+                title = item.name,
+                subtitle = item.seriesName,
+                posterUrl = item.primaryImageUrl,
+                badgeColor = Palette.SourceEmby,
                 onClick = { onOpenItem(item) },
             )
         }

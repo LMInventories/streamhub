@@ -26,6 +26,11 @@ import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenPhone
+import com.android.streamhub.feature.emby.detail.EmbyItemDetailScreen
+import com.android.streamhub.feature.emby.detail.EmbySeriesDetailScreen
+import com.android.streamhub.feature.emby.home.EmbyHomeScreen
+import com.android.streamhub.feature.emby.library.EmbyLibraryScreen
+import com.android.streamhub.feature.emby.settings.EmbySettingsScreen
 import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreen
 import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreen
 import com.android.streamhub.feature.jellyfin.home.JellyfinHomeScreen
@@ -38,7 +43,6 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsS
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreen
 import com.android.streamhub.downloads.DownloadsManagementScreen
 import com.android.streamhub.feature.player.PlayerScreenPhone
-import com.android.streamhub.placeholder.ComingSoonScreen
 import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreen
 import com.android.streamhub.settings.SettingsScreen
@@ -102,6 +106,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     onOpenVodMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
                     onOpenVodShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
                     onOpenJellyfinItem = { item -> navController.navigate(jellyfinDetailRouteFor(item)) },
+                    onOpenEmbyItem = { item -> navController.navigate(embyDetailRouteFor(item)) },
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
@@ -146,11 +151,51 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.EMBY_HOME_PATTERN) {
-                ComingSoonScreen(
-                    title = "Emby",
-                    message = "Emby integration isn't wired up yet.",
+                EmbyHomeScreen(
                     paddingValues = paddingValues,
+                    onOpenLibrary = { libraryId, itemType ->
+                        navController.navigate(Route.embyLibraryRoute(libraryId, itemType.name))
+                    },
+                    onOpenItem = { item -> navController.navigate(embyDetailRouteFor(item)) },
+                    onSignInClick = { navController.navigate(Route.EMBY_SETTINGS_PATTERN) },
                 )
+            }
+            composable(
+                route = Route.EMBY_LIBRARY_PATTERN,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("itemType") { type = NavType.StringType },
+                ),
+            ) {
+                EmbyLibraryScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenItem = { item -> navController.navigate(embyDetailRouteFor(item)) },
+                )
+            }
+            composable(
+                route = Route.EMBY_ITEM_DETAIL_PATTERN,
+                arguments = listOf(navArgument("itemId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val itemId = checkNotNull(backStackEntry.arguments?.getString("itemId"))
+                EmbyItemDetailScreen(
+                    itemId = itemId,
+                    onBack = { navController.popBackStack() },
+                    onPlay = { id -> navController.navigate(Route.playerRoute(id, SourceType.EMBY)) },
+                )
+            }
+            composable(
+                route = Route.EMBY_SERIES_DETAIL_PATTERN,
+                arguments = listOf(navArgument("seriesId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+                val seriesId = checkNotNull(backStackEntry.arguments?.getString("seriesId"))
+                EmbySeriesDetailScreen(
+                    seriesId = seriesId,
+                    onPlayEpisode = { episodeId -> navController.navigate(Route.playerRoute(episodeId, SourceType.EMBY)) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Route.EMBY_SETTINGS_PATTERN) {
+                EmbySettingsScreen(onDone = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
                 JellyfinHomeScreen(
@@ -216,6 +261,7 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                 SettingsScreen(
                     paddingValues = paddingValues,
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
+                    onEmbyClick = { navController.navigate(Route.EMBY_SETTINGS_PATTERN) },
                     onJellyfinClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
                     onJellyfinPlaybackClick = { navController.navigate(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) },
                     onJellyfinLibrariesClick = { navController.navigate(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) },

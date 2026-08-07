@@ -2,6 +2,8 @@ package com.android.streamhub.search
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.android.streamhub.feature.emby.data.EmbyBrowseRepository
+import com.android.streamhub.feature.emby.data.EmbyItemInfo
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.data.IptvBrowseRepository
 import com.android.streamhub.feature.iptv.data.IptvChannelInfo
@@ -42,8 +44,10 @@ data class SearchUiState(
     val vodShows: List<VodShowInfo> = emptyList(),
     val vodExpanded: Boolean = false,
     val jellyfinResults: List<JellyfinItemInfo> = emptyList(),
+    val embyResults: List<EmbyItemInfo> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = epgResults.isEmpty() && vodMovies.isEmpty() && vodShows.isEmpty() && jellyfinResults.isEmpty()
+    val isEmpty: Boolean
+        get() = epgResults.isEmpty() && vodMovies.isEmpty() && vodShows.isEmpty() && jellyfinResults.isEmpty() && embyResults.isEmpty()
 }
 
 private const val SEARCH_DEBOUNCE_MS = 400L
@@ -55,14 +59,13 @@ private const val EXPANDED_SEARCH_RESULT_LIMIT = 200
 /**
  * Fans a single query out across every registered source concurrently - Live TV/EPG and Xtream
  * VOD (via IptvBrowseRepository/IptvVodRepository/EpgGridRepository, all client-side filtered -
- * neither Xtream nor XMLTV has a server-side search endpoint) and Jellyfin (via
- * JellyfinBrowseRepository.search(), genuine server-side search). Emby has no repository yet
- * (feature-emby doesn't exist), so its section is simply absent from the result rather than
- * modeled as a permanent empty state - SearchScreen shows a "coming soon" row for it instead.
+ * neither Xtream nor XMLTV has a server-side search endpoint), Jellyfin (via
+ * JellyfinBrowseRepository.search(), genuine server-side search), and Emby (via
+ * EmbyBrowseRepository.search(), same broad-match-plus-FuzzyMatch shape as Jellyfin's).
  *
- * Deliberately lives in :app rather than any single feature module - it depends on both
- * feature-iptv and feature-jellyfin, and feature modules never depend on each other, the same
- * reasoning SettingsScreen already follows for cross-source aggregation.
+ * Deliberately lives in :app rather than any single feature module - it depends on
+ * feature-iptv/feature-jellyfin/feature-emby, and feature modules never depend on each other, the
+ * same reasoning SettingsScreen already follows for cross-source aggregation.
  */
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -70,6 +73,7 @@ class SearchViewModel @Inject constructor(
     private val iptvVodRepository: IptvVodRepository,
     private val epgGridRepository: EpgGridRepository,
     private val jellyfinBrowseRepository: JellyfinBrowseRepository,
+    private val embyBrowseRepository: EmbyBrowseRepository,
     private val scheduledEventsRepository: ScheduledEventsRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -91,6 +95,7 @@ class SearchViewModel @Inject constructor(
                             vodShows = emptyList(),
                             vodExpanded = false,
                             jellyfinResults = emptyList(),
+                            embyResults = emptyList(),
                         )
                     }
                     return@collectLatest
@@ -110,11 +115,13 @@ class SearchViewModel @Inject constructor(
         val moviesDeferred = async { runCatching { iptvVodRepository.searchMovies(query, DEFAULT_SEARCH_RESULT_LIMIT) }.getOrDefault(emptyList()) }
         val showsDeferred = async { runCatching { iptvVodRepository.searchShows(query, DEFAULT_SEARCH_RESULT_LIMIT) }.getOrDefault(emptyList()) }
         val jellyfinDeferred = async { runCatching { jellyfinBrowseRepository.search(query) }.getOrDefault(emptyList()) }
+        val embyDeferred = async { runCatching { embyBrowseRepository.search(query) }.getOrDefault(emptyList()) }
 
         val epg = epgDeferred.await()
         val movies = moviesDeferred.await()
         val shows = showsDeferred.await()
         val jellyfin = jellyfinDeferred.await()
+        val emby = embyDeferred.await()
 
         // The query could have changed again while these were in flight - collectLatest already
         // cancels the stale coroutine, but this guards the (already-cancelled) update too.
@@ -129,6 +136,7 @@ class SearchViewModel @Inject constructor(
                 vodShows = shows,
                 vodExpanded = false,
                 jellyfinResults = jellyfin,
+                embyResults = emby,
             )
         }
     }
