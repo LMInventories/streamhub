@@ -30,10 +30,19 @@ import javax.inject.Inject
 /** An EPG search hit needs both the program and the channel it airs on - scheduleRecording/scheduleReminder take both. */
 data class EpgSearchResult(val channel: IptvChannelInfo, val program: EpgProgram)
 
+/** Which sources a query actually fans out to - the checkbox row below the search field toggles membership in SearchUiState.enabledFilters. */
+enum class SearchSourceFilter(val label: String) {
+    LIVE("Live"),
+    VOD("VOD"),
+    EMBY("Emby"),
+    JELLYFIN("Jellyfin"),
+}
+
 data class SearchUiState(
     val query: String = "",
     val isSearching: Boolean = false,
     val hasSearched: Boolean = false,
+    val enabledFilters: Set<SearchSourceFilter> = SearchSourceFilter.entries.toSet(),
     val epgResults: List<EpgSearchResult> = emptyList(),
     // True once the Live TV tab has been expanded past DEFAULT_RESULT_LIMIT for the current
     // query - drives both "has this already been expanded" (so the expand button doesn't fire
@@ -111,11 +120,23 @@ class SearchViewModel @Inject constructor(
         // Jellyfin account signed in, so apiOrNull() returns null and search() already returns
         // emptyList() for that) should never blank out results the others did find. A fresh query
         // always starts capped at the default limit - any earlier expand() was for the old query.
-        val epgDeferred = async { fetchEpgResults(query, DEFAULT_SEARCH_RESULT_LIMIT) }
-        val moviesDeferred = async { runCatching { iptvVodRepository.searchMovies(query, DEFAULT_SEARCH_RESULT_LIMIT) }.getOrDefault(emptyList()) }
-        val showsDeferred = async { runCatching { iptvVodRepository.searchShows(query, DEFAULT_SEARCH_RESULT_LIMIT) }.getOrDefault(emptyList()) }
-        val jellyfinDeferred = async { runCatching { jellyfinBrowseRepository.search(query) }.getOrDefault(emptyList()) }
-        val embyDeferred = async { runCatching { embyBrowseRepository.search(query) }.getOrDefault(emptyList()) }
+        // A source unchecked in the filter row is skipped entirely (no network call at all) rather
+        // than fetched-then-hidden - cheaper, and means re-checking it later starts from a clean
+        // "not yet searched" state instead of stale results from before it was unchecked.
+        val filters = _uiState.value.enabledFilters
+        val epgDeferred = async { if (SearchSourceFilter.LIVE in filters) fetchEpgResults(query, DEFAULT_SEARCH_RESULT_LIMIT) else emptyList() }
+        val moviesDeferred = async {
+            if (SearchSourceFilter.VOD in filters) runCatching { iptvVodRepository.searchMovies(query, DEFAULT_SEARCH_RESULT_LIMIT) }.getOrDefault(emptyList()) else emptyList()
+        }
+        val showsDeferred = async {
+            if (SearchSourceFilter.VOD in filters) runCatching { iptvVodRepository.searchShows(query, DEFAULT_SEARCH_RESULT_LIMIT) }.getOrDefault(emptyList()) else emptyList()
+        }
+        val jellyfinDeferred = async {
+            if (SearchSourceFilter.JELLYFIN in filters) runCatching { jellyfinBrowseRepository.search(query) }.getOrDefault(emptyList()) else emptyList()
+        }
+        val embyDeferred = async {
+            if (SearchSourceFilter.EMBY in filters) runCatching { embyBrowseRepository.search(query) }.getOrDefault(emptyList()) else emptyList()
+        }
 
         val epg = epgDeferred.await()
         val movies = moviesDeferred.await()
@@ -158,6 +179,26 @@ class SearchViewModel @Inject constructor(
     fun onQueryChange(query: String) {
         _uiState.update { it.copy(query = query) }
         queryFlow.value = query
+    }
+
+    /**
+     * Re-runs the current query immediately on toggle (rather than waiting for the debounced
+     * queryFlow collector, which would ignore this since the query string itself hasn't changed)
+     * so the result tabs/counts reflect the new filter set right away instead of only on the next
+     * keystroke.
+     */
+    fun toggleFilter(filter: SearchSourceFilter) {
+        _uiState.update { state ->
+            val enabled = state.enabledFilters
+            state.copy(enabledFilters = if (filter in enabled) enabled - filter else enabled + filter)
+        }
+        val query = _uiState.value.query
+        if (query.isNotBlank()) {
+            viewModelScope.launch {
+                _uiState.update { it.copy(isSearching = true) }
+                runSearch(query)
+            }
+        }
     }
 
     /** Re-fetches Live TV results for the current query at a much higher cap - cheap, since the guide is already loaded locally (Room + in-memory channel cache), not a network round-trip. */

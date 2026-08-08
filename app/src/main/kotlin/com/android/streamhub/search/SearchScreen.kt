@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -146,6 +150,11 @@ fun SearchScreen(
                     }
                 }
 
+                SearchFilterRow(
+                    enabledFilters = uiState.enabledFilters,
+                    onToggle = viewModel::toggleFilter,
+                )
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     when {
                         uiState.query.isBlank() -> EmptyPrompt("Search across Live TV, EPG, VOD, Jellyfin, and Emby - all in one place.")
@@ -204,6 +213,38 @@ fun SearchScreen(
             },
         )
         null -> Unit
+    }
+}
+
+/**
+ * Lets a search be scoped to only some sources before results even come back, rather than fetching
+ * from everything and hiding tabs after the fact - toggling re-runs the current query immediately
+ * (see SearchViewModel.toggleFilter) so unchecked sources' network calls are skipped outright, not
+ * just filtered from the display. Wrapped in horizontalScroll since four labeled checkboxes can
+ * overflow a narrow phone width once the user's bumped up the system/app text size.
+ */
+@Composable
+private fun SearchFilterRow(enabledFilters: Set<SearchSourceFilter>, onToggle: (SearchSourceFilter) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 4.dp),
+    ) {
+        SearchSourceFilter.entries.forEach { filter ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(AppShapes.pill)
+                    .clickable(role = Role.Checkbox) { onToggle(filter) }
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+            ) {
+                Checkbox(checked = filter in enabledFilters, onCheckedChange = null)
+                Text(text = filter.label, color = Palette.TextPrimary, fontSize = 13.sp, modifier = Modifier.padding(start = 2.dp, end = 8.dp))
+            }
+        }
     }
 }
 
