@@ -25,9 +25,62 @@ data class EmbyCastMember(
 )
 
 /**
- * App-facing flattened model mirroring feature-jellyfin's JellyfinItemInfo, trimmed for this
- * pass's lean MVP scope: no subtitle/audio/version track fields (no picker UI yet), no trickplay
- * (deferred), no favorite flag (deferred).
+ * A subtitle stream muxed into the media source - [index] is the stream's own index within it,
+ * needed to identify it back to the server (not an ExoPlayer track group index). [language] is
+ * the raw ISO code (e.g. "eng"), separate from the human-readable [label] - playback selects a
+ * track by feeding this straight into ExoPlayer's own preferred-text-language mechanism, the same
+ * one the app-wide subtitle language setting already uses. [isForced] mirrors the server's own
+ * "forced" flag (dialogue/on-screen-text translations meant to show even with subtitles otherwise
+ * off, e.g. the one non-English scene in an otherwise-English film) - see
+ * EmbyMediaSource.resolveSubtitlePreference for how it changes default selection. Mirrors
+ * JellyfinSubtitleTrackInfo exactly.
+ */
+data class EmbySubtitleTrackInfo(
+    val index: Int,
+    val label: String,
+    val language: String? = null,
+    val isForced: Boolean = false,
+)
+
+/** An audio stream muxed into the media source - same shape/purpose as EmbySubtitleTrackInfo above, plus [isDefault] since (unlike subtitles) audio always needs a track selected, so hydrating a picker's default needs to know which one the server itself considers default. */
+data class EmbyAudioTrackInfo(
+    val index: Int,
+    val label: String,
+    val language: String? = null,
+    val isDefault: Boolean = false,
+)
+
+/** One alternate encode/rip of the same library item (Emby's own "Version" concept) - [id] is the MediaSourceInfo id fed back into getStreamUrl to select it. */
+data class EmbyVersionInfo(
+    val id: String,
+    val label: String,
+)
+
+/**
+ * The server's own analyzed scrubbing-preview sprite sheets for one media source - only present
+ * once the server has actually run analysis for this item. [width]/[height] are one individual
+ * thumbnail's pixel dimensions; [tileGridColumns]/[tileGridRows] are how many thumbnails are
+ * packed into one sprite-sheet image (so a client can compute both which image a given playback
+ * position falls in and where within it, without a per-position network round trip). [intervalMs]
+ * is the time between consecutive thumbnails. Mirrors JellyfinTrickplayInfo exactly - see
+ * EmbyModels.EmbyItemDto's `trickplay` field doc for why this whole feature is best-effort/
+ * unverified for Emby.
+ */
+data class EmbyTrickplayInfo(
+    val mediaSourceId: String,
+    val width: Int,
+    val height: Int,
+    val tileGridColumns: Int,
+    val tileGridRows: Int,
+    val thumbnailCount: Int,
+    val intervalMs: Int,
+)
+
+/**
+ * App-facing flattened model mirroring feature-jellyfin's JellyfinItemInfo. Originally trimmed
+ * for the lean MVP's scope (no favorite flag, no track/version pickers, no trickplay) - this pass
+ * fills those back in to reach parity, see JellyfinItemInfo's own field docs for the reasoning
+ * behind each (mirrored here, not repeated verbatim).
  */
 data class EmbyItemInfo(
     val id: String,
@@ -50,9 +103,20 @@ data class EmbyItemInfo(
     // Episode/season number within its parent - null for movies and series themselves.
     val indexNumber: Int?,
     val parentIndexNumber: Int?,
+    val isFavorite: Boolean = false,
+    // Distinct from playedPercentage below - Emby tracks "fully watched" as its own flag rather
+    // than inferring it from percentage, so a "Mark Watched" toggle needs this directly rather
+    // than checking playedPercentage >= 100. Mirrors JellyfinItemInfo.isPlayed.
+    val isPlayed: Boolean = false,
     val playedPercentage: Float?,
     val resumePositionTicks: Long,
     val cast: List<EmbyCastMember>,
     // Episode count for a season item; null for every other item type.
     val childCount: Int? = null,
+    val subtitleTracks: List<EmbySubtitleTrackInfo> = emptyList(),
+    val audioTracks: List<EmbyAudioTrackInfo> = emptyList(),
+    // Only surfaced when there's an actual choice (mediaSources.size > 1) - a single-version item
+    // (the overwhelming majority) just keeps using the plain read-only Video row instead.
+    val videoVersions: List<EmbyVersionInfo> = emptyList(),
+    val trickplayInfo: EmbyTrickplayInfo? = null,
 )

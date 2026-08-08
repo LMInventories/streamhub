@@ -2,6 +2,8 @@ package com.android.streamhub.feature.emby.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.android.streamhub.feature.emby.data.EmbyConnectRemoteDataSource
+import com.android.streamhub.feature.emby.data.EmbyConnectServerDto
 import com.android.streamhub.feature.emby.data.EmbyRemoteDataSource
 import com.android.streamhub.feature.emby.data.EmbySourceConfig
 import com.android.streamhub.feature.emby.data.EmbySourceConfigRepository
@@ -20,21 +22,41 @@ data class EmbySettingsUiState(
     val isSigningIn: Boolean = false,
     val signedIn: Boolean = false,
     val errorMessage: String? = null,
+    // Emby Connect (cloud account-linking sign-in) form state - a secondary sign-in path
+    // alongside the direct form above, see signInWithConnect()'s doc.
+    val connectEmail: String = "",
+    val connectPassword: String = "",
+    val isConnectSigningIn: Boolean = false,
+    // Only populated when discovery finds more than one linked server and the user needs to pick
+    // one - a single linked server auto-proceeds without ever touching this.
+    val connectServers: List<EmbyConnectServerDto> = emptyList(),
+    val connectErrorMessage: String? = null,
 )
 
 /**
- * Sign-in form (server URL, username, password) + sign-out for an Emby source. Deliberately no
- * Quick Connect - unlike Jellyfin's SDK, Emby's classic API has no equivalent short-code approval
- * flow to authenticate against, so AuthenticateByName is the only sign-in path this module offers.
+ * Sign-in form (server URL, username, password) + sign-out for an Emby source, plus a secondary
+ * Emby Connect (cloud account-linking) sign-in path - see signInWithConnect()'s doc. Unlike
+ * Jellyfin's Quick Connect (a PIN-pairing flow for local-network sign-in that Emby has no
+ * equivalent of), Emby Connect is Emby's own distinct system: it authenticates a cloud account
+ * that may be linked to one or more independently-hosted servers, rather than pairing with an
+ * already-known local server.
  */
 @HiltViewModel
 class EmbySettingsViewModel @Inject constructor(
     private val remoteDataSource: EmbyRemoteDataSource,
+    private val connectRemoteDataSource: EmbyConnectRemoteDataSource,
     private val configRepository: EmbySourceConfigRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EmbySettingsUiState())
     val uiState: StateFlow<EmbySettingsUiState> = _uiState
+
+    // Carried from signInWithConnect()'s discovery step to selectConnectServer() when the user
+    // has to pick from more than one linked server - step 3 (token exchange) needs the Connect
+    // user id and the account's username again, and neither is otherwise available once the UI
+    // state's connectServers picker is showing.
+    private var pendingConnectUserId: String? = null
+    private var pendingConnectUsername: String = ""
 
     init {
         viewModelScope.launch {
@@ -93,7 +115,107 @@ class EmbySettingsViewModel @Inject constructor(
     private suspend fun fetchServerName(serverUrl: String): String? =
         runCatching { remoteDataSource.getPublicSystemInfo(serverUrl).serverName }.getOrNull()
 
+    fun onConnectEmailChange(value: String) = _uiState.update { it.copy(connectEmail = value, connectErrorMessage = null) }
+    fun onConnectPasswordChange(value: String) = _uiState.update { it.copy(connectPassword = value, connectErrorMessage = null) }
+
+    /**
+     * Emby Connect's three-step flow (see EmbyConnectRemoteDataSource's doc): authenticate the
+     * cloud account, discover which server(s) it's linked to, then exchange for a token local to
+     * whichever server is chosen. A single linked server auto-proceeds straight through step 3 -
+     * the picker (uiState.connectServers) only needs to appear when there's an actual choice.
+     */
+    fun signInWithConnect() {
+        val state = _uiState.value
+        val email = state.connectEmail.trim()
+        if (email.isEmpty() || state.connectPassword.isBlank()) {
+            _uiState.update { it.copy(connectErrorMessage = "Email and password are required") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isConnectSigningIn = true, connectErrorMessage = null, connectServers = emptyList()) }
+            runCatching {
+                val auth = connectRemoteDataSource.authenticate(email, state.connectPassword)
+                val connectUserId = auth.connectUserId
+                val connectAccessToken = auth.connectAccessToken
+                require(connectUserId != null && connectAccessToken != null) { "Emby Connect didn't return a valid session" }
+                connectUserId to connectRemoteDataSource.getServers(connectUserId, connectAccessToken)
+            }.onSuccess { (connectUserId, servers) ->
+                pendingConnectUserId = connectUserId
+                pendingConnectUsername = email
+                when {
+                    servers.isEmpty() -> _uiState.update {
+                        it.copy(isConnectSigningIn = false, connectErrorMessage = "No servers linked to this Emby Connect account.")
+                    }
+                    servers.size == 1 -> finishConnectSignIn(connectUserId, servers.first(), email)
+                    else -> _uiState.update { it.copy(isConnectSigningIn = false, connectServers = servers) }
+                }
+            }.onFailure { e ->
+                _uiState.update { it.copy(isConnectSigningIn = false, connectErrorMessage = e.describeChain()) }
+            }
+        }
+    }
+
+    /** Called from the server picker once signInWithConnect()'s discovery step found more than one linked server. */
+    fun selectConnectServer(server: EmbyConnectServerDto) {
+        val connectUserId = pendingConnectUserId ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isConnectSigningIn = true, connectErrorMessage = null) }
+            finishConnectSignIn(connectUserId, server, pendingConnectUsername)
+        }
+    }
+
+    /**
+     * Step 3 (token exchange) plus the same save-config-and-reset-form finish direct signIn()
+     * does - both sign-in paths converge on the same EmbySourceConfig, so everything downstream
+     * (browsing, playback) behaves identically regardless of which path produced it. Prefers
+     * LocalAddress over Url (see EmbyConnectServerDto's doc) since this app has no separate
+     * "remote vs local" concept elsewhere.
+     */
+    private suspend fun finishConnectSignIn(connectUserId: String, server: EmbyConnectServerDto, email: String) {
+        val accessKey = server.accessKey
+        val serverUrl = server.localAddress.takeUnless { it.isNullOrBlank() } ?: server.url
+        if (accessKey == null || serverUrl.isNullOrBlank()) {
+            _uiState.update { it.copy(isConnectSigningIn = false, connectErrorMessage = "Emby Connect server entry is missing required fields") }
+            return
+        }
+        val trimmedServerUrl = serverUrl.trim().trimEnd('/')
+        runCatching {
+            connectRemoteDataSource.exchangeToken(trimmedServerUrl, accessKey, connectUserId)
+        }.onSuccess { result ->
+            val accessToken = result.accessToken
+            val userId = result.localUserId
+            if (accessToken != null && userId != null) {
+                configRepository.save(
+                    EmbySourceConfig(
+                        serverUrl = trimmedServerUrl,
+                        username = email,
+                        userId = userId,
+                        accessToken = accessToken,
+                        serverName = server.name ?: fetchServerName(trimmedServerUrl),
+                    ),
+                )
+                pendingConnectUserId = null
+                _uiState.update {
+                    it.copy(
+                        isConnectSigningIn = false,
+                        signedIn = true,
+                        serverUrl = trimmedServerUrl,
+                        username = email,
+                        connectEmail = "",
+                        connectPassword = "",
+                        connectServers = emptyList(),
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(isConnectSigningIn = false, connectErrorMessage = "Server didn't return a valid session") }
+            }
+        }.onFailure { e ->
+            _uiState.update { it.copy(isConnectSigningIn = false, connectErrorMessage = e.describeChain()) }
+        }
+    }
+
     fun signOut() {
+        pendingConnectUserId = null
         viewModelScope.launch {
             configRepository.clear()
             _uiState.update { EmbySettingsUiState() }

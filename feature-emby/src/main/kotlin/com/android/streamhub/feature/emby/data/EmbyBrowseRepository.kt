@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.emby.data
 
+import com.android.streamhub.core.common.domain.PlaybackSegments
 import com.android.streamhub.core.common.search.FuzzyMatch
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
@@ -138,6 +139,59 @@ class EmbyBrowseRepository @Inject constructor(
         return results.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
 
+    /** Favorites can be a mix of movies and series (unlike getItems, which is scoped to one library/kind), and span every library rather than one - so this is its own call rather than getItems with an extra flag. Mirrors JellyfinBrowseRepository.getFavorites exactly. */
+    suspend fun getFavorites(startIndex: Int, limit: Int): List<EmbyItemInfo> {
+        val config = configRepository.configFlow.first() ?: return emptyList()
+        return runCatching {
+            remoteDataSource.getItems(
+                baseUrl = config.serverUrl,
+                token = config.accessToken,
+                userId = config.userId,
+                includeItemTypes = "Movie,Series",
+                recursive = true,
+                isFavorite = true,
+                sortBy = "SortName",
+                sortOrder = "Ascending",
+                startIndex = startIndex,
+                limit = limit,
+            ).items.map { it.toItemInfo(config) }
+        }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Returns the new favorite state on success, null if the call failed (caller should leave the
+     * UI state unchanged). Unlike Jellyfin's SDK, these are raw REST calls whose response bodies
+     * carry no confirmation of the new state - success just means the server accepted the
+     * mark/unmark request, so the confirmed new state is simply the inverse of what it was before
+     * the call. Mirrors JellyfinBrowseRepository.toggleFavorite's contract exactly.
+     */
+    suspend fun toggleFavorite(itemId: String, currentlyFavorite: Boolean): Boolean? {
+        val config = configRepository.configFlow.first() ?: return null
+        return runCatching {
+            val response = if (currentlyFavorite) {
+                remoteDataSource.unmarkFavoriteItem(config.serverUrl, config.accessToken, config.userId, itemId)
+            } else {
+                remoteDataSource.markFavoriteItem(config.serverUrl, config.accessToken, config.userId, itemId)
+            }
+            if (!response.isSuccessful) return@runCatching null
+            !currentlyFavorite
+        }.getOrNull()
+    }
+
+    /** Returns the new played state on success, null if the call failed - same "confirmed state is just the inverse on HTTP success" contract as toggleFavorite above. */
+    suspend fun toggleWatched(itemId: String, currentlyPlayed: Boolean): Boolean? {
+        val config = configRepository.configFlow.first() ?: return null
+        return runCatching {
+            val response = if (currentlyPlayed) {
+                remoteDataSource.unmarkPlayedItem(config.serverUrl, config.accessToken, config.userId, itemId)
+            } else {
+                remoteDataSource.markPlayedItem(config.serverUrl, config.accessToken, config.userId, itemId)
+            }
+            if (!response.isSuccessful) return@runCatching null
+            !currentlyPlayed
+        }.getOrNull()
+    }
+
     suspend fun getSeasons(seriesId: String): List<EmbyItemInfo> {
         val config = configRepository.configFlow.first() ?: return emptyList()
         return runCatching {
@@ -162,11 +216,16 @@ class EmbyBrowseRepository @Inject constructor(
      * URL) whenever the server says the source supports it, else falls back to the
      * PlaybackInfo-supplied transcodingUrl.
      */
-    suspend fun getStreamUrl(itemId: String): String? {
+    suspend fun getStreamUrl(itemId: String, mediaSourceId: String? = null): String? {
         val config = configRepository.configFlow.first() ?: return null
-        val mediaSource = runCatching {
+        val mediaSources = runCatching {
             remoteDataSource.getPlaybackInfo(config.serverUrl, config.accessToken, itemId, config.userId).mediaSources
-        }.getOrNull()?.firstOrNull() ?: return null
+        }.getOrNull().orEmpty()
+        // An explicit per-item version choice from the detail page's Version picker (if any)
+        // selects a specific entry out of this same list PlaybackInfo already returns for every
+        // version - falls back to the first (server's own default) when no choice was made, same
+        // as JellyfinBrowseRepository.getStreamUrl.
+        val mediaSource = mediaSources.firstOrNull { it.id == mediaSourceId } ?: mediaSources.firstOrNull() ?: return null
 
         val base = config.serverUrl.trimEnd('/')
         val transcodingUrl = mediaSource.transcodingUrl
@@ -175,8 +234,8 @@ class EmbyBrowseRepository @Inject constructor(
             return "$base$path".withApiKey(config.accessToken)
         }
 
-        val mediaSourceId = mediaSource.id ?: itemId
-        return "$base/Videos/$itemId/stream?Static=true&mediaSourceId=$mediaSourceId".withApiKey(config.accessToken)
+        val resolvedMediaSourceId = mediaSource.id ?: itemId
+        return "$base/Videos/$itemId/stream?Static=true&mediaSourceId=$resolvedMediaSourceId".withApiKey(config.accessToken)
     }
 
     /**
@@ -211,6 +270,39 @@ class EmbyBrowseRepository @Inject constructor(
             runCatching { remoteDataSource.markPlayedItem(config.serverUrl, config.accessToken, config.userId, itemId) }
         }
     }
+
+    /**
+     * A URL template with a literal "{index}" placeholder for the 0-based tile image index - the
+     * player substitutes it per tile it actually needs while the user is scrubbing. Mirrors
+     * JellyfinBrowseRepository.trickplayTileUrlTemplate's URL shape as a best guess (same
+     * "/Videos/{itemId}/Trickplay/{width}/{index}.jpg" convention plausibly carried over from
+     * shared Emby/Jellyfin lineage) - UNVERIFIED, see EmbyTrickplayTileDto's doc. If wrong, this
+     * is the one function to fix; the failure mode is just "no trickplay thumbnails for Emby"
+     * (the player already handles a null/absent PlaybackItem.trickplay gracefully).
+     */
+    suspend fun trickplayTileUrlTemplate(itemId: String, trickplayInfo: EmbyTrickplayInfo): String? {
+        val config = configRepository.configFlow.first() ?: return null
+        val base = config.serverUrl.trimEnd('/')
+        return "$base/Videos/$itemId/Trickplay/${trickplayInfo.width}/{index}.jpg?MediaSourceId=${trickplayInfo.mediaSourceId}"
+            .withApiKey(config.accessToken)
+    }
+
+    /**
+     * Intro/outro skip markers - unlike every other best-effort/unverified piece of this module,
+     * this is deliberately NOT wired to a guessed endpoint. Emby's skip-intro feature is
+     * documented as chapter-marker-based (a proprietary `Chapters3.db` populated by the
+     * server-side "Detect Episode Intros" scheduled task), Premiere-gated (Emby Server 4.7+,
+     * requires an active Emby Premiere subscription), and no public REST API for reading those
+     * markers could be found despite searching. Guessing a chapter-endpoint response shape here
+     * would risk silently misinterpreting real chapter data (e.g. treating a normal chapter as an
+     * intro marker) rather than just cleanly doing nothing - a wrong guess that returns garbage is
+     * worse than an honest "not implemented yet" for a feature this speculative. Returns null
+     * unconditionally, which the player already treats as "no Skip Intro button, no segment-aware
+     * Next Episode timing" - exactly the same graceful-absence contract older Jellyfin servers get
+     * when they haven't run segment analysis. Revisit once a real Emby Premiere server/API docs
+     * are available to confirm the actual endpoint.
+     */
+    suspend fun getMediaSegments(itemId: String): PlaybackSegments? = null
 
     private fun EmbySortOption.toSortByAndOrder(): Pair<String, String> = when (this) {
         EmbySortOption.NAME_ASC -> "SortName" to "Ascending"
@@ -258,6 +350,60 @@ class EmbyBrowseRepository @Inject constructor(
         val episodeThumbnailUrl = primaryTag?.takeIf { itemType == EmbyItemType.EPISODE }
             ?.let { imageUrl(config, id, "Primary", it) }
 
+        // First/primary media source's streams drive the track pickers - mirrors
+        // JellyfinBrowseRepository.toItemInfo, which also only ever reads the first media source
+        // for this. UNVERIFIED wire shape, see EmbyMediaStreamDto's doc.
+        val primaryMediaSource = mediaSources.firstOrNull()
+        val subtitleTracks = primaryMediaSource?.mediaStreams.orEmpty()
+            .filter { it.type == "Subtitle" }
+            .map { stream ->
+                EmbySubtitleTrackInfo(
+                    index = stream.index ?: 0,
+                    label = stream.displayTitle ?: stream.language ?: "Subtitle",
+                    language = stream.language,
+                    isForced = stream.isForced,
+                )
+            }
+        val audioTracks = primaryMediaSource?.mediaStreams.orEmpty()
+            .filter { it.type == "Audio" }
+            .map { stream ->
+                EmbyAudioTrackInfo(
+                    index = stream.index ?: 0,
+                    label = stream.displayTitle ?: stream.language ?: "Audio",
+                    language = stream.language,
+                    isDefault = stream.isDefault,
+                )
+            }
+        // Only worth surfacing as a picker when there's an actual choice - a single-version item
+        // (the overwhelming majority) just keeps using the plain read-only Video row instead.
+        val videoVersions = mediaSources
+            .takeIf { it.size > 1 }
+            ?.mapIndexed { index, source ->
+                EmbyVersionInfo(
+                    id = source.id ?: id,
+                    label = source.name?.takeIf { it.isNotBlank() } ?: "Version ${index + 1}",
+                )
+            }
+            .orEmpty()
+        // Picks the first media source's largest available resolution - mirrors
+        // JellyfinBrowseRepository.toItemInfo's own trickplay extraction. Null (no
+        // scrubbing-preview thumbnails) whenever the server hasn't analyzed this item yet, or
+        // when the DTO shape guess is simply wrong for this server - same graceful-absence
+        // contract as everywhere else in this module. UNVERIFIED, see EmbyTrickplayTileDto's doc.
+        val trickplayInfo = trickplay.entries.firstOrNull()?.let { (sourceId, byWidth) ->
+            byWidth.values.maxByOrNull { it.width }?.let { info ->
+                EmbyTrickplayInfo(
+                    mediaSourceId = sourceId,
+                    width = info.width,
+                    height = info.height,
+                    tileGridColumns = info.tileWidth,
+                    tileGridRows = info.tileHeight,
+                    thumbnailCount = info.thumbnailCount,
+                    intervalMs = info.interval,
+                )
+            }
+        }
+
         return EmbyItemInfo(
             id = id,
             name = name.orEmpty(),
@@ -275,12 +421,18 @@ class EmbyBrowseRepository @Inject constructor(
             seasonId = seasonId,
             indexNumber = indexNumber,
             parentIndexNumber = parentIndexNumber,
+            isFavorite = userData?.isFavorite ?: false,
+            isPlayed = userData?.played ?: false,
             playedPercentage = userData?.playedPercentage,
             resumePositionTicks = userData?.playbackPositionTicks ?: 0L,
             cast = people.filter { it.type == "Actor" }.map { person ->
                 EmbyCastMember(id = person.id.orEmpty(), name = person.name.orEmpty(), role = person.role)
             },
             childCount = childCount,
+            subtitleTracks = subtitleTracks,
+            audioTracks = audioTracks,
+            videoVersions = videoVersions,
+            trickplayInfo = trickplayInfo,
         )
     }
 

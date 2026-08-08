@@ -35,6 +35,7 @@ import com.android.streamhub.feature.iptv.vod.VodScreenTv
 import com.android.streamhub.feature.emby.detail.EmbyItemDetailScreenTv
 import com.android.streamhub.feature.emby.detail.EmbySeriesDetailScreenTv
 import com.android.streamhub.feature.emby.home.EmbyHomeScreenTv
+import com.android.streamhub.feature.emby.library.EmbyFavoritesScreen
 import com.android.streamhub.feature.emby.library.EmbyLibraryScreen
 import com.android.streamhub.feature.emby.settings.EmbySettingsScreenTv
 import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreenTv
@@ -193,6 +194,13 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     },
                     onOpenItem = { item -> navController.navigate(embyDetailRouteFor(item)) },
                     onSignInClick = { navController.navigate(Route.EMBY_SETTINGS_PATTERN) },
+                    onOpenFavorites = { navController.navigate(Route.EMBY_FAVORITES_PATTERN) },
+                )
+            }
+            composable(Route.EMBY_FAVORITES_PATTERN) {
+                EmbyFavoritesScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenItem = { item -> navController.navigate(embyDetailRouteFor(item)) },
                 )
             }
             composable(

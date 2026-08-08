@@ -2,6 +2,7 @@ package com.android.streamhub.feature.emby.data
 
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HeaderMap
 import retrofit2.http.POST
@@ -52,6 +53,7 @@ interface EmbyApi {
         @Query("Limit") limit: Int? = null,
         @Query("SearchTerm") searchTerm: String? = null,
         @Query("Fields") fields: String? = null,
+        @Query("IsFavorite") isFavorite: Boolean? = null,
     ): EmbyItemsResponse
 
     @GET("Users/{userId}/Items/{itemId}")
@@ -135,6 +137,27 @@ interface EmbyApi {
 
     @POST("Users/{userId}/PlayedItems/{itemId}")
     suspend fun markPlayedItem(
+        @HeaderMap headers: Map<String, String>,
+        @Path("userId") userId: String,
+        @Path("itemId") itemId: String,
+    ): Response<Unit>
+
+    @DELETE("Users/{userId}/PlayedItems/{itemId}")
+    suspend fun unmarkPlayedItem(
+        @HeaderMap headers: Map<String, String>,
+        @Path("userId") userId: String,
+        @Path("itemId") itemId: String,
+    ): Response<Unit>
+
+    @POST("Users/{userId}/FavoriteItems/{itemId}")
+    suspend fun markFavoriteItem(
+        @HeaderMap headers: Map<String, String>,
+        @Path("userId") userId: String,
+        @Path("itemId") itemId: String,
+    ): Response<Unit>
+
+    @DELETE("Users/{userId}/FavoriteItems/{itemId}")
+    suspend fun unmarkFavoriteItem(
         @HeaderMap headers: Map<String, String>,
         @Path("userId") userId: String,
         @Path("itemId") itemId: String,

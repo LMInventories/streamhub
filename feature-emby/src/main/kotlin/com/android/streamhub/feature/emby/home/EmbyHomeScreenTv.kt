@@ -61,6 +61,7 @@ fun EmbyHomeScreenTv(
     onOpenLibrary: (libraryId: String, itemType: EmbyItemType) -> Unit,
     onOpenItem: (EmbyItemInfo) -> Unit,
     onSignInClick: () -> Unit,
+    onOpenFavorites: () -> Unit,
     viewModel: EmbyHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -71,7 +72,12 @@ fun EmbyHomeScreenTv(
             CircularProgressIndicator()
         }
         uiState.isEmpty -> EmbyEmptyStateTv(modifier = Modifier.fillMaxSize())
-        else -> EmbyHomeContentTv(uiState = uiState, onOpenLibrary = onOpenLibrary, onOpenItem = onOpenItem)
+        else -> EmbyHomeContentTv(
+            uiState = uiState,
+            onOpenLibrary = onOpenLibrary,
+            onOpenItem = onOpenItem,
+            onOpenFavorites = onOpenFavorites,
+        )
     }
 }
 
@@ -112,14 +118,16 @@ private fun EmbyHomeContentTv(
     uiState: EmbyHomeUiState,
     onOpenLibrary: (libraryId: String, itemType: EmbyItemType) -> Unit,
     onOpenItem: (EmbyItemInfo) -> Unit,
+    onOpenFavorites: () -> Unit,
 ) {
     // Defaults to the first row's first item so the preview panel is never blank before anything
     // has actually taken D-pad focus - only re-derived when the underlying data itself changes (a
     // fresh load/refresh), not on every unrelated recomposition, so a later focus move here never
     // gets silently reset back to this default. Same pattern as JellyfinHomeScreenTv.
-    var previewItem by remember(uiState.continueWatching, uiState.nextUp, uiState.latestSections) {
+    var previewItem by remember(uiState.continueWatching, uiState.nextUp, uiState.favourites, uiState.latestSections) {
         val firstItem = uiState.continueWatching.firstOrNull()
             ?: uiState.nextUp.firstOrNull()
+            ?: uiState.favourites.firstOrNull()
             ?: uiState.latestSections.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
         mutableStateOf(firstItem)
     }
@@ -156,6 +164,18 @@ private fun EmbyHomeContentTv(
                         items = uiState.nextUp,
                         onOpenItem = onOpenItem,
                         onItemFocused = { previewItem = it },
+                    )
+                }
+            }
+
+            if (uiState.favourites.isNotEmpty()) {
+                item(key = "favourites") {
+                    EmbyItemRowTv(
+                        title = "Favourites",
+                        items = uiState.favourites,
+                        onOpenItem = onOpenItem,
+                        onItemFocused = { previewItem = it },
+                        onHeaderClick = onOpenFavorites,
                     )
                 }
             }

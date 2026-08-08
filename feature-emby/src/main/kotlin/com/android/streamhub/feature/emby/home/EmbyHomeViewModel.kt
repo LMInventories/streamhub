@@ -39,13 +39,22 @@ data class EmbyHomeUiState(
     val isLoading: Boolean = true,
     val continueWatching: List<EmbyItemInfo> = emptyList(),
     val nextUp: List<EmbyItemInfo> = emptyList(),
+    val favourites: List<EmbyItemInfo> = emptyList(),
     val latestSections: List<EmbyLatestSection> = emptyList(),
     val errorMessage: String? = null,
 ) {
     /** Signed in, done loading, and the server genuinely has nothing to show - distinct from [isLoading] so the screen can render a dedicated empty state instead of an indefinite spinner or a blank list. */
     val isEmpty: Boolean
-        get() = !isLoading && continueWatching.isEmpty() && nextUp.isEmpty() && latestSections.isEmpty()
+        get() = !isLoading && continueWatching.isEmpty() && nextUp.isEmpty() && favourites.isEmpty() && latestSections.isEmpty()
 }
+
+/** Plain 4-tuple holder for [EmbyHomeViewModel.loadHome]'s single runCatching block - Kotlin's stdlib only ships Pair/Triple, and this pass needs a fourth (favourites) alongside continueWatching/nextUp/latestSections. */
+private data class EmbyHomeLoadResult(
+    val continueWatching: List<EmbyItemInfo>,
+    val nextUp: List<EmbyItemInfo>,
+    val favourites: List<EmbyItemInfo>,
+    val latestSections: List<EmbyLatestSection>,
+)
 
 @HiltViewModel
 class EmbyHomeViewModel @Inject constructor(
@@ -79,16 +88,18 @@ class EmbyHomeViewModel @Inject constructor(
                 val libraries = browseRepository.getLibraries()
                 val continueWatching = browseRepository.getResumeItems(limit = ROW_LIMIT)
                 val nextUp = browseRepository.getNextUp(limit = ROW_LIMIT)
+                val favourites = browseRepository.getFavorites(startIndex = 0, limit = ROW_LIMIT)
                 val latestSections = libraries.map { library ->
                     EmbyLatestSection(library = library, items = browseRepository.getLatestMedia(library.id, limit = ROW_LIMIT))
                 }
-                Triple(continueWatching, nextUp, latestSections)
-            }.onSuccess { (continueWatching, nextUp, latestSections) ->
+                EmbyHomeLoadResult(continueWatching, nextUp, favourites, latestSections)
+            }.onSuccess { (continueWatching, nextUp, favourites, latestSections) ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         continueWatching = continueWatching,
                         nextUp = nextUp,
+                        favourites = favourites,
                         latestSections = latestSections.filter { section -> section.items.isNotEmpty() },
                     )
                 }
@@ -97,7 +108,7 @@ class EmbyHomeViewModel @Inject constructor(
                 // refresh failing (a transient network blip, most likely) shouldn't rip away
                 // content the user can already see from an earlier successful load this session.
                 _uiState.update {
-                    if (it.continueWatching.isEmpty() && it.nextUp.isEmpty() && it.latestSections.isEmpty()) {
+                    if (it.continueWatching.isEmpty() && it.nextUp.isEmpty() && it.favourites.isEmpty() && it.latestSections.isEmpty()) {
                         it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load Emby home")
                     } else {
                         it.copy(isLoading = false)

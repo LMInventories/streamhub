@@ -1,5 +1,6 @@
 package com.android.streamhub.feature.emby.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,12 +51,13 @@ import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
 import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.Icon as TvIcon
 import androidx.tv.material3.IconButton as TvIconButton
+import androidx.tv.material3.MaterialTheme as TvMaterialTheme
 import androidx.tv.material3.Text as TvText
 
 // Same "wrap own MaterialTheme locally" reasoning as JellyfinSettingsScreen - reachable from the TV
 // nav host too, which only wraps content in tv-material3's MaterialTheme, not this one.
 
-/** Phone sign-in form for an Emby source - server URL / username / password, no Quick Connect (see EmbySettingsViewModel doc). */
+/** Phone sign-in form for an Emby source - direct server URL / username / password, plus a secondary Emby Connect (cloud account) sign-in section (see EmbySettingsViewModel doc). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmbySettingsScreen(
@@ -146,13 +149,66 @@ fun EmbySettingsScreen(
                     OutlinedButton(onClick = { viewModel.signOut() }, modifier = Modifier.tvScrollsIntoViewOnFocus()) {
                         Text("Sign out")
                     }
+                } else {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Palette.Border)
+                    Text("Or sign in with Emby Connect", style = MaterialTheme.typography.titleSmall)
+                    val connectEmailReadOnly = rememberTvManualKeyboardReadOnly()
+                    OutlinedTextField(
+                        value = uiState.connectEmail,
+                        onValueChange = viewModel::onConnectEmailChange,
+                        label = { Text("Emby Connect email or username") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        enabled = !uiState.isConnectSigningIn,
+                        readOnly = connectEmailReadOnly.value,
+                        modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(connectEmailReadOnly),
+                    )
+                    val connectPasswordReadOnly = rememberTvManualKeyboardReadOnly()
+                    OutlinedTextField(
+                        value = uiState.connectPassword,
+                        onValueChange = viewModel::onConnectPasswordChange,
+                        label = { Text("Emby Connect password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        enabled = !uiState.isConnectSigningIn,
+                        readOnly = connectPasswordReadOnly.value,
+                        modifier = Modifier.fillMaxWidth().dpadMovesFocusVertically(focusManager).tvScrollsIntoViewOnFocus().tvManualKeyboard(connectPasswordReadOnly),
+                    )
+                    OutlinedButton(
+                        onClick = viewModel::signInWithConnect,
+                        enabled = !uiState.isConnectSigningIn,
+                        modifier = Modifier.tvScrollsIntoViewOnFocus(),
+                    ) {
+                        if (uiState.isConnectSigningIn) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                            Text("Signing in…", modifier = Modifier.padding(start = 8.dp))
+                        } else {
+                            Text("Sign in with Emby Connect")
+                        }
+                    }
+
+                    uiState.connectErrorMessage?.let { error ->
+                        Text(error, color = Palette.Error)
+                    }
+
+                    if (uiState.connectServers.size > 1) {
+                        Text("Choose a server:", style = MaterialTheme.typography.labelLarge)
+                        uiState.connectServers.forEach { server ->
+                            Text(
+                                server.name ?: "Unnamed server",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !uiState.isConnectSigningIn) { viewModel.selectConnectServer(server) }
+                                    .tvScrollsIntoViewOnFocus()
+                                    .padding(vertical = 8.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-/** TV-native sibling of EmbySettingsScreen - same EmbySettingsViewModel (server sign-in only, no Quick Connect), TvSettingsSection/TextField layout instead of a Material3 form. */
+/** TV-native sibling of EmbySettingsScreen - same EmbySettingsViewModel (direct sign-in + Emby Connect), TvSettingsSection/TextField layout instead of a Material3 form. */
 @Composable
 fun EmbySettingsScreenTv(
     onDone: () -> Unit,
@@ -190,6 +246,47 @@ fun EmbySettingsScreenTv(
                     )
                     TvButton(onClick = viewModel::signIn, enabled = !uiState.isSigningIn) {
                         TvText(if (uiState.isSigningIn) "Signing in…" else "Sign in")
+                    }
+                }
+            }
+
+            if (!uiState.signedIn) {
+                TvSettingsSection(title = "Or sign in with Emby Connect") {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        TvSettingsTextField(
+                            value = uiState.connectEmail,
+                            onValueChange = viewModel::onConnectEmailChange,
+                            label = "Emby Connect email or username",
+                            keyboardType = KeyboardType.Email,
+                            enabled = !uiState.isConnectSigningIn,
+                        )
+                        TvSettingsTextField(
+                            value = uiState.connectPassword,
+                            onValueChange = viewModel::onConnectPasswordChange,
+                            label = "Emby Connect password",
+                            visualTransformation = PasswordVisualTransformation(),
+                            enabled = !uiState.isConnectSigningIn,
+                        )
+                        TvButton(onClick = viewModel::signInWithConnect, enabled = !uiState.isConnectSigningIn) {
+                            TvText(if (uiState.isConnectSigningIn) "Signing in…" else "Sign in with Emby Connect")
+                        }
+
+                        uiState.connectErrorMessage?.let { error ->
+                            TvText(error, color = Palette.Error)
+                        }
+
+                        if (uiState.connectServers.size > 1) {
+                            TvText("Choose a server:", style = TvMaterialTheme.typography.labelLarge)
+                            uiState.connectServers.forEach { server ->
+                                TvText(
+                                    server.name ?: "Unnamed server",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = !uiState.isConnectSigningIn) { viewModel.selectConnectServer(server) }
+                                        .padding(vertical = 8.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -52,6 +52,7 @@ fun EmbyHomeScreen(
     onOpenLibrary: (libraryId: String, itemType: EmbyItemType) -> Unit,
     onOpenItem: (EmbyItemInfo) -> Unit,
     onSignInClick: () -> Unit,
+    onOpenFavorites: () -> Unit,
     viewModel: EmbyHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -69,7 +70,12 @@ fun EmbyHomeScreen(
                         CircularProgressIndicator()
                     }
                     uiState.isEmpty -> EmbyEmptyState(modifier = Modifier.weight(1f))
-                    else -> EmbyHomeContent(uiState = uiState, onOpenLibrary = onOpenLibrary, onOpenItem = onOpenItem)
+                    else -> EmbyHomeContent(
+                        uiState = uiState,
+                        onOpenLibrary = onOpenLibrary,
+                        onOpenItem = onOpenItem,
+                        onOpenFavorites = onOpenFavorites,
+                    )
                 }
             }
         }
@@ -105,6 +111,7 @@ private fun EmbyHomeContent(
     uiState: EmbyHomeUiState,
     onOpenLibrary: (libraryId: String, itemType: EmbyItemType) -> Unit,
     onOpenItem: (EmbyItemInfo) -> Unit,
+    onOpenFavorites: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -126,6 +133,17 @@ private fun EmbyHomeContent(
         if (uiState.nextUp.isNotEmpty()) {
             item(key = "next_up") {
                 EmbyItemRow(title = "Next Up", items = uiState.nextUp, onOpenItem = onOpenItem)
+            }
+        }
+
+        if (uiState.favourites.isNotEmpty()) {
+            item(key = "favourites") {
+                EmbyItemRow(
+                    title = "Favourites",
+                    items = uiState.favourites,
+                    onOpenItem = onOpenItem,
+                    onHeaderClick = onOpenFavorites,
+                )
             }
         }
 

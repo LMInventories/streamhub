@@ -19,6 +19,8 @@ sealed class Route {
 
     data class EmbyLibrary(val libraryId: String, val itemType: String) : Route()
 
+    data object EmbyFavorites : Route()
+
     data class EmbyItemDetail(val itemId: String) : Route()
 
     data class EmbySeriesDetail(val seriesId: String) : Route()
@@ -60,6 +62,7 @@ sealed class Route {
         const val EMBY_HOME_PATTERN = "emby_home"
         const val EMBY_SETTINGS_PATTERN = "emby_settings"
         const val EMBY_LIBRARY_PATTERN = "emby_library/{libraryId}/{itemType}"
+        const val EMBY_FAVORITES_PATTERN = "emby_favorites"
         const val EMBY_ITEM_DETAIL_PATTERN = "emby_item_detail/{itemId}"
         const val EMBY_SERIES_DETAIL_PATTERN = "emby_series_detail/{seriesId}"
         const val JELLYFIN_HOME_PATTERN = "jellyfin_home"

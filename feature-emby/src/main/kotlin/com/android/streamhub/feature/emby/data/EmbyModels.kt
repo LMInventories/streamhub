@@ -50,6 +50,43 @@ data class EmbyPersonDto(
 data class EmbyUserDataDto(
     @SerialName("PlaybackPositionTicks") val playbackPositionTicks: Long = 0,
     @SerialName("PlayedPercentage") val playedPercentage: Float? = null,
+    @SerialName("IsFavorite") val isFavorite: Boolean = false,
+    @SerialName("Played") val played: Boolean = false,
+)
+
+// Same shape/field-name semantics as Jellyfin's MediaStream (shared .NET-lineage API design) -
+// UNVERIFIED against a live Emby server, same caveat as EmbyApi.getLatestItems below. If wrong,
+// the fix is scoped to this DTO plus EmbyBrowseRepository.toItemInfo's extraction block, which is
+// the only place these fields are read.
+@Serializable
+data class EmbyMediaStreamDto(
+    // "Video" / "Audio" / "Subtitle".
+    @SerialName("Type") val type: String? = null,
+    @SerialName("Index") val index: Int? = null,
+    @SerialName("DisplayTitle") val displayTitle: String? = null,
+    @SerialName("Language") val language: String? = null,
+    @SerialName("IsForced") val isForced: Boolean = false,
+    @SerialName("IsDefault") val isDefault: Boolean = false,
+)
+
+// UNVERIFIED nested shape (mediaSourceId -> width -> tile info) for Emby's scrubbing-preview
+// sprite sheets - no public Emby API docs were found for this despite searching, this is a
+// best guess mirroring Jellyfin's own SDK TrickplayInfo field names/semantics (plausible given
+// Emby/Jellyfin's shared lineage, but not confirmed). Degrades gracefully: if the real JSON
+// shape differs, this field just fails to deserialize per-item (or decodes to an empty map,
+// depending on how strict the Json config is) and EmbyItemInfo.trickplayInfo stays null -  same
+// "feature silently absent" contract as everywhere else in this module. See
+// EmbyBrowseRepository.toItemInfo's trickplay extraction block.
+@Serializable
+data class EmbyTrickplayTileDto(
+    @SerialName("Width") val width: Int = 0,
+    @SerialName("Height") val height: Int = 0,
+    // Columns/rows of thumbnails packed into one sprite-sheet image.
+    @SerialName("TileWidth") val tileWidth: Int = 0,
+    @SerialName("TileHeight") val tileHeight: Int = 0,
+    @SerialName("ThumbnailCount") val thumbnailCount: Int = 0,
+    // Milliseconds between consecutive thumbnails.
+    @SerialName("Interval") val interval: Int = 0,
 )
 
 @Serializable
@@ -59,6 +96,9 @@ data class EmbyMediaSourceDto(
     @SerialName("SupportsDirectPlay") val supportsDirectPlay: Boolean = false,
     @SerialName("DirectStreamUrl") val directStreamUrl: String? = null,
     @SerialName("TranscodingUrl") val transcodingUrl: String? = null,
+    @SerialName("Name") val name: String? = null,
+    // UNVERIFIED shape - see EmbyMediaStreamDto's own doc.
+    @SerialName("MediaStreams") val mediaStreams: List<EmbyMediaStreamDto> = emptyList(),
 )
 
 @Serializable
@@ -89,6 +129,9 @@ data class EmbyItemDto(
     @SerialName("People") val people: List<EmbyPersonDto> = emptyList(),
     @SerialName("UserData") val userData: EmbyUserDataDto? = null,
     @SerialName("MediaSources") val mediaSources: List<EmbyMediaSourceDto> = emptyList(),
+    // UNVERIFIED - see EmbyTrickplayTileDto's doc. Keyed by media source id, then by tile width
+    // (as a string, mirroring how Jellyfin's own SDK model represents this map in JSON).
+    @SerialName("Trickplay") val trickplay: Map<String, Map<String, EmbyTrickplayTileDto>> = emptyMap(),
 )
 
 @Serializable

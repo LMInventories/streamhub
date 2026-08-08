@@ -84,6 +84,7 @@ class EmbyRemoteDataSource @Inject constructor(
         limit: Int? = null,
         searchTerm: String? = null,
         fields: String? = null,
+        isFavorite: Boolean? = null,
     ): EmbyItemsResponse = apiFor(baseUrl).getItems(
         headers = authHeaders(token),
         userId = userId,
@@ -96,6 +97,7 @@ class EmbyRemoteDataSource @Inject constructor(
         limit = limit,
         searchTerm = searchTerm,
         fields = fields,
+        isFavorite = isFavorite,
     )
 
     suspend fun getItem(baseUrl: String, token: String, userId: String, itemId: String): EmbyItemDto =
@@ -158,4 +160,13 @@ class EmbyRemoteDataSource @Inject constructor(
 
     suspend fun markPlayedItem(baseUrl: String, token: String, userId: String, itemId: String): Response<Unit> =
         apiFor(baseUrl).markPlayedItem(authHeaders(token), userId, itemId)
+
+    suspend fun unmarkPlayedItem(baseUrl: String, token: String, userId: String, itemId: String): Response<Unit> =
+        apiFor(baseUrl).unmarkPlayedItem(authHeaders(token), userId, itemId)
+
+    suspend fun markFavoriteItem(baseUrl: String, token: String, userId: String, itemId: String): Response<Unit> =
+        apiFor(baseUrl).markFavoriteItem(authHeaders(token), userId, itemId)
+
+    suspend fun unmarkFavoriteItem(baseUrl: String, token: String, userId: String, itemId: String): Response<Unit> =
+        apiFor(baseUrl).unmarkFavoriteItem(authHeaders(token), userId, itemId)
 }
