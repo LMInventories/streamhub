@@ -17,6 +17,12 @@ sealed class Route {
 
     data object EmbySettings : Route()
 
+    data object EmbyPlaybackSettings : Route()
+
+    data object EmbyLibraryVisibility : Route()
+
+    data object EmbyHomeSectionOrder : Route()
+
     data class EmbyLibrary(val libraryId: String, val itemType: String) : Route()
 
     data object EmbyFavorites : Route()
@@ -61,6 +67,9 @@ sealed class Route {
         const val VOD_PATTERN = "vod"
         const val EMBY_HOME_PATTERN = "emby_home"
         const val EMBY_SETTINGS_PATTERN = "emby_settings"
+        const val EMBY_PLAYBACK_SETTINGS_PATTERN = "emby_playback_settings"
+        const val EMBY_LIBRARY_VISIBILITY_PATTERN = "emby_library_visibility"
+        const val EMBY_HOME_SECTION_ORDER_PATTERN = "emby_home_section_order"
         const val EMBY_LIBRARY_PATTERN = "emby_library/{libraryId}/{itemType}"
         const val EMBY_FAVORITES_PATTERN = "emby_favorites"
         const val EMBY_ITEM_DETAIL_PATTERN = "emby_item_detail/{itemId}"

@@ -26,13 +26,23 @@ private const val NEARLY_COMPLETE_FRACTION = 0.92f
 class EmbyBrowseRepository @Inject constructor(
     private val remoteDataSource: EmbyRemoteDataSource,
     private val configRepository: EmbySourceConfigRepository,
+    private val appSettingsRepository: EmbyAppSettingsRepository,
 ) {
-    suspend fun getLibraries(): List<EmbyLibraryInfo> {
+    /**
+     * [includeAppHidden] is for the library-visibility settings screen, which needs to list every
+     * library (including ones the user already hid via that same screen) to let them un-hide it -
+     * every other caller wants the filtered list, which is why that's the default. Mirrors
+     * JellyfinBrowseRepository.getLibraries exactly.
+     */
+    suspend fun getLibraries(includeAppHidden: Boolean = false): List<EmbyLibraryInfo> {
         val config = configRepository.configFlow.first() ?: return emptyList()
-        return runCatching {
+        val libraries = runCatching {
             remoteDataSource.getUserViews(config.serverUrl, config.accessToken, config.userId)
                 .items.mapNotNull { it.toLibraryInfo() }
         }.getOrDefault(emptyList())
+        if (includeAppHidden) return libraries
+        val hiddenIds = appSettingsRepository.settingsFlow.first().hiddenLibraryIds
+        return libraries.filter { it.id !in hiddenIds }
     }
 
     suspend fun getResumeItems(limit: Int = 20): List<EmbyItemInfo> {
@@ -215,11 +225,25 @@ class EmbyBrowseRepository @Inject constructor(
      * JellyfinBrowseRepository.getStreamUrl. Prefers direct play (a plain `/Videos/{id}/stream`
      * URL) whenever the server says the source supports it, else falls back to the
      * PlaybackInfo-supplied transcodingUrl.
+     *
+     * maxStreamingBitrateMbps only ever narrows things - passing it as
+     * EmbyPlaybackInfoRequest.maxStreamingBitrate lets the server decide whether the source is
+     * already under the cap (direct play still happens exactly as before) or needs transcoding to
+     * fit it, in which case the response's MediaSourceInfo carries a ready-to-use transcodingUrl
+     * instead of us building the direct-play URL ourselves. Mirrors
+     * JellyfinBrowseRepository.getStreamUrl's exact Mbps-to-bps conversion.
      */
     suspend fun getStreamUrl(itemId: String, mediaSourceId: String? = null): String? {
         val config = configRepository.configFlow.first() ?: return null
+        val maxBitrateBps = appSettingsRepository.settingsFlow.first().maxStreamingBitrateMbps?.let { it * 1_000_000 }
         val mediaSources = runCatching {
-            remoteDataSource.getPlaybackInfo(config.serverUrl, config.accessToken, itemId, config.userId).mediaSources
+            remoteDataSource.getPlaybackInfo(
+                config.serverUrl,
+                config.accessToken,
+                itemId,
+                config.userId,
+                maxStreamingBitrate = maxBitrateBps,
+            ).mediaSources
         }.getOrNull().orEmpty()
         // An explicit per-item version choice from the detail page's Version picker (if any)
         // selects a specific entry out of this same list PlaybackInfo already returns for every

@@ -120,3 +120,26 @@ data class EmbyItemInfo(
     val videoVersions: List<EmbyVersionInfo> = emptyList(),
     val trickplayInfo: EmbyTrickplayInfo? = null,
 )
+
+/**
+ * One renderable "title + row of posters" section - Continue Watching/Next Up/Favourites/each
+ * library's Latest all share this same shape, so EmbyHomeContent can render them from one ordered
+ * list instead of a hardcoded sequence of near-identical blocks. Mirrors JellyfinHomeSection
+ * exactly, including living here (not in EmbyHomeViewModel.kt) for the same reason: keeping it in
+ * the data layer alongside the other models in this file, not tangled up with home/'s own
+ * UI-facing code.
+ */
+data class EmbyHomeSection(
+    val key: String,
+    val title: String,
+    val items: List<EmbyItemInfo>,
+    val hasSeeAll: Boolean,
+)
+
+/** Stable keys for EmbyAppSettings.homeSectionOrder - kept in one place so a future reorder screen and the home screen agree on what a key means. Mirrors JellyfinHomeSectionKeys exactly. */
+object EmbyHomeSectionKeys {
+    const val CONTINUE_WATCHING = "continue_watching"
+    const val NEXT_UP = "next_up"
+    const val FAVOURITES = "favourites"
+    fun library(libraryId: String) = "library:$libraryId"
+}

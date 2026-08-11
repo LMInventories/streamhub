@@ -31,6 +31,9 @@ import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 fun SettingsScreenTv(
     onIptvClick: () -> Unit,
     onEmbyClick: () -> Unit,
+    onEmbyPlaybackClick: () -> Unit,
+    onEmbyLibrariesClick: () -> Unit,
+    onEmbyHomeOrderClick: () -> Unit,
     onJellyfinClick: () -> Unit,
     onJellyfinPlaybackClick: () -> Unit,
     onJellyfinLibrariesClick: () -> Unit,
@@ -53,6 +56,9 @@ fun SettingsScreenTv(
     val sections = buildSettingsSections(
         onIptvClick = onIptvClick,
         onEmbyClick = onEmbyClick,
+        onEmbyPlaybackClick = onEmbyPlaybackClick,
+        onEmbyLibrariesClick = onEmbyLibrariesClick,
+        onEmbyHomeOrderClick = onEmbyHomeOrderClick,
         onJellyfinClick = onJellyfinClick,
         onJellyfinPlaybackClick = onJellyfinPlaybackClick,
         onJellyfinLibrariesClick = onJellyfinLibrariesClick,

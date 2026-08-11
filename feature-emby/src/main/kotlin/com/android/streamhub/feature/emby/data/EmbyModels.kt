@@ -137,6 +137,11 @@ data class EmbyItemDto(
 @Serializable
 data class EmbyPlaybackInfoRequest(
     @SerialName("UserId") val userId: String,
+    // Bps, not Mbps - same unit/nullable-Int shape as Jellyfin SDK's PlaybackInfoDto.maxStreamingBitrate
+    // (confirmed by JellyfinBrowseRepository.getStreamUrl's own Mbps-to-bps conversion assigning
+    // straight into that field with no widening call). Null means unlimited/direct-play - only
+    // ever narrows what the server sends, never forces transcoding of already-fits content.
+    @SerialName("MaxStreamingBitrate") val maxStreamingBitrate: Int? = null,
 )
 
 @Serializable

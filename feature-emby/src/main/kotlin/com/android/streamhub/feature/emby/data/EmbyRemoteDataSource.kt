@@ -138,8 +138,17 @@ class EmbyRemoteDataSource @Inject constructor(
         seasonId: String? = null,
     ): EmbyItemsResponse = apiFor(baseUrl).getEpisodes(authHeaders(token), seriesId, userId, seasonId)
 
-    suspend fun getPlaybackInfo(baseUrl: String, token: String, itemId: String, userId: String): EmbyPlaybackInfoResponse =
-        apiFor(baseUrl).getPlaybackInfo(authHeaders(token), itemId, EmbyPlaybackInfoRequest(userId = userId))
+    suspend fun getPlaybackInfo(
+        baseUrl: String,
+        token: String,
+        itemId: String,
+        userId: String,
+        maxStreamingBitrate: Int? = null,
+    ): EmbyPlaybackInfoResponse = apiFor(baseUrl).getPlaybackInfo(
+        authHeaders(token),
+        itemId,
+        EmbyPlaybackInfoRequest(userId = userId, maxStreamingBitrate = maxStreamingBitrate),
+    )
 
     suspend fun reportPlaybackStart(baseUrl: String, token: String, itemId: String): Response<Unit> =
         apiFor(baseUrl).reportPlaybackStart(authHeaders(token), EmbyPlaybackStartRequest(itemId = itemId))

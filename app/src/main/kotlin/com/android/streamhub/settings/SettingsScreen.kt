@@ -63,6 +63,9 @@ data class SettingsSection(
 fun buildSettingsSections(
     onIptvClick: () -> Unit,
     onEmbyClick: () -> Unit,
+    onEmbyPlaybackClick: () -> Unit,
+    onEmbyLibrariesClick: () -> Unit,
+    onEmbyHomeOrderClick: () -> Unit,
     onJellyfinClick: () -> Unit,
     onJellyfinPlaybackClick: () -> Unit,
     onJellyfinLibrariesClick: () -> Unit,
@@ -128,6 +131,24 @@ fun buildSettingsSections(
         title = "Emby",
         rows = listOf(
             SettingsRow(label = "Source", subtitle = "Server sign-in", icon = Icons.Filled.Cloud, onClick = onEmbyClick),
+            SettingsRow(
+                label = "Playback",
+                subtitle = "Preferred audio/subtitle language, max bitrate",
+                icon = Icons.Filled.PlayCircle,
+                onClick = onEmbyPlaybackClick,
+            ),
+            SettingsRow(
+                label = "Libraries",
+                subtitle = "Choose which libraries show up in the app",
+                icon = Icons.Filled.VideoLibrary,
+                onClick = onEmbyLibrariesClick,
+            ),
+            SettingsRow(
+                label = "Home screen order",
+                subtitle = "Reorder Continue Watching, Next Up, and the rest",
+                icon = Icons.Filled.Reorder,
+                onClick = onEmbyHomeOrderClick,
+            ),
         ),
     ),
 )
@@ -180,6 +201,9 @@ fun SettingsScreen(
     paddingValues: PaddingValues,
     onIptvClick: () -> Unit,
     onEmbyClick: () -> Unit,
+    onEmbyPlaybackClick: () -> Unit,
+    onEmbyLibrariesClick: () -> Unit,
+    onEmbyHomeOrderClick: () -> Unit,
     onJellyfinClick: () -> Unit,
     onJellyfinPlaybackClick: () -> Unit,
     onJellyfinLibrariesClick: () -> Unit,
@@ -196,6 +220,9 @@ fun SettingsScreen(
     val sections = buildSettingsSections(
         onIptvClick = onIptvClick,
         onEmbyClick = onEmbyClick,
+        onEmbyPlaybackClick = onEmbyPlaybackClick,
+        onEmbyLibrariesClick = onEmbyLibrariesClick,
+        onEmbyHomeOrderClick = onEmbyHomeOrderClick,
         onJellyfinClick = onJellyfinClick,
         onJellyfinPlaybackClick = onJellyfinPlaybackClick,
         onJellyfinLibrariesClick = onJellyfinLibrariesClick,

@@ -37,6 +37,9 @@ import com.android.streamhub.feature.emby.detail.EmbySeriesDetailScreenTv
 import com.android.streamhub.feature.emby.home.EmbyHomeScreenTv
 import com.android.streamhub.feature.emby.library.EmbyFavoritesScreen
 import com.android.streamhub.feature.emby.library.EmbyLibraryScreen
+import com.android.streamhub.feature.emby.settings.EmbyHomeSectionOrderScreenTv
+import com.android.streamhub.feature.emby.settings.EmbyLibraryVisibilityScreenTv
+import com.android.streamhub.feature.emby.settings.EmbyPlaybackSettingsScreenTv
 import com.android.streamhub.feature.emby.settings.EmbySettingsScreenTv
 import com.android.streamhub.feature.jellyfin.detail.JellyfinItemDetailScreenTv
 import com.android.streamhub.feature.jellyfin.detail.JellyfinSeriesDetailScreenTv
@@ -240,6 +243,15 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
             composable(Route.EMBY_SETTINGS_PATTERN) {
                 EmbySettingsScreenTv(onDone = { navController.popBackStack() })
             }
+            composable(Route.EMBY_PLAYBACK_SETTINGS_PATTERN) {
+                EmbyPlaybackSettingsScreenTv(onDone = { navController.popBackStack() })
+            }
+            composable(Route.EMBY_LIBRARY_VISIBILITY_PATTERN) {
+                EmbyLibraryVisibilityScreenTv(onDone = { navController.popBackStack() })
+            }
+            composable(Route.EMBY_HOME_SECTION_ORDER_PATTERN) {
+                EmbyHomeSectionOrderScreenTv(onDone = { navController.popBackStack() })
+            }
             composable(Route.JELLYFIN_HOME_PATTERN) {
                 BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
                 JellyfinHomeScreenTv(
@@ -305,6 +317,9 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 SettingsScreenTv(
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onEmbyClick = { navController.navigate(Route.EMBY_SETTINGS_PATTERN) },
+                    onEmbyPlaybackClick = { navController.navigate(Route.EMBY_PLAYBACK_SETTINGS_PATTERN) },
+                    onEmbyLibrariesClick = { navController.navigate(Route.EMBY_LIBRARY_VISIBILITY_PATTERN) },
+                    onEmbyHomeOrderClick = { navController.navigate(Route.EMBY_HOME_SECTION_ORDER_PATTERN) },
                     onJellyfinClick = { navController.navigate(Route.JELLYFIN_SETTINGS_PATTERN) },
                     onJellyfinPlaybackClick = { navController.navigate(Route.JELLYFIN_PLAYBACK_SETTINGS_PATTERN) },
                     onJellyfinLibrariesClick = { navController.navigate(Route.JELLYFIN_LIBRARY_VISIBILITY_PATTERN) },

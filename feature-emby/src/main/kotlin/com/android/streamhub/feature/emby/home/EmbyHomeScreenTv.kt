@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,8 +44,11 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.feature.emby.data.EmbyHomeSection
+import com.android.streamhub.feature.emby.data.EmbyHomeSectionKeys
 import com.android.streamhub.feature.emby.data.EmbyItemInfo
 import com.android.streamhub.feature.emby.data.EmbyItemType
+import com.android.streamhub.feature.emby.data.EmbyLibraryInfo
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -120,15 +122,18 @@ private fun EmbyHomeContentTv(
     onOpenItem: (EmbyItemInfo) -> Unit,
     onOpenFavorites: () -> Unit,
 ) {
+    val librariesById = uiState.libraries.associateBy { it.id }
     // Defaults to the first row's first item so the preview panel is never blank before anything
-    // has actually taken D-pad focus - only re-derived when the underlying data itself changes (a
+    // has actually taken D-pad focus - only re-derived when the section data itself changes (a
     // fresh load/refresh), not on every unrelated recomposition, so a later focus move here never
-    // gets silently reset back to this default. Same pattern as JellyfinHomeScreenTv.
-    var previewItem by remember(uiState.continueWatching, uiState.nextUp, uiState.favourites, uiState.latestSections) {
-        val firstItem = uiState.continueWatching.firstOrNull()
-            ?: uiState.nextUp.firstOrNull()
-            ?: uiState.favourites.firstOrNull()
-            ?: uiState.latestSections.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
+    // gets silently reset back to this default. Priority mirrors the old typed-field fallback
+    // chain (Continue Watching, then Next Up, then Favourites, then the first section with any
+    // items at all) now sourced from the unified sections list instead.
+    var previewItem by remember(uiState.sections) {
+        val firstItem = uiState.sections.firstOrNull { it.key == EmbyHomeSectionKeys.CONTINUE_WATCHING }?.items?.firstOrNull()
+            ?: uiState.sections.firstOrNull { it.key == EmbyHomeSectionKeys.NEXT_UP }?.items?.firstOrNull()
+            ?: uiState.sections.firstOrNull { it.key == EmbyHomeSectionKeys.FAVOURITES }?.items?.firstOrNull()
+            ?: uiState.sections.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull()
         mutableStateOf(firstItem)
     }
 
@@ -145,53 +150,57 @@ private fun EmbyHomeContentTv(
                     Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp))
                 }
             }
-
-            if (uiState.continueWatching.isNotEmpty()) {
-                item(key = "continue_watching") {
-                    EmbyItemRowTv(
-                        title = "Continue Watching",
-                        items = uiState.continueWatching,
-                        onOpenItem = onOpenItem,
-                        onItemFocused = { previewItem = it },
-                    )
+            item(key = "media") {
+                val mediaEntries = uiState.sections.mapNotNull { section ->
+                    if (section.key == EmbyHomeSectionKeys.CONTINUE_WATCHING || section.key == EmbyHomeSectionKeys.NEXT_UP) return@mapNotNull null
+                    val action = sectionSeeAllAction(section, librariesById, onOpenFavorites, onOpenLibrary) ?: return@mapNotNull null
+                    MediaEntryTv(label = sectionMediaLabel(section, librariesById), onClick = action)
+                }
+                if (mediaEntries.isNotEmpty()) {
+                    EmbyMediaRowTv(entries = mediaEntries)
                 }
             }
-
-            if (uiState.nextUp.isNotEmpty()) {
-                item(key = "next_up") {
-                    EmbyItemRowTv(
-                        title = "Next Up",
-                        items = uiState.nextUp,
-                        onOpenItem = onOpenItem,
-                        onItemFocused = { previewItem = it },
-                    )
-                }
-            }
-
-            if (uiState.favourites.isNotEmpty()) {
-                item(key = "favourites") {
-                    EmbyItemRowTv(
-                        title = "Favourites",
-                        items = uiState.favourites,
-                        onOpenItem = onOpenItem,
-                        onItemFocused = { previewItem = it },
-                        onHeaderClick = onOpenFavorites,
-                    )
-                }
-            }
-
-            items(uiState.latestSections, key = { "library:${it.library.id}" }) { section ->
+            items(uiState.sections, key = { it.key }) { section ->
+                // Same key-to-callback mapping as EmbyHomeScreen's own EmbyHomeContent - see that
+                // composable's comment for why this stays here rather than in the ViewModel.
+                val onSeeAll = sectionSeeAllAction(section, librariesById, onOpenFavorites, onOpenLibrary)
                 EmbyItemRowTv(
-                    title = "Latest in ${section.library.name}",
+                    title = section.title,
                     items = section.items,
                     onOpenItem = onOpenItem,
+                    onSeeAll = onSeeAll,
                     onItemFocused = { previewItem = it },
-                    onHeaderClick = { onOpenLibrary(section.library.id, section.library.type.toItemType()) },
                 )
             }
         }
     }
 }
+
+private fun sectionSeeAllAction(
+    section: EmbyHomeSection,
+    librariesById: Map<String, EmbyLibraryInfo>,
+    onOpenFavorites: () -> Unit,
+    onOpenLibrary: (libraryId: String, itemType: EmbyItemType) -> Unit,
+): (() -> Unit)? = when {
+    !section.hasSeeAll -> null
+    section.key == EmbyHomeSectionKeys.FAVOURITES -> onOpenFavorites
+    section.key.startsWith("library:") -> {
+        val libraryId = section.key.removePrefix("library:")
+        librariesById[libraryId]?.let { library -> { onOpenLibrary(library.id, library.type.toItemType()) } }
+    }
+    else -> null
+}
+
+// The row's own title reads as "Latest in <library>" (see EmbyHomeViewModel) - fine for a content
+// shelf, but the Media row represents the section/library itself, not "what's newest in it", so
+// library entries use the library's own name instead. Favourites has no such mismatch.
+private fun sectionMediaLabel(section: EmbyHomeSection, librariesById: Map<String, EmbyLibraryInfo>): String {
+    if (!section.key.startsWith("library:")) return section.title
+    val libraryId = section.key.removePrefix("library:")
+    return librariesById[libraryId]?.name ?: section.title
+}
+
+private data class MediaEntryTv(val label: String, val onClick: () -> Unit)
 
 @Composable
 private fun PreviewPanel(item: EmbyItemInfo?, modifier: Modifier = Modifier) {
@@ -300,32 +309,15 @@ private fun EmbyItemRowTv(
     title: String,
     items: List<EmbyItemInfo>,
     onOpenItem: (EmbyItemInfo) -> Unit,
+    onSeeAll: (() -> Unit)?,
     onItemFocused: (EmbyItemInfo) -> Unit,
-    // Non-null only for the "Latest in X" rows - see EmbyItemRow's (phone) matching parameter doc
-    // for why the heading itself, not a separate tile, is this row's only library-jump affordance.
-    onHeaderClick: (() -> Unit)? = null,
 ) {
     Column {
-        val headerInteractionSource = remember { MutableInteractionSource() }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .let {
-                    if (onHeaderClick != null) {
-                        it.tvFocusBorder(headerInteractionSource, AppShapes.small)
-                            .clickable(interactionSource = headerInteractionSource, indication = null, onClick = onHeaderClick)
-                    } else {
-                        it
-                    }
-                }
-                .padding(horizontal = 24.dp, vertical = 4.dp),
-        ) {
-            Text(text = title, color = Palette.TextPrimary)
-            if (onHeaderClick != null) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Palette.TextMuted)
-            }
-        }
+        Text(
+            text = title,
+            color = Palette.TextPrimary,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+        )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -336,6 +328,87 @@ private fun EmbyItemRowTv(
                     onClick = { onOpenItem(item) },
                     onFocused = { focused -> if (focused) onItemFocused(item) },
                 )
+            }
+            // A poster-sized tile at the end of the row reads as part of the same shelf of
+            // content rather than a separate text button off to the side - same affordance as the
+            // "See All" text it replaces, just placed where the row itself is being browsed.
+            if (onSeeAll != null) {
+                item(key = "see_all") {
+                    SeeAllTileTv(onClick = onSeeAll)
+                }
+            }
+        }
+    }
+}
+
+// One double-wide card per section (Favourites + each library) as a quick jump-off point,
+// separate from the content shelves below it - Continue Watching/Next Up are excluded since
+// they're per-item queues, not a "section" in the same sense as a library/Favourites is.
+@Composable
+private fun EmbyMediaRowTv(entries: List<MediaEntryTv>) {
+    Column {
+        Text(
+            text = "Media",
+            color = Palette.TextPrimary,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(entries, key = { it.label }) { entry ->
+                MediaCardTv(label = entry.label, onClick = entry.onClick)
+            }
+        }
+    }
+}
+
+// Double-wide (2x a normal poster's width, same height - not a taller 2:3 card) since there's no
+// single poster image that represents a whole section - placeholder text card for now, per direct
+// feedback (on the Jellyfin equivalent this was ported from) that this becomes a styled image once
+// art is picked for each section.
+@Composable
+private fun MediaCardTv(label: String, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        scale = CardDefaults.scale(focusedScale = 1.05f),
+        modifier = Modifier.width(188.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .height(141.dp)
+                .fillMaxWidth()
+                .clip(AppShapes.small)
+                .background(Palette.Surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = label, color = Palette.TextPrimary)
+        }
+    }
+}
+
+// Placeholder look (icon + label on a plain surface) rather than real art - "See All" has no
+// natural poster image of its own, so this is a deliberate stand-in until this gets a proper
+// visual design pass, at which point it'll likely become a styled image instead. Same
+// width/scale as EmbyPosterTv so it sits in the row like any other poster.
+@Composable
+private fun SeeAllTileTv(onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        scale = CardDefaults.scale(focusedScale = 1.05f),
+        modifier = Modifier.width(94.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(2f / 3f)
+                .fillMaxWidth()
+                .clip(AppShapes.small)
+                .background(Palette.Surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Palette.Accent)
+                Text(text = "See All", color = Palette.Accent, style = MaterialTheme.typography.labelSmall)
             }
         }
     }

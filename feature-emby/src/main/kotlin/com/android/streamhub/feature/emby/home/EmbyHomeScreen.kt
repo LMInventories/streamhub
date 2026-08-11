@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -38,8 +38,11 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
+import com.android.streamhub.feature.emby.data.EmbyHomeSection
+import com.android.streamhub.feature.emby.data.EmbyHomeSectionKeys
 import com.android.streamhub.feature.emby.data.EmbyItemInfo
 import com.android.streamhub.feature.emby.data.EmbyItemType
+import com.android.streamhub.feature.emby.data.EmbyLibraryInfo
 
 // Shared across phone and TV rather than split - same reasoning as JellyfinHomeScreen: home's
 // layout (a vertical stack of horizontal rows) doesn't differ by orientation or need a D-pad-
@@ -113,6 +116,8 @@ private fun EmbyHomeContent(
     onOpenItem: (EmbyItemInfo) -> Unit,
     onOpenFavorites: () -> Unit,
 ) {
+    val librariesById = uiState.libraries.associateBy { it.id }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 12.dp),
@@ -124,64 +129,67 @@ private fun EmbyHomeContent(
             }
         }
 
-        if (uiState.continueWatching.isNotEmpty()) {
-            item(key = "continue_watching") {
-                EmbyItemRow(title = "Continue Watching", items = uiState.continueWatching, onOpenItem = onOpenItem)
+        item(key = "media") {
+            val mediaEntries = uiState.sections.mapNotNull { section ->
+                if (section.key == EmbyHomeSectionKeys.CONTINUE_WATCHING || section.key == EmbyHomeSectionKeys.NEXT_UP) return@mapNotNull null
+                val action = sectionSeeAllAction(section, librariesById, onOpenFavorites, onOpenLibrary) ?: return@mapNotNull null
+                MediaEntry(label = sectionMediaLabel(section, librariesById), onClick = action)
+            }
+            if (mediaEntries.isNotEmpty()) {
+                EmbyMediaRow(entries = mediaEntries)
             }
         }
 
-        if (uiState.nextUp.isNotEmpty()) {
-            item(key = "next_up") {
-                EmbyItemRow(title = "Next Up", items = uiState.nextUp, onOpenItem = onOpenItem)
-            }
-        }
-
-        if (uiState.favourites.isNotEmpty()) {
-            item(key = "favourites") {
-                EmbyItemRow(
-                    title = "Favourites",
-                    items = uiState.favourites,
-                    onOpenItem = onOpenItem,
-                    onHeaderClick = onOpenFavorites,
-                )
-            }
-        }
-
-        items(uiState.latestSections, key = { "library:${it.library.id}" }) { section ->
-            EmbyItemRow(
-                title = "Latest in ${section.library.name}",
-                items = section.items,
-                onOpenItem = onOpenItem,
-                onHeaderClick = { onOpenLibrary(section.library.id, section.library.type.toItemType()) },
-            )
+        items(uiState.sections, key = { it.key }) { section ->
+            // Each section only knows its own key/hasSeeAll (set once in the ViewModel, alongside
+            // every other section's, regardless of user-chosen order) - mapping a key back to the
+            // actual navigation callback stays here, since the ViewModel layer shouldn't carry
+            // UI-bound lambdas.
+            val onSeeAll = sectionSeeAllAction(section, librariesById, onOpenFavorites, onOpenLibrary)
+            EmbyItemRow(title = section.title, items = section.items, onOpenItem = onOpenItem, onSeeAll = onSeeAll)
         }
     }
 }
+
+private fun sectionSeeAllAction(
+    section: EmbyHomeSection,
+    librariesById: Map<String, EmbyLibraryInfo>,
+    onOpenFavorites: () -> Unit,
+    onOpenLibrary: (libraryId: String, itemType: EmbyItemType) -> Unit,
+): (() -> Unit)? = when {
+    !section.hasSeeAll -> null
+    section.key == EmbyHomeSectionKeys.FAVOURITES -> onOpenFavorites
+    section.key.startsWith("library:") -> {
+        val libraryId = section.key.removePrefix("library:")
+        librariesById[libraryId]?.let { library -> { onOpenLibrary(library.id, library.type.toItemType()) } }
+    }
+    else -> null
+}
+
+// The row's own title reads as "Latest in <library>" (see EmbyHomeViewModel) - fine for a content
+// shelf, but the Media row represents the section/library itself, not "what's newest in it", so
+// library entries use the library's own name instead. Favourites has no such mismatch.
+private fun sectionMediaLabel(section: EmbyHomeSection, librariesById: Map<String, EmbyLibraryInfo>): String {
+    if (!section.key.startsWith("library:")) return section.title
+    val libraryId = section.key.removePrefix("library:")
+    return librariesById[libraryId]?.name ?: section.title
+}
+
+private data class MediaEntry(val label: String, val onClick: () -> Unit)
 
 @Composable
 private fun EmbyItemRow(
     title: String,
     items: List<EmbyItemInfo>,
     onOpenItem: (EmbyItemInfo) -> Unit,
-    // Non-null only for rows backed by a real library (the "Latest in X" rows) - Continue
-    // Watching/Next Up are per-item queues with no library of their own to jump into. Tapping the
-    // heading itself is the row's only navigation affordance this pass (no separate "See All"
-    // tile - out of MVP scope), matching the plan's "tapping into a library section heading" callback.
-    onHeaderClick: (() -> Unit)? = null,
+    onSeeAll: (() -> Unit)? = null,
 ) {
     Column {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .let { if (onHeaderClick != null) it.clickable(onClick = onHeaderClick) else it }
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-        ) {
-            Text(text = title, color = Palette.TextPrimary)
-            if (onHeaderClick != null) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Palette.TextMuted)
-            }
-        }
+        Text(
+            text = title,
+            color = Palette.TextPrimary,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -189,11 +197,81 @@ private fun EmbyItemRow(
             items(items, key = { it.id }) { item ->
                 EmbyPoster(item = item, onClick = { onOpenItem(item) })
             }
+            // A poster-sized tile at the end of the row reads as part of the same shelf of
+            // content rather than a separate text button off to the side - same affordance as the
+            // "See All" text it replaces, just placed where the row itself is being browsed.
+            if (onSeeAll != null) {
+                item(key = "see_all") {
+                    SeeAllTile(onClick = onSeeAll)
+                }
+            }
         }
     }
 }
 
-/** Plain poster + caption - no badge/unwatched-count overlays (EmbyItemInfo carries no favorite/watched-count fields this pass, see the data model's own doc comment). */
+// Placeholder look (icon + label on a plain surface) rather than real art - "See All" has no
+// natural poster image of its own, so this is a deliberate stand-in until this gets a proper
+// visual design pass, at which point it'll likely become a styled image instead.
+@Composable
+private fun SeeAllTile(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(120.dp)
+            .aspectRatio(2f / 3f)
+            .clip(AppShapes.small)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Palette.Accent)
+            Text(text = "See All", color = Palette.Accent, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+// One double-wide card per section (Favourites + each library) as a quick jump-off point,
+// separate from the content shelves below it - Continue Watching/Next Up are excluded since
+// they're per-item queues, not a "section" in the same sense as a library/Favourites is.
+@Composable
+private fun EmbyMediaRow(entries: List<MediaEntry>) {
+    Column {
+        Text(
+            text = "Media",
+            color = Palette.TextPrimary,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(entries, key = { it.label }) { entry ->
+                MediaCard(label = entry.label, onClick = entry.onClick)
+            }
+        }
+    }
+}
+
+// Double-wide (2x a normal poster's width, same height - not a taller 2:3 card) since there's no
+// single poster image that represents a whole section - placeholder text card for now, per direct
+// feedback (on the Jellyfin equivalent this was ported from) that this becomes a styled image once
+// art is picked for each section.
+@Composable
+private fun MediaCard(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(240.dp)
+            .height(80.dp)
+            .clip(AppShapes.small)
+            .background(Palette.Surface)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, color = Palette.TextPrimary)
+    }
+}
+
+/** Plain poster + caption - no badge/unwatched-count overlays (EmbyItemInfo carries no unplayed-count field this pass, see the data model's own doc comment). */
 @Composable
 fun EmbyPoster(item: EmbyItemInfo, onClick: () -> Unit) {
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
