@@ -85,7 +85,7 @@ import com.android.streamhub.core.player.bitrateLabel
 import com.android.streamhub.core.player.codecLabel
 import com.android.streamhub.core.player.formatPositionMs
 import com.android.streamhub.core.player.frameRateLabel
-import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
+import com.android.streamhub.core.player.KeepScreenOnWhileOpen
 import com.android.streamhub.core.player.PLAYBACK_SPEED_OPTIONS
 import com.android.streamhub.core.player.playbackSpeedLabel
 import com.android.streamhub.core.player.resolutionLabel
@@ -116,7 +116,7 @@ fun PlayerScreenTv(
     val creditsStartMs by viewModel.creditsStartMs.collectAsStateWithLifecycle()
     val introRange by viewModel.introRange.collectAsStateWithLifecycle()
 
-    KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
+    KeepScreenOnWhileOpen()
     MatchRefreshRateWhilePlaying(enabled = matchRefreshRate, contentFrameRate = uiState.videoFrameRate)
 
     // Visible only while actually inside the analyzed intro window - see MediaSource.resolvePlaybackSegments.

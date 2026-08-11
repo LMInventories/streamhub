@@ -92,7 +92,7 @@ import com.android.streamhub.core.common.domain.PlaybackItem
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
-import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
+import com.android.streamhub.core.player.KeepScreenOnWhileOpen
 import com.android.streamhub.core.player.PLAYBACK_SPEED_OPTIONS
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.TrackOption
@@ -163,7 +163,7 @@ fun PlayerScreenPhone(
     LockLandscapeWhilePlaying()
     HideSystemBarsWhilePlaying()
     RestoreBrightnessOnDispose()
-    KeepScreenOnWhilePlaying(isPlaying = uiState.isPlaying)
+    KeepScreenOnWhileOpen()
 
     // Back closes the control overlay rather than leaving playback whenever the overlay is up -
     // mirrors PlayerScreenTv's remote Back behavior; only falls through to onBack (leaving

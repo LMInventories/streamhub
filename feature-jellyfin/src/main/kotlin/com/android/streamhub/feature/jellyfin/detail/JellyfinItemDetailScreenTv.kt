@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -317,7 +318,19 @@ private fun JellyfinItemDetailContentTv(
                 )
             }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Starts scrolled to the next episode (the current one is already excluded from
+                // this list - see seasonEpisodes' own doc) rather than always episode 1 - same fix
+                // as the phone screen's matching row, see its own comment for the season-finale
+                // fallback reasoning.
+                val initialEpisodeIndex = remember(item.id, seasonEpisodes) {
+                    seasonEpisodes.indexOfFirst { it.indexNumber != null && item.indexNumber != null && it.indexNumber > item.indexNumber }
+                        .takeIf { it >= 0 } ?: (seasonEpisodes.size - 1).coerceAtLeast(0)
+                }
+                LazyRow(
+                    state = rememberLazyListState(initialFirstVisibleItemIndex = initialEpisodeIndex),
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     items(seasonEpisodes, key = { it.id }) { episode ->
                         EpisodeThumbnailCardTv(episode = episode, onClick = { onOpenEpisode(episode.id) })
                     }

@@ -26,6 +26,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -41,7 +42,7 @@ class PlayerViewModel @Inject constructor(
     private val watchProgressRepository: WatchProgressRepository,
     private val downloadTracker: DownloadTracker,
     private val castController: PlayerCastController,
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     val uiState: StateFlow<PlayerUiState> = playerController.uiState
@@ -98,6 +99,25 @@ class PlayerViewModel @Inject constructor(
     // again, and without holding the Job each chained episode would leave its predecessor's
     // while(true) reporting loop running for the rest of the session.
     private var progressReportingJob: Job? = null
+
+    // A subtitle choice the user makes via the in-player quick menu (selectSubtitleTrack/
+    // clearSubtitles below) otherwise lives only on the live ExoPlayer instance - see
+    // reapplyExplicitSubtitleChoice's own doc for why that's not durable enough. SavedStateHandle
+    // survives an Android TV process kill (common during a long pause - see
+    // KeepScreenOnWhileOpen), so these mirror the choice there too. null means "no explicit
+    // in-player choice yet," distinct from explicitSubtitleOff == false (user picked a track).
+    private var explicitSubtitleOff: Boolean?
+        get() = savedStateHandle["explicitSubtitleOff"]
+        set(value) { savedStateHandle["explicitSubtitleOff"] = value }
+    private var explicitSubtitleLanguage: String?
+        get() = savedStateHandle["explicitSubtitleLanguage"]
+        set(value) { savedStateHandle["explicitSubtitleLanguage"] = value }
+
+    // In-memory, not saved-state: only needs to distinguish this ViewModel instance's very first
+    // loadAndPrepare call (the item this screen was navigated to, where a saved explicit choice
+    // should be reapplied) from every later one (switchChannel/playNextItem, always a genuinely
+    // different item, which must start from its own resolved default instead).
+    private var hasAppliedInitialExplicitSubtitleChoice = false
 
     /** Empty for non-live sources (MediaSource.observeRecentlyViewed() defaults to an empty Flow) - the overlay only shows this strip when currentItem.isLive anyway. */
     val recentChannels: StateFlow<List<PlaybackItem>> =
@@ -183,6 +203,17 @@ class PlayerViewModel @Inject constructor(
         }.onSuccess { item ->
             _currentItem.value = item
             playerController.prepare(item)
+            if (!hasAppliedInitialExplicitSubtitleChoice) {
+                hasAppliedInitialExplicitSubtitleChoice = true
+                reapplyExplicitSubtitleChoice()
+            } else {
+                // A genuinely different item (channel switch / next episode) - the choice above
+                // only ever applies to the item this screen was originally prepared for, so it
+                // shouldn't leak into whatever plays next; the new item gets its own resolved
+                // default, same as if this were a fresh player screen.
+                explicitSubtitleOff = null
+                explicitSubtitleLanguage = null
+            }
             if (item.isLive) {
                 mediaSource?.let { source -> viewModelScope.launch { source.recordViewed(item.id) } }
             } else {
@@ -253,9 +284,47 @@ class PlayerViewModel @Inject constructor(
 
     fun selectAudioTrack(trackId: String) = playerController.selectAudioTrack(trackId)
 
-    fun selectSubtitleTrack(trackId: String) = playerController.selectTextTrack(trackId)
+    fun selectSubtitleTrack(trackId: String) {
+        explicitSubtitleOff = false
+        explicitSubtitleLanguage = uiState.value.subtitleTracks.firstOrNull { it.id == trackId }?.language
+        playerController.selectTextTrack(trackId)
+    }
 
-    fun clearSubtitles() = playerController.clearTextTrack()
+    fun clearSubtitles() {
+        explicitSubtitleOff = true
+        explicitSubtitleLanguage = null
+        playerController.clearTextTrack()
+    }
+
+    /**
+     * Re-applies a subtitle choice the user made explicitly via the in-player quick menu, across
+     * whatever just re-ran prepare() for this same item. In the vast majority of cases that's just
+     * this ViewModel's own first prepare() reflecting a choice made moments earlier in this same
+     * session - but Android TV can kill this whole process while the screen sits paused (see
+     * KeepScreenOnWhileOpen for why that's now rarer, but not impossible - a low-memory device can
+     * still do it), which recreates PlayerViewModel/PlayerController from scratch. Without this,
+     * that recreation would silently fall back to the pre-playback resolved default (typically
+     * subtitles back on) with no record anywhere that the user had turned them off - plain
+     * in-memory PlayerController/ExoPlayer state (trackSelectionParameters) never survives that,
+     * only the SavedStateHandle-backed fields above do.
+     */
+    private fun reapplyExplicitSubtitleChoice() {
+        if (explicitSubtitleOff == true) {
+            clearSubtitles()
+            return
+        }
+        val language = explicitSubtitleLanguage ?: return
+        viewModelScope.launch {
+            // Waits for ExoPlayer's own track list to actually load - selectSubtitleTrack needs a
+            // real group:track id that doesn't exist until then. audioTracks is used as the
+            // "onTracksChanged has fired at least once" signal rather than subtitleTracks, since
+            // audio tracks are present for virtually any playable item while subtitle tracks may
+            // legitimately be empty; errorMessage is the give-up case where tracks will never load.
+            val state = uiState.first { it.audioTracks.isNotEmpty() || it.errorMessage != null }
+            val match = state.subtitleTracks.firstOrNull { language.equals(it.language, ignoreCase = true) } ?: return@launch
+            selectSubtitleTrack(match.id)
+        }
+    }
 
     fun setAspectMode(mode: VideoAspectMode) = playerController.setAspectMode(mode)
 

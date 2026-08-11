@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -345,7 +346,18 @@ private fun JellyfinItemDetailContent(
                 color = Palette.TextPrimary,
                 modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp),
             )
+            // Starts scrolled to the next episode (the current one is already excluded from this
+            // list - see seasonEpisodes' own doc) rather than always episode 1 - scrolling left
+            // still reaches earlier, already-watched episodes, right reaches later ones. Falls back
+            // to the last item (the most recent previous episode) when the current episode is the
+            // season finale, i.e. there's no "next" in this row at all - landing on 0 there would
+            // just reproduce the "always starts at the beginning" behavior this is fixing.
+            val initialEpisodeIndex = remember(item.id, seasonEpisodes) {
+                seasonEpisodes.indexOfFirst { it.indexNumber != null && item.indexNumber != null && it.indexNumber > item.indexNumber }
+                    .takeIf { it >= 0 } ?: (seasonEpisodes.size - 1).coerceAtLeast(0)
+            }
             LazyRow(
+                state = rememberLazyListState(initialFirstVisibleItemIndex = initialEpisodeIndex),
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
