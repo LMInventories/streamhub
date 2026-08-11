@@ -104,30 +104,6 @@ fun buildSettingsSections(
         ),
     ),
     SettingsSection(
-        title = "Jellyfin",
-        rows = listOf(
-            SettingsRow(label = "Source", subtitle = "Server sign-in", icon = Icons.Filled.Cloud, onClick = onJellyfinClick),
-            SettingsRow(
-                label = "Playback",
-                subtitle = "Preferred audio/subtitle language, max bitrate",
-                icon = Icons.Filled.PlayCircle,
-                onClick = onJellyfinPlaybackClick,
-            ),
-            SettingsRow(
-                label = "Libraries",
-                subtitle = "Choose which libraries show up in the app",
-                icon = Icons.Filled.VideoLibrary,
-                onClick = onJellyfinLibrariesClick,
-            ),
-            SettingsRow(
-                label = "Home screen order",
-                subtitle = "Reorder Continue Watching, Next Up, and the rest",
-                icon = Icons.Filled.Reorder,
-                onClick = onJellyfinHomeOrderClick,
-            ),
-        ),
-    ),
-    SettingsSection(
         title = "Emby",
         rows = listOf(
             SettingsRow(label = "Source", subtitle = "Server sign-in", icon = Icons.Filled.Cloud, onClick = onEmbyClick),
@@ -148,6 +124,30 @@ fun buildSettingsSections(
                 subtitle = "Reorder Continue Watching, Next Up, and the rest",
                 icon = Icons.Filled.Reorder,
                 onClick = onEmbyHomeOrderClick,
+            ),
+        ),
+    ),
+    SettingsSection(
+        title = "Jellyfin",
+        rows = listOf(
+            SettingsRow(label = "Source", subtitle = "Server sign-in", icon = Icons.Filled.Cloud, onClick = onJellyfinClick),
+            SettingsRow(
+                label = "Playback",
+                subtitle = "Preferred audio/subtitle language, max bitrate",
+                icon = Icons.Filled.PlayCircle,
+                onClick = onJellyfinPlaybackClick,
+            ),
+            SettingsRow(
+                label = "Libraries",
+                subtitle = "Choose which libraries show up in the app",
+                icon = Icons.Filled.VideoLibrary,
+                onClick = onJellyfinLibrariesClick,
+            ),
+            SettingsRow(
+                label = "Home screen order",
+                subtitle = "Reorder Continue Watching, Next Up, and the rest",
+                icon = Icons.Filled.Reorder,
+                onClick = onJellyfinHomeOrderClick,
             ),
         ),
     ),

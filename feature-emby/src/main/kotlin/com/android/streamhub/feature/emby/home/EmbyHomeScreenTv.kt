@@ -43,6 +43,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.mediaCategoryArtFor
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.emby.data.EmbyHomeSection
 import com.android.streamhub.feature.emby.data.EmbyHomeSectionKeys
@@ -382,7 +383,17 @@ private fun MediaCardTv(label: String, onClick: () -> Unit) {
                 .background(Palette.Surface),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = label, color = Palette.TextPrimary)
+            // Hardcoded hero art for this specific server's library names (see
+            // mediaCategoryArtFor's own doc) - the label is already baked into the art itself, so
+            // no text overlay when one matches. Falls back to the plain placeholder look for
+            // anything that doesn't. Same art set as JellyfinHomeScreenTv's matching MediaCardTv,
+            // since both servers use the same library names.
+            val art = mediaCategoryArtFor(label)
+            if (art != null) {
+                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Text(text = label, color = Palette.TextPrimary)
+            }
         }
     }
 }
