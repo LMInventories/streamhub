@@ -364,7 +364,7 @@ private fun JellyfinItemDetailContentTv(
 @Composable
 fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
     Column(modifier = Modifier.width(160.dp)) {
-        Card(onClick = onClick, scale = CardDefaults.scale(focusedScale = 1.05f), modifier = Modifier.fillMaxWidth()) {
+        Card(onClick = onClick, scale = CardDefaults.scale(focusedScale = 1.15f), modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(AppShapes.small)) {
                 val thumbUrl = episode.episodeThumbnailUrl ?: episode.primaryImageUrl
                 if (thumbUrl != null) {

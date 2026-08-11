@@ -365,7 +365,7 @@ private fun JellyfinMediaRowTv(entries: List<MediaEntryTv>) {
 private fun MediaCardTv(label: String, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.15f),
         modifier = Modifier.width(188.dp),
     ) {
         Box(
@@ -389,7 +389,7 @@ private fun MediaCardTv(label: String, onClick: () -> Unit) {
 private fun SeeAllTileTv(onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.15f),
         modifier = Modifier.width(94.dp),
     ) {
         Box(
@@ -410,9 +410,11 @@ private fun SeeAllTileTv(onClick: () -> Unit) {
 
 // No title beneath the poster - the preview panel above already shows the focused item's name
 // (and everything else about it), so a repeated label here would just be clutter. Width is 2/3 of
-// the original 140dp per feedback that the rows read too large; focusedScale is half of
-// CardDefaults' own default growth (1.1f) since the full-size grow-on-focus was tall enough to
-// visually cover the "Next Up" row/title sitting just above it.
+// the original 140dp per feedback that the rows read too large. focusedScale was originally half
+// of CardDefaults' own default growth (1.1f) since the full-size grow-on-focus was tall enough to
+// visually cover the "Next Up" row/title sitting just above it - bumped back up to 1.15f (above
+// even that original default) per direct feedback that the shrunk version read as barely
+// noticeable; watch for that same title-overlap issue resurfacing if this needs tuning further.
 /**
  * [badge] overlays a small pill in the poster's bottom-end corner (e.g. a season's total episode
  * count) - null renders nothing extra, the plain poster look every existing caller already
@@ -430,7 +432,7 @@ fun JellyfinPosterTv(
 ) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.15f),
         modifier = Modifier.width(94.dp).onFocusChanged { state -> onFocused(state.isFocused) },
     ) {
         Box(

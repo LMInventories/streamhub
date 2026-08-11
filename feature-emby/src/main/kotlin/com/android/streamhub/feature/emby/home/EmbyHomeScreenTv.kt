@@ -371,7 +371,7 @@ private fun EmbyMediaRowTv(entries: List<MediaEntryTv>) {
 private fun MediaCardTv(label: String, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.15f),
         modifier = Modifier.width(188.dp),
     ) {
         Box(
@@ -395,7 +395,7 @@ private fun MediaCardTv(label: String, onClick: () -> Unit) {
 private fun SeeAllTileTv(onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.15f),
         modifier = Modifier.width(94.dp),
     ) {
         Box(
@@ -421,7 +421,7 @@ private fun SeeAllTileTv(onClick: () -> Unit) {
 fun EmbyPosterTv(item: EmbyItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit = {}) {
     Card(
         onClick = onClick,
-        scale = CardDefaults.scale(focusedScale = 1.05f),
+        scale = CardDefaults.scale(focusedScale = 1.15f),
         modifier = Modifier.width(94.dp).onFocusChanged { state -> onFocused(state.isFocused) },
     ) {
         Box(

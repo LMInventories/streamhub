@@ -292,6 +292,15 @@ fun LiveTvBrowseContent(
     // itself) so it survives the branch swap that tears the category-list composable down and
     // rebuilds it.
     val categoryRowFocusRequester = remember { FocusRequester() }
+    // Favourites (LiveTvViewModel.FAVORITES_CATEGORY) is a synthetic category - a sentinel id that
+    // never appears in uiState.categories/visibleCategories, since it's not a real provider
+    // category. Restoring focus after Back-from-Favourites the same way as a real category (find
+    // the row with a matching id, attach categoryRowFocusRequester to it) can never find anything
+    // to attach to: requestFocus() throws on an unattached requester, is swallowed, and nothing
+    // claims focus - so it falls through to the nav rail's Search item, the first focusable in the
+    // whole screen tree (see TvScaffold's own doc for why Search specifically). Tracked separately
+    // so returning from Favourites lands back on the Favourites shortcut itself instead.
+    val favoritesShortcutFocusRequester = remember { FocusRequester() }
     var focusRestoreCategoryId by remember { mutableStateOf<String?>(null) }
     if (selectedCategory != null) {
         focusRestoreCategoryId = selectedCategory.id
@@ -305,8 +314,42 @@ fun LiveTvBrowseContent(
     var lastRestoredFocusCategoryId by remember { mutableStateOf<String?>(null) }
     SideEffect {
         if (selectedCategory == null && focusRestoreCategoryId != null && focusRestoreCategoryId != lastRestoredFocusCategoryId) {
-            runCatching { categoryRowFocusRequester.requestFocus() }
+            val requester = if (focusRestoreCategoryId == LiveTvViewModel.FAVORITES_CATEGORY_ID) {
+                favoritesShortcutFocusRequester
+            } else {
+                categoryRowFocusRequester
+            }
+            runCatching { requester.requestFocus() }
             lastRestoredFocusCategoryId = focusRestoreCategoryId
+        }
+    }
+    // The same "nothing to attach categoryRowFocusRequester to" gap Favourites has above, but for
+    // a real category whose row got filtered out from under it by the prefix chips (see
+    // CategoryPrefixFilterRow) while it was selected - falls back to the first currently-visible
+    // category rather than silently losing focus to the nav rail. Declared after visibleCategories
+    // is computed below (it needs that list), consumed by the items(...) loop's own attachment.
+
+    // The forward direction of the exact same problem: selecting a category tears down this whole
+    // category-row LazyColumn (the `when` branch below swaps away from it) the instant
+    // selectedCategory becomes non-null, and what replaces it first is a loading spinner with
+    // nothing focusable in it at all - EpgGridPanel (which does claim focus onto a channel row
+    // itself, see its own rowFocusRequester/focusRestoreChannelId) doesn't even mount until
+    // isLoadingChannels flips back to false. That gap is enough for TV's focus system to fall
+    // through to the nav rail's Search item before EpgGridPanel gets a chance to claim anything -
+    // perceived as "choosing a category jumps to Search, then snaps to the topmost channel" once
+    // the data finally loads and EpgGridPanel's own restore fires. The "Back to categories" button
+    // is the one thing in this branch that's present immediately regardless of loading state, so
+    // claiming it the instant a category is selected closes the gap - EpgGridPanel's own restore
+    // still takes over focus normally once channels finish loading a moment later.
+    val categoryEntryFocusRequester = remember { FocusRequester() }
+    var lastFocusedEntryCategoryId by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        val currentId = selectedCategory?.id
+        if (currentId != null && currentId != lastFocusedEntryCategoryId) {
+            runCatching { categoryEntryFocusRequester.requestFocus() }
+            lastFocusedEntryCategoryId = currentId
+        } else if (currentId == null) {
+            lastFocusedEntryCategoryId = null
         }
     }
 
@@ -332,7 +375,7 @@ fun LiveTvBrowseContent(
                         label = "Favourites",
                         icon = Icons.Filled.Star,
                         onClick = { onSelectCategory(LiveTvViewModel.FAVORITES_CATEGORY) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).focusRequester(favoritesShortcutFocusRequester),
                     )
                     PinnedShortcut(
                         label = "Recordings",
@@ -349,6 +392,12 @@ fun LiveTvBrowseContent(
                 val visibleCategories = selectedPrefix?.let { prefix ->
                     uiState.categories.filter { categoryPrefix(it.name) == prefix }
                 } ?: uiState.categories
+                // Falls back to the first visible category when the row Back should restore to
+                // isn't in this (possibly prefix-filtered) list at all - see the comment above
+                // where focusRestoreCategoryId is declared.
+                val resolvedCategoryRestoreTarget = focusRestoreCategoryId
+                    ?.takeIf { id -> visibleCategories.any { it.id == id } }
+                    ?: visibleCategories.firstOrNull()?.id
                 // weight(1f) is load-bearing here, not decorative - see the comment on the
                 // caller's modifier param above.
                 LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -358,7 +407,7 @@ fun LiveTvBrowseContent(
                             headlineContent = { Text(category.name) },
                             modifier = Modifier
                                 .tvFocusBorder(interactionSource)
-                                .let { if (category.id == focusRestoreCategoryId) it.focusRequester(categoryRowFocusRequester) else it }
+                                .let { if (category.id == resolvedCategoryRestoreTarget) it.focusRequester(categoryRowFocusRequester) else it }
                                 .clickable(interactionSource = interactionSource, indication = LocalIndication.current) { onSelectCategory(category) },
                         )
                     }
@@ -369,7 +418,10 @@ fun LiveTvBrowseContent(
                 ListItem(
                     headlineContent = { Text(selectedCategory.name) },
                     leadingContent = {
-                        IconButton(onClick = onBackToCategories) {
+                        IconButton(
+                            onClick = onBackToCategories,
+                            modifier = Modifier.focusRequester(categoryEntryFocusRequester),
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to categories")
                         }
                     },
