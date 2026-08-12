@@ -32,4 +32,6 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.foundation)
+    // animateFloatAsState for TvSettingsFocusIndicator's focus-bar fade.
+    implementation(libs.androidx.compose.animation)
 }

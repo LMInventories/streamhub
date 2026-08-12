@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +33,7 @@ import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsToggleRow
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import com.android.streamhub.feature.iptv.data.ChannelSortOrder
 
 private val SORT_OPTIONS = listOf(ChannelSortOrder.PLAYLIST to "Playlist order", ChannelSortOrder.ALPHABETICAL to "A-Z")
@@ -105,6 +107,7 @@ fun IptvPlaybackSettingsScreenTv(
     viewModel: IptvPlaybackSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val firstRowFocusRequester = rememberTvSettingsInitialFocus()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Live TV playback", onBack = onDone)
@@ -114,6 +117,7 @@ fun IptvPlaybackSettingsScreenTv(
                     label = "Resume last channel",
                     subtitle = "Automatically preview whatever was on when you left",
                     checked = uiState.resumeLastChannel,
+                    modifier = Modifier.focusRequester(firstRowFocusRequester),
                     onToggle = { viewModel.setResumeLastChannel(!uiState.resumeLastChannel) },
                 )
             }

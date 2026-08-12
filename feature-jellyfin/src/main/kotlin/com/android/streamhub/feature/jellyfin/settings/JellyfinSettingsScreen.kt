@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
@@ -47,6 +48,7 @@ import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTextField
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.Icon as TvIcon
 import androidx.tv.material3.IconButton as TvIconButton
@@ -202,6 +204,7 @@ fun JellyfinSettingsScreenTv(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val clipboardManager = LocalClipboardManager.current
+    val firstFieldFocusRequester = rememberTvSettingsInitialFocus()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Jellyfin server", onBack = onDone)
@@ -216,6 +219,7 @@ fun JellyfinSettingsScreenTv(
                         label = "Server URL (e.g. http://host:8096)",
                         keyboardType = KeyboardType.Uri,
                         enabled = !uiState.isSigningIn,
+                        modifier = Modifier.focusRequester(firstFieldFocusRequester),
                     )
                     TvSettingsTextField(
                         value = uiState.username,

@@ -29,6 +29,7 @@ import com.android.streamhub.core.design.ThemeMode
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import com.android.streamhub.feature.iptv.data.PreviewPlayerSize
 import androidx.tv.material3.Text as TvText
 
@@ -129,6 +130,7 @@ fun AppUiSettingsScreenTv(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val previewPlayerSize by viewModel.previewPlayerSize.collectAsStateWithLifecycle()
+    val firstOptionFocusRequester = rememberTvSettingsInitialFocus()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Appearance", onBack = onDone)
@@ -139,6 +141,7 @@ fun AppUiSettingsScreenTv(
                     selectedIndex = THEME_OPTIONS.indexOfFirst { it.first == uiState.themeMode }.coerceAtLeast(0),
                     onSelect = { index -> viewModel.setThemeMode(THEME_OPTIONS[index].first) },
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    firstOptionFocusRequester = firstOptionFocusRequester,
                 )
             }
 

@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -46,6 +47,7 @@ import com.android.streamhub.core.ui.tv.scaffold.TvChoiceChip
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTextField
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.Text as TvText
 
@@ -285,6 +287,7 @@ fun IptvSettingsScreenTv(
     viewModel: IptvSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val firstChipFocusRequester = rememberTvSettingsInitialFocus()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "IPTV source", onBack = onDone)
@@ -299,6 +302,7 @@ fun IptvSettingsScreenTv(
                     TvChoiceChip(
                         label = "Xtream Codes",
                         selected = uiState.providerType == IptvProviderType.XTREAM,
+                        modifier = Modifier.focusRequester(firstChipFocusRequester),
                         onClick = { viewModel.selectProviderType(IptvProviderType.XTREAM) },
                     )
                     TvChoiceChip(

@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -22,22 +24,37 @@ import androidx.compose.ui.unit.dp
  * own comment on why core-design stays theme-library-agnostic.
  */
 @Composable
-fun PillToggle(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun PillToggle(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    // Optional - lets a TV settings screen whose first control is a PillToggle (rather than a
+    // TvSettingsRow/TvChoiceChip) attach the same kind of initial-focus requester those use. Left
+    // null everywhere else (VOD/Favourites toggles, phone), so this has zero effect on any
+    // existing call site that doesn't pass it.
+    firstOptionFocusRequester: FocusRequester? = null,
+) {
     Row(modifier = modifier.background(Palette.Surface, AppShapes.pill).padding(4.dp)) {
         options.forEachIndexed { index, label ->
-            PillToggleOption(label = label, selected = index == selectedIndex, onClick = { onSelect(index) })
+            PillToggleOption(
+                label = label,
+                selected = index == selectedIndex,
+                modifier = if (index == 0 && firstOptionFocusRequester != null) Modifier.focusRequester(firstOptionFocusRequester) else Modifier,
+                onClick = { onSelect(index) },
+            )
         }
     }
 }
 
 @Composable
-private fun PillToggleOption(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun PillToggleOption(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     // This had no D-pad focus indicator at all before tvFocusBorder was added here - only the
     // already-selected option was ever visually distinguishable, so arrowing onto a *different*,
     // not-yet-selected option showed nothing telling you the cursor had actually moved there.
     val interactionSource = remember { MutableInteractionSource() }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(AppShapes.pill)
             .background(if (selected) Palette.Accent else Color.Transparent)
             .tvFocusBorder(interactionSource, AppShapes.pill)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +34,7 @@ import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsToggleRow
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import androidx.tv.material3.Text as TvText
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,6 +99,9 @@ fun EmbyLibraryVisibilityScreenTv(
     viewModel: EmbyLibraryVisibilityViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // readyKey = isLoading so this re-fires once the list actually has something to focus - a
+    // plain one-shot Unit key would fire before the list exists and silently no-op forever.
+    val firstRowFocusRequester = rememberTvSettingsInitialFocus(readyKey = uiState.isLoading)
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Libraries", onBack = onDone)
@@ -110,10 +116,11 @@ fun EmbyLibraryVisibilityScreenTv(
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-            items(uiState.libraries, key = { it.id }) { library ->
+            itemsIndexed(uiState.libraries, key = { _, library -> library.id }) { index, library ->
                 TvSettingsToggleRow(
                     label = library.name,
                     checked = library.id !in uiState.hiddenLibraryIds,
+                    modifier = if (index == 0) Modifier.focusRequester(firstRowFocusRequester) else Modifier,
                     onToggle = { viewModel.toggleVisible(library.id) },
                 )
                 TvSettingsRowDivider()

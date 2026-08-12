@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import androidx.tv.material3.Icon as TvIcon
 import androidx.tv.material3.IconButton as TvIconButton
 import androidx.tv.material3.Text as TvText
@@ -155,6 +158,11 @@ fun ScheduledManagementScreenTv(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val use24Hour = rememberUse24HourTime()
+    // readyKey covers both "still loading" and "empty -> has items" so this re-fires whenever a
+    // focusable row actually appears, rather than firing once before either list exists.
+    val firstRowFocusRequester = rememberTvSettingsInitialFocus(
+        readyKey = uiState.isLoading to (uiState.reminders.isEmpty() && uiState.recordings.isEmpty()),
+    )
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Scheduled", onBack = onBack)
@@ -176,14 +184,27 @@ fun ScheduledManagementScreenTv(
             else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
                 if (uiState.reminders.isNotEmpty()) {
                     item { TvSectionHeader("Reminders") }
-                    items(uiState.reminders, key = { "reminder:${it.id}" }) { reminder ->
-                        TvReminderRow(reminder, use24Hour, onCancel = { viewModel.cancelReminder(reminder) })
+                    itemsIndexed(uiState.reminders, key = { _, r -> "reminder:${r.id}" }) { index, reminder ->
+                        TvReminderRow(
+                            reminder,
+                            use24Hour,
+                            modifier = if (index == 0) Modifier.focusRequester(firstRowFocusRequester) else Modifier,
+                            onCancel = { viewModel.cancelReminder(reminder) },
+                        )
                     }
                 }
                 if (uiState.recordings.isNotEmpty()) {
                     item { TvSectionHeader("Scheduled Recordings") }
-                    items(uiState.recordings, key = { "recording:${it.id}" }) { recording ->
-                        TvRecordingRow(recording, use24Hour, onCancel = { viewModel.cancelRecording(recording) })
+                    // Only the overall-first focusable row gets the requester - if reminders
+                    // rendered above, recording[0] isn't first on screen, reminder[0] already is.
+                    itemsIndexed(uiState.recordings, key = { _, r -> "recording:${r.id}" }) { index, recording ->
+                        val isFirstOverall = index == 0 && uiState.reminders.isEmpty()
+                        TvRecordingRow(
+                            recording,
+                            use24Hour,
+                            modifier = if (isFirstOverall) Modifier.focusRequester(firstRowFocusRequester) else Modifier,
+                            onCancel = { viewModel.cancelRecording(recording) },
+                        )
                     }
                 }
             }
@@ -197,25 +218,27 @@ private fun TvSectionHeader(title: String) {
 }
 
 @Composable
-private fun TvReminderRow(reminder: ScheduledReminderEntity, use24Hour: Boolean, onCancel: () -> Unit) {
+private fun TvReminderRow(reminder: ScheduledReminderEntity, use24Hour: Boolean, modifier: Modifier = Modifier, onCancel: () -> Unit) {
     TvScheduledRow(
         title = reminder.programTitle,
         subtitle = "${reminder.channelName} · ${formattedTime(reminder.programStartEpochSeconds, use24Hour)} · ${reminder.leadMinutes}m before",
+        modifier = modifier,
         onCancel = onCancel,
     )
 }
 
 @Composable
-private fun TvRecordingRow(recording: ScheduledRecordingEntity, use24Hour: Boolean, onCancel: () -> Unit) {
+private fun TvRecordingRow(recording: ScheduledRecordingEntity, use24Hour: Boolean, modifier: Modifier = Modifier, onCancel: () -> Unit) {
     TvScheduledRow(
         title = recording.programTitle,
         subtitle = "${recording.channelName} · ${formattedTime(recording.recordStartEpochSeconds, use24Hour)}",
+        modifier = modifier,
         onCancel = onCancel,
     )
 }
 
 @Composable
-private fun TvScheduledRow(title: String, subtitle: String, onCancel: () -> Unit) {
+private fun TvScheduledRow(title: String, subtitle: String, modifier: Modifier = Modifier, onCancel: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
@@ -224,6 +247,8 @@ private fun TvScheduledRow(title: String, subtitle: String, onCancel: () -> Unit
             TvText(text = title, color = Palette.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             TvText(text = subtitle, color = Palette.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        TvIconButton(onClick = onCancel) { TvIcon(Icons.Filled.Close, contentDescription = "Cancel", tint = Palette.Error) }
+        // The requester lands on the Cancel button, not the Row - the Row itself has no
+        // clickable/focusable modifier at all here, only this button is a real D-pad stop.
+        TvIconButton(onClick = onCancel, modifier = modifier) { TvIcon(Icons.Filled.Close, contentDescription = "Cancel", tint = Palette.Error) }
     }
 }

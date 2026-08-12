@@ -46,6 +46,7 @@ import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRow
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -182,6 +183,7 @@ fun EmbyPlaybackSettingsScreenTv(
     viewModel: EmbyPlaybackSettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val firstRowFocusRequester = rememberTvSettingsInitialFocus()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Playback", onBack = onDone)
@@ -192,6 +194,7 @@ fun EmbyPlaybackSettingsScreenTv(
                     options = LANGUAGE_OPTIONS,
                     selected = uiState.preferredAudioLanguage,
                     onSelect = viewModel::setPreferredAudioLanguage,
+                    modifier = Modifier.focusRequester(firstRowFocusRequester),
                 )
                 TvSettingsRowDivider()
                 TvSettingsPickerRow(
@@ -217,11 +220,17 @@ fun EmbyPlaybackSettingsScreenTv(
 }
 
 @Composable
-private fun <T> TvSettingsPickerRow(label: String, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+private fun <T> TvSettingsPickerRow(
+    label: String,
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: options.first().second
 
-    TvSettingsRow(label = label, subtitle = selectedLabel, onClick = { expanded = true })
+    TvSettingsRow(label = label, subtitle = selectedLabel, modifier = modifier, onClick = { expanded = true })
 
     if (expanded) {
         Dialog(onDismissRequest = { expanded = false }) {

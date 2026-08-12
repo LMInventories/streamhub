@@ -1,13 +1,19 @@
 package com.android.streamhub.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -18,14 +24,18 @@ import androidx.tv.material3.Text
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRow
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
+import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSectionTab
+
+private val SECTION_LIST_WIDTH = 260.dp
 
 /**
- * Same section/row data as phone (buildSettingsSections) so the two form factors' settings can
- * never drift on what actually exists - only the layout differs. Rendered as a vertical grouped
- * list (TvSettingsSection/TvSettingsRow), matching phone's own SettingsScreen visual structure,
- * rather than the horizontally-scrolling card shelf this screen used before - list-shaped content
- * read as an awkward fit for a card-shelf idiom that works better for genuinely grid-shaped
- * content (Home's dashboard, poster rows).
+ * Master-detail layout: a left-hand list of section names (App, Live TV & VOD, Emby, Jellyfin,
+ * ...) and a right-hand pane showing only the selected section's rows. Replaces the previous
+ * single long scrolling column of stacked section cards - on a TV, reaching e.g. "Jellyfin" meant
+ * scrolling past every other section first, which is more effortful with a D-pad than a thumb.
+ * This mirrors how Android TV's own system Settings and tvOS Settings are structured. Same
+ * section/row data as phone (buildSettingsSections) so the two form factors can never drift on
+ * what actually exists - only the layout differs.
  */
 @Composable
 fun SettingsScreenTv(
@@ -47,12 +57,6 @@ fun SettingsScreenTv(
     val updateSubtitle = rememberUpdateCheckSubtitle(settingsViewModel)
     val onCheckForUpdateClick = rememberUpdateRowClick(settingsViewModel)
 
-    // Without this, entering Settings leaves the framework to pick a default focus target and it
-    // lands on the nav rail, not the page - so the first thing highlighted isn't a setting at all.
-    // runCatching guards the row not being attached yet, same as every other requestFocus here.
-    val firstRowFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { firstRowFocusRequester.requestFocus() } }
-
     val sections = buildSettingsSections(
         onIptvClick = onIptvClick,
         onEmbyClick = onEmbyClick,
@@ -71,28 +75,75 @@ fun SettingsScreenTv(
         onCheckForUpdateClick = onCheckForUpdateClick,
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 32.dp, vertical = 24.dp),
-    ) {
+    var selectedSectionIndex by remember {
+        mutableIntStateOf(settingsViewModel.lastFocusedSectionIndex.coerceIn(sections.indices))
+    }
+
+    // Requesters keyed by section title / row label (stable strings) rather than derived from
+    // `sections` itself - buildSettingsSections returns fresh onClick lambdas every recomposition,
+    // so keying `remember` off that list would reallocate a new FocusRequester every frame. The
+    // section/row shape is fixed for this screen's lifetime, so a one-time `remember` is safe.
+    val sectionTabFocusRequesters = remember { sections.map { FocusRequester() } }
+    val rowFocusRequesters = remember {
+        sections.associate { section -> section.title to section.rows.associate { it.label to FocusRequester() } }
+    }
+
+    // Restores focus to wherever the user drilled in from (see SettingsViewModel.setLastFocused)
+    // instead of always resetting to the very top - falls back to the first section tab on a
+    // genuinely fresh entry, when nothing has been focused here yet.
+    LaunchedEffect(Unit) {
+        val targetRequester = settingsViewModel.lastFocusedRowLabel
+            ?.let { label -> rowFocusRequesters[sections.getOrNull(selectedSectionIndex)?.title]?.get(label) }
+            ?: sectionTabFocusRequesters.getOrNull(selectedSectionIndex)
+        runCatching { targetRequester?.requestFocus() }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
         Text(text = "Settings", style = MaterialTheme.typography.headlineMedium)
 
-        Column(modifier = Modifier.padding(top = 24.dp)) {
-            sections.forEachIndexed { sectionIndex, section ->
-                TvSettingsSection(title = section.title) {
-                    section.rows.forEachIndexed { index, row ->
-                        val isFirstRowOnScreen = sectionIndex == 0 && index == 0
-                        TvSettingsRow(
-                            label = row.label,
-                            subtitle = row.subtitle,
-                            icon = row.icon,
-                            enabled = row.enabled,
-                            modifier = if (isFirstRowOnScreen) Modifier.focusRequester(firstRowFocusRequester) else Modifier,
-                            onClick = row.onClick,
-                        )
-                        if (index != section.rows.lastIndex) TvSettingsRowDivider()
+        Row(modifier = Modifier.fillMaxSize().padding(top = 24.dp)) {
+            Column(
+                modifier = Modifier
+                    .width(SECTION_LIST_WIDTH)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                sections.forEachIndexed { index, section ->
+                    TvSettingsSectionTab(
+                        title = section.title,
+                        selected = index == selectedSectionIndex,
+                        modifier = Modifier.focusRequester(sectionTabFocusRequesters[index]),
+                        onClick = { selectedSectionIndex = index },
+                    )
+                }
+            }
+
+            val selectedSection = sections.getOrNull(selectedSectionIndex)
+            if (selectedSection != null) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(start = 32.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    TvSettingsSection(title = selectedSection.title) {
+                        selectedSection.rows.forEachIndexed { index, row ->
+                            TvSettingsRow(
+                                label = row.label,
+                                subtitle = row.subtitle,
+                                icon = row.icon,
+                                enabled = row.enabled,
+                                modifier = Modifier.focusRequester(
+                                    rowFocusRequesters.getValue(selectedSection.title).getValue(row.label),
+                                ),
+                                onClick = {
+                                    settingsViewModel.setLastFocused(selectedSectionIndex, row.label)
+                                    row.onClick()
+                                },
+                            )
+                            if (index != selectedSection.rows.lastIndex) TvSettingsRowDivider()
+                        }
                     }
                 }
             }

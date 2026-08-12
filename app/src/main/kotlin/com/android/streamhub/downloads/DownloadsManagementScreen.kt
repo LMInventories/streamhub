@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,6 +51,7 @@ import com.android.streamhub.core.player.download.DownloadState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsTopBar
+import com.android.streamhub.core.ui.tv.scaffold.rememberTvSettingsInitialFocus
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.tv.material3.Icon as TvIcon
 import androidx.tv.material3.IconButton as TvIconButton
@@ -211,6 +214,10 @@ fun DownloadsManagementScreenTv(
     viewModel: DownloadsManagementViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // readyKey = isEmpty so this re-fires once the list actually has something to focus - a plain
+    // one-shot Unit key would fire before the list exists (or stay stuck focusing nothing if the
+    // list was empty on first entry and later gains a download) and silently no-op.
+    val firstRowFocusRequester = rememberTvSettingsInitialFocus(readyKey = uiState.downloads.isEmpty())
 
     Column(modifier = Modifier.fillMaxSize()) {
         TvSettingsTopBar(title = "Downloads", onBack = onBack)
@@ -233,9 +240,10 @@ fun DownloadsManagementScreenTv(
                 modifier = Modifier.padding(32.dp, 8.dp),
             )
             LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
-                items(uiState.downloads, key = { it.id }) { download ->
+                itemsIndexed(uiState.downloads, key = { _, download -> download.id }) { index, download ->
                     TvDownloadRow(
                         download = download,
+                        modifier = if (index == 0) Modifier.focusRequester(firstRowFocusRequester) else Modifier,
                         onPause = { viewModel.pause(download.id) },
                         onResume = { viewModel.resume(download.id) },
                         onRemove = { viewModel.remove(download.id) },
@@ -256,12 +264,13 @@ private fun TvDownloadRow(
     onRemove: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val isPlayable = download.state == DownloadState.COMPLETED
     val interactionSource = remember { MutableInteractionSource() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .tvFocusBorder(interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, enabled = isPlayable, onClick = onOpen)

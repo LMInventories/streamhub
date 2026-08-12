@@ -36,6 +36,22 @@ class SettingsViewModel @Inject constructor(
     private val _downloadState = MutableStateFlow<UpdateDownloadState>(UpdateDownloadState.Idle)
     val downloadState: StateFlow<UpdateDownloadState> = _downloadState
 
+    // TV Settings hub focus memory - this ViewModel is scoped to the hub's own NavBackStackEntry,
+    // which stays alive (only the composable leaves composition) while a sub-screen it opened
+    // sits on top of it, so these survive a drill-in/back round trip. Read once on re-entry to
+    // restore D-pad focus near whatever was last visited instead of always resetting to the top
+    // of the section/row list - plain vars rather than StateFlow since nothing needs to react to
+    // them changing, they're only ever read at screen-entry time.
+    var lastFocusedSectionIndex: Int = 0
+        private set
+    var lastFocusedRowLabel: String? = null
+        private set
+
+    fun setLastFocused(sectionIndex: Int, rowLabel: String) {
+        lastFocusedSectionIndex = sectionIndex
+        lastFocusedRowLabel = rowLabel
+    }
+
     fun canInstallPackages(): Boolean = appUpdateInstaller.canInstallPackages()
 
     fun requestInstallPermissionIntent(): Intent = appUpdateInstaller.requestInstallPermissionIntent()
