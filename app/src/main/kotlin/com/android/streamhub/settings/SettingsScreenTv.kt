@@ -112,6 +112,19 @@ fun SettingsScreenTv(
     // "is focus anywhere in this subtree" signal.
     var detailPaneFocused by remember { mutableStateOf(false) }
 
+    // requestFocus() is deferred to a LaunchedEffect rather than called directly inside the raw
+    // key handler below - every other requestFocus() call in this app fires from a LaunchedEffect
+    // on the composition's own frame; calling it synchronously from inside onPreviewKeyEvent's own
+    // callback stack (itself several frames removed from normal recomposition) was a real
+    // deviation from that pattern worth not depending on, given the row-vs-section-tab ladder was
+    // still reported broken after two prior fix attempts.
+    var pendingSectionTabFocusRequest by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pendingSectionTabFocusRequest) {
+        if (pendingSectionTabFocusRequest > 0) {
+            runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
+        }
+    }
+
     // Raw key interception (same mechanism LiveTvScreenTv's long-press-Back handling already
     // relies on) rather than androidx.activity.compose.BackHandler - a BackHandler-based version
     // of this exact "row vs section-tab" ladder was tried first and reported still exiting the app
@@ -127,7 +140,7 @@ fun SettingsScreenTv(
             .onPreviewKeyEvent { event ->
                 if (event.key != Key.Back || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                 if (detailPaneFocused) {
-                    runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
+                    pendingSectionTabFocusRequest++
                 } else {
                     onBackFromTopLevel()
                 }

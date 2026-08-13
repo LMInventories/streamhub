@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -170,10 +171,25 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
     var railFocused by remember { mutableStateOf(false) }
     var showExitConfirmation by remember { mutableStateOf(false) }
     val railFocusRequester = remember { FocusRequester() }
+
+    // requestFocus() is called from a LaunchedEffect, not directly inside handleTabBack, even
+    // though handleTabBack already runs inside a Composable - handleTabBack itself is invoked
+    // synchronously from a raw onPreviewKeyEvent callback several call-frames down (Settings'
+    // own key interceptor calling this as onBackFromTopLevel), which is a meaningfully different
+    // call context than every other requestFocus() in this app, all of which fire from a
+    // LaunchedEffect on the composition's own frame. Deferring this one the same way removes any
+    // doubt about calling into the focus system from that raw-key-callback stack.
+    var pendingRailFocusRequest by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pendingRailFocusRequest) {
+        if (pendingRailFocusRequest > 0) {
+            runCatching { railFocusRequester.requestFocus() }
+        }
+    }
+
     val handleTabBack: () -> Unit = {
         when {
             tabBackHistory.isNotEmpty() -> goBackToPreviousTab()
-            !railFocused -> runCatching { railFocusRequester.requestFocus() }
+            !railFocused -> pendingRailFocusRequest++
             else -> showExitConfirmation = true
         }
     }
