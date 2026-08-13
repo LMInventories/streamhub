@@ -15,8 +15,8 @@ android {
         applicationId = "com.android.streamhub"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "0.4.26"
+        versionCode = 31
+        versionName = "0.4.27"
     }
 
     signingConfigs {
