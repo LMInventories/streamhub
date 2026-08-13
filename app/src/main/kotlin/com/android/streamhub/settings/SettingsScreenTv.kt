@@ -1,6 +1,6 @@
 package com.android.streamhub.settings
 
-import androidx.compose.foundation.focusGroup
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -13,13 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -58,10 +56,11 @@ fun SettingsScreenTv(
     onIptvPlaybackClick: () -> Unit,
     onScheduledManagementClick: () -> Unit,
     onDownloadsManagementClick: () -> Unit,
-    // Called when Back should escalate past this screen entirely (i.e. a section tab, not a row
-    // in the detail pane, is focused) - maps to TvNavHost's shared tab-level Back ladder (previous
-    // tab / open nav rail / exit confirmation).
-    onBackFromTopLevel: () -> Unit,
+    // Back anywhere in this screen (a row, or a section tab - no distinction) always jumps D-pad
+    // focus straight to the nav rail, full stop. Simplified down from an earlier "row -> section
+    // tab -> rail" ladder that kept reportedly failing specifically for the section-tab case -
+    // this is the direct, no-nuance behavior instead: one action, no branching on what's focused.
+    onRequestRailFocus: () -> Unit,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val updateSubtitle = rememberUpdateCheckSubtitle(settingsViewModel)
@@ -108,42 +107,23 @@ fun SettingsScreenTv(
         runCatching { targetRequester?.requestFocus() }
     }
 
-    // Tracked the same focusGroup()+onFocusChanged idiom TvScaffold's nav rail uses for its own
-    // "is focus anywhere in this subtree" signal.
-    var detailPaneFocused by remember { mutableStateOf(false) }
+    // Both a raw key interceptor AND a BackHandler, redundantly, doing the exact same thing -
+    // three earlier attempts (two BackHandler variants, then a raw-key-only variant) were each
+    // individually well-supported by how Android's input pipeline is documented to work, and each
+    // still reportedly failed to catch Back with a section tab focused. Since I can't reproduce or
+    // instrument this without the actual device, mounting both mechanisms means whichever one
+    // Android actually routes the physical Back press through on this hardware, something catches
+    // it - if the raw key path consumes the event first (the normal case), BackHandler's
+    // dispatcher-based fallback never even fires, so there's no double-handling risk either way.
+    BackHandler { onRequestRailFocus() }
 
-    // requestFocus() is deferred to a LaunchedEffect rather than called directly inside the raw
-    // key handler below - every other requestFocus() call in this app fires from a LaunchedEffect
-    // on the composition's own frame; calling it synchronously from inside onPreviewKeyEvent's own
-    // callback stack (itself several frames removed from normal recomposition) was a real
-    // deviation from that pattern worth not depending on, given the row-vs-section-tab ladder was
-    // still reported broken after two prior fix attempts.
-    var pendingSectionTabFocusRequest by remember { mutableIntStateOf(0) }
-    LaunchedEffect(pendingSectionTabFocusRequest) {
-        if (pendingSectionTabFocusRequest > 0) {
-            runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
-        }
-    }
-
-    // Raw key interception (same mechanism LiveTvScreenTv's long-press-Back handling already
-    // relies on) rather than androidx.activity.compose.BackHandler - a BackHandler-based version
-    // of this exact "row vs section-tab" ladder was tried first and reported still exiting the app
-    // with a section tab focused, which pointed at BackHandler's cross-composable dispatch-priority
-    // behavior being less predictable here than assumed. onPreviewKeyEvent instead gives this
-    // Column first, deterministic refusal of every Key.Back press for anything focused inside it -
-    // no dependency on OnBackPressedDispatcher's registration order at all. Only KeyUp acts (KeyDown
-    // is left unconsumed), matching this app's other raw Back handling.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 32.dp, vertical = 24.dp)
             .onPreviewKeyEvent { event ->
                 if (event.key != Key.Back || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
-                if (detailPaneFocused) {
-                    pendingSectionTabFocusRequest++
-                } else {
-                    onBackFromTopLevel()
-                }
+                onRequestRailFocus()
                 true
             },
     ) {
@@ -171,8 +151,6 @@ fun SettingsScreenTv(
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(start = 32.dp)
-                        .focusGroup()
-                        .onFocusChanged { detailPaneFocused = it.hasFocus }
                         .verticalScroll(rememberScrollState()),
                 ) {
                     TvSettingsSection(title = selectedSection.title) {
