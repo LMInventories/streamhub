@@ -21,6 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -448,12 +453,13 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
 
 /**
  * The true last step of the Back ladder - only reached once there's no previous tab to return to
- * and the nav rail is already focused. No custom BackHandler needed here: Dialog's own default
- * DialogProperties(dismissOnBackPress = true) already treats Back as Cancel, and since a Dialog
- * runs in its own Window, it naturally intercepts Back before TvNavHost's own handleTabBack ever
- * sees it again - no ordering/registration concerns to reason about. Initial D-pad focus lands on
- * Cancel, not Exit, the same "don't default onto the destructive option" reasoning as every other
- * confirmation-style choice in this app.
+ * and the nav rail is already focused. Dismiss-on-Back is handled by an explicit raw key
+ * interceptor on the dialog's own content, not Dialog's default DialogProperties(dismissOnBackPress
+ * = true) - that default relies on the same OnBackPressedDispatcher-based mechanism that turned
+ * out to be unreliable for Settings' own Back ladder (see SettingsScreenTv's matching comment), so
+ * this dialog gets the same guaranteed-deterministic treatment rather than trusting it works here
+ * either. Initial D-pad focus lands on Cancel, not Exit, the same "don't default onto the
+ * destructive option" reasoning as every other confirmation-style choice in this app.
  */
 @Composable
 private fun ExitConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -466,7 +472,12 @@ private fun ExitConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit)
                 .width(360.dp)
                 .clip(AppShapes.large)
                 .background(Palette.Surface)
-                .padding(24.dp),
+                .padding(24.dp)
+                .onPreviewKeyEvent { event ->
+                    if (event.key != Key.Back || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                    onDismiss()
+                    true
+                },
         ) {
             Text(text = "Exit StreamHub?", color = Palette.TextPrimary, style = MaterialTheme.typography.titleLarge)
             Row(

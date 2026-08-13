@@ -1,7 +1,11 @@
 package com.android.streamhub.feature.iptv.vod
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,9 +24,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -31,6 +37,7 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.mediaCategoryArtFor
+import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.feature.iptv.data.VodMovieInfo
 import com.android.streamhub.feature.iptv.data.VodShowInfo
 
@@ -165,13 +172,18 @@ private fun VodHeroRow(entries: List<VodHeroEntry>) {
 // fire for these two fixed labels.
 @Composable
 private fun VodHeroTile(label: String, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val scale by animateFloatAsState(if (isFocused) VOD_FOCUSED_SCALE else 1f, label = "vodHeroTileFocusScale")
     Box(
         modifier = Modifier
             .width(240.dp)
             .height(80.dp)
+            .scale(scale)
             .clip(AppShapes.small)
             .background(Palette.Surface)
-            .clickable(onClick = onClick),
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         val art = mediaCategoryArtFor(label)

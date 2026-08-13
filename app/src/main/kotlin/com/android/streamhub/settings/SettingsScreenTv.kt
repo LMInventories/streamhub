@@ -1,6 +1,5 @@
 package com.android.streamhub.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRow
@@ -108,21 +112,28 @@ fun SettingsScreenTv(
     // "is focus anywhere in this subtree" signal.
     var detailPaneFocused by remember { mutableStateOf(false) }
 
-    // A single, always-enabled BackHandler owning both steps for this screen, rather than two
-    // separately-registered BackHandlers (one here, one in TvNavHost) whose relative priority
-    // would depend on Compose's back-dispatcher registration order - a subtle, easy-to-get-wrong
-    // assumption that turned out to be exactly the kind of thing worth not depending on. Back with
-    // a row focused moves focus to the section-tab list; Back with a section tab already focused
-    // escalates to the shared tab-level ladder instead (previous tab / open nav rail / exit).
-    BackHandler {
-        if (detailPaneFocused) {
-            runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
-        } else {
-            onBackFromTopLevel()
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
+    // Raw key interception (same mechanism LiveTvScreenTv's long-press-Back handling already
+    // relies on) rather than androidx.activity.compose.BackHandler - a BackHandler-based version
+    // of this exact "row vs section-tab" ladder was tried first and reported still exiting the app
+    // with a section tab focused, which pointed at BackHandler's cross-composable dispatch-priority
+    // behavior being less predictable here than assumed. onPreviewKeyEvent instead gives this
+    // Column first, deterministic refusal of every Key.Back press for anything focused inside it -
+    // no dependency on OnBackPressedDispatcher's registration order at all. Only KeyUp acts (KeyDown
+    // is left unconsumed), matching this app's other raw Back handling.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp, vertical = 24.dp)
+            .onPreviewKeyEvent { event ->
+                if (event.key != Key.Back || event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                if (detailPaneFocused) {
+                    runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
+                } else {
+                    onBackFromTopLevel()
+                }
+                true
+            },
+    ) {
         Row(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier

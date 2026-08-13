@@ -1,9 +1,11 @@
 package com.android.streamhub.feature.iptv.vod
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
@@ -42,12 +45,22 @@ import com.android.streamhub.core.design.tvFocusBorder
  * was just one screen), pulled out once VodLibraryScreen.kt (the poster grid) and VodScreenPhone/
  * Tv's new home rows both needed Poster, and Kotlin file-private can't cross files.
  */
+
+// Same focused-grow amount as Jellyfin/Emby's poster Cards (CardDefaults.scale(focusedScale =
+// 1.15f)) - VOD's Poster/hero tiles aren't tv-material3 Cards, so this reproduces that same 15%
+// grow-on-focus by hand via Modifier.scale() driven off the row's own interactionSource, rather
+// than introducing a mismatched, quieter focus feel just for VOD.
+internal const val VOD_FOCUSED_SCALE = 1.15f
+
 @Composable
 internal fun Poster(name: String, posterUrl: String?, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val scale by animateFloatAsState(if (isFocused) VOD_FOCUSED_SCALE else 1f, label = "vodPosterFocusScale")
     Column(
         modifier = modifier
             .padding(4.dp)
+            .scale(scale)
             .tvFocusBorder(interactionSource, AppShapes.small)
             .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
     ) {
