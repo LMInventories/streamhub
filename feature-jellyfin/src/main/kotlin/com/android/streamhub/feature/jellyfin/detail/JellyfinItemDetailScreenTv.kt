@@ -314,7 +314,7 @@ private fun JellyfinItemDetailContentTv(
                 Text(
                     text = "More from Season ${item.parentIndexNumber ?: ""}".trimEnd(),
                     color = Palette.TextPrimary,
-                    modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp),
+                    modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 12.dp),
                 )
             }
             item {
@@ -329,7 +329,9 @@ private fun JellyfinItemDetailContentTv(
                 LazyRow(
                     state = rememberLazyListState(initialFirstVisibleItemIndex = initialEpisodeIndex),
                     contentPadding = PaddingValues(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    // 20dp (was 12dp) - EpisodeThumbnailCardTv grows 15% on focus without
+                    // affecting layout size, so this needs slack for that growth.
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     items(seasonEpisodes, key = { it.id }) { episode ->
                         EpisodeThumbnailCardTv(episode = episode, onClick = { onOpenEpisode(episode.id) })

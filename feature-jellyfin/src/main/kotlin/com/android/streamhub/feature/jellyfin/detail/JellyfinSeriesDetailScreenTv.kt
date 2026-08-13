@@ -175,10 +175,12 @@ private fun JellyfinSeriesDetailContentTv(
 
         if (seasons.size > 1) {
             item {
-                Text(text = "Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
+                Text(text = "Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 12.dp))
             }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 20dp (was 12dp) - JellyfinPosterTv below grows 15% on focus without affecting
+                // layout size, so this needs slack to keep that growth clear of its neighbors.
+                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     item(key = "all_seasons") {
                         AllSeasonsTileTv(selected = selectedSeason == null, onClick = { selectedSeason = null })
                     }
@@ -212,11 +214,13 @@ private fun JellyfinSeriesDetailContentTv(
             val episodes = episodesBySeasonNumber[season].orEmpty()
             if (selectedSeason == null) {
                 item(key = "season_$season") {
-                    Text(text = "Season $season", color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(24.dp, 12.dp, 24.dp, 4.dp))
+                    Text(text = "Season $season", color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(24.dp, 12.dp, 24.dp, 8.dp))
                 }
             }
             item(key = "season_${season}_episodes") {
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 20dp (was 12dp) - EpisodeThumbnailCardTv below grows 15% on focus, see the
+                // Seasons row's matching comment above.
+                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     items(episodes, key = { it.id }) { episode ->
                         EpisodeThumbnailCardTv(episode = episode, onClick = { onOpenEpisode(episode.id) })
                     }
@@ -226,10 +230,12 @@ private fun JellyfinSeriesDetailContentTv(
 
         if (similarShows.isNotEmpty()) {
             item {
-                Text(text = "More Like This", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
+                Text(text = "More Like This", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 12.dp))
             }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 20dp (was 12dp) - JellyfinPosterTv below grows 15% on focus, see the Seasons
+                // row's matching comment above.
+                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     items(similarShows, key = { it.id }) { show ->
                         JellyfinPosterTv(item = show, onClick = { onOpenSeries(show.id) })
                     }

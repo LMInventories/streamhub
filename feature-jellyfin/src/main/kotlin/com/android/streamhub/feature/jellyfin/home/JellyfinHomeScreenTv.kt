@@ -122,7 +122,10 @@ private fun JellyfinHomeContentTv(
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            // 32dp (was 24dp) - a focused poster/card grows 15% on focus (a visual scale, not a
+            // layout-size change), so this gutter needs enough slack to keep that growth clear of
+            // the row above/below, not just the pre-scale card height.
+            verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             uiState.errorMessage?.let { error ->
                 item(key = "error") {
@@ -312,11 +315,11 @@ private fun JellyfinItemRowTv(
         Text(
             text = title,
             color = Palette.TextPrimary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(items, key = { it.id }) { item ->
                 JellyfinPosterTv(
@@ -346,11 +349,11 @@ private fun JellyfinMediaRowTv(entries: List<MediaEntryTv>) {
         Text(
             text = "Media",
             color = Palette.TextPrimary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(entries, key = { it.label }) { entry ->
                 MediaCardTv(label = entry.label, onClick = entry.onClick)

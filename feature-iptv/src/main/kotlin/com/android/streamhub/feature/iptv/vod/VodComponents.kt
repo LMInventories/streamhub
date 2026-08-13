@@ -59,7 +59,10 @@ internal fun Poster(name: String, posterUrl: String?, modifier: Modifier = Modif
     val scale by animateFloatAsState(if (isFocused) VOD_FOCUSED_SCALE else 1f, label = "vodPosterFocusScale")
     Column(
         modifier = modifier
-            .padding(4.dp)
+            // 10dp (was 4dp) - the 15% grow-on-focus scale below doesn't affect layout size, so
+            // this padding is what actually keeps a focused poster from visually overlapping its
+            // neighbors; 10dp on each side gives ~20dp of clearance between adjacent posters.
+            .padding(10.dp)
             .scale(scale)
             .tvFocusBorder(interactionSource, AppShapes.small)
             .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
@@ -118,7 +121,9 @@ internal fun GridDensityButton(gridColumns: Int, onSelect: (Int) -> Unit) {
 internal fun SeeAllTile(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .padding(4.dp)
+            // Matches Poster's own 10dp - SeeAllTile doesn't scale itself, but it always sits
+            // right after a Poster that does, so it needs the same clearance on its leading edge.
+            .padding(10.dp)
             .width(120.dp)
             .aspectRatio(2f / 3f)
             .clip(AppShapes.small)

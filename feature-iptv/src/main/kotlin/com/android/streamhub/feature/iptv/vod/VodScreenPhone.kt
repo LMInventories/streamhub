@@ -106,7 +106,10 @@ fun VodHomeContent(
                 CircularProgressIndicator()
             }
 
-            else -> LazyColumn(contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            // 32dp (was 20dp) between rows - a focused poster/hero tile grows 15% on focus without
+            // affecting layout size, so this gap needs enough slack to keep that growth clear of
+            // the row above/below rather than just the pre-scale poster height.
+            else -> LazyColumn(contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
                 item(key = "hero") {
                     VodHeroRow(
                         entries = listOf(
@@ -153,11 +156,11 @@ private fun VodHeroRow(entries: List<VodHeroEntry>) {
         Text(
             text = "Browse",
             color = Palette.TextPrimary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(entries, key = { it.label }) { entry ->
                 VodHeroTile(label = entry.label, onClick = entry.onClick)
@@ -208,9 +211,9 @@ private fun VodItemRow(
         Text(
             text = title,
             color = Palette.TextPrimary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         )
-        // No horizontalArrangement spacing here - Poster already carries its own 4dp padding on
+        // No horizontalArrangement spacing here - Poster already carries its own 10dp padding on
         // every side, so an additional row-level gap would double up between items.
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp)) {
             items(movies, key = { it.id }) { movie ->

@@ -144,7 +144,9 @@ private fun EmbyHomeContentTv(
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            // 32dp (was 24dp) - see JellyfinHomeScreenTv's matching comment: a focused card's 15%
+            // scale doesn't affect layout size, so this gutter needs slack for that growth.
+            verticalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             uiState.errorMessage?.let { error ->
                 item(key = "error") {
@@ -317,11 +319,11 @@ private fun EmbyItemRowTv(
         Text(
             text = title,
             color = Palette.TextPrimary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(items, key = { it.id }) { item ->
                 EmbyPosterTv(
@@ -351,11 +353,11 @@ private fun EmbyMediaRowTv(entries: List<MediaEntryTv>) {
         Text(
             text = "Media",
             color = Palette.TextPrimary,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(entries, key = { it.label }) { entry ->
                 MediaCardTv(label = entry.label, onClick = entry.onClick)
