@@ -54,6 +54,10 @@ fun SettingsScreenTv(
     onIptvPlaybackClick: () -> Unit,
     onScheduledManagementClick: () -> Unit,
     onDownloadsManagementClick: () -> Unit,
+    // Called when Back should escalate past this screen entirely (i.e. a section tab, not a row
+    // in the detail pane, is focused) - maps to TvNavHost's shared tab-level Back ladder (previous
+    // tab / open nav rail / exit confirmation).
+    onBackFromTopLevel: () -> Unit,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val updateSubtitle = rememberUpdateCheckSubtitle(settingsViewModel)
@@ -100,14 +104,22 @@ fun SettingsScreenTv(
         runCatching { targetRequester?.requestFocus() }
     }
 
-    // Back here means "leave the row-detail pane and land back on the section-tab list" - only
-    // relevant while focus is actually in the detail pane, so it doesn't shadow the tab-level
-    // back ladder (previous tab / open nav rail / exit confirmation) once focus is already on a
-    // section tab. Tracked the same focusGroup()+onFocusChanged idiom TvScaffold's nav rail uses
-    // for its own "is focus anywhere in this subtree" signal.
+    // Tracked the same focusGroup()+onFocusChanged idiom TvScaffold's nav rail uses for its own
+    // "is focus anywhere in this subtree" signal.
     var detailPaneFocused by remember { mutableStateOf(false) }
-    BackHandler(enabled = detailPaneFocused) {
-        runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
+
+    // A single, always-enabled BackHandler owning both steps for this screen, rather than two
+    // separately-registered BackHandlers (one here, one in TvNavHost) whose relative priority
+    // would depend on Compose's back-dispatcher registration order - a subtle, easy-to-get-wrong
+    // assumption that turned out to be exactly the kind of thing worth not depending on. Back with
+    // a row focused moves focus to the section-tab list; Back with a section tab already focused
+    // escalates to the shared tab-level ladder instead (previous tab / open nav rail / exit).
+    BackHandler {
+        if (detailPaneFocused) {
+            runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
+        } else {
+            onBackFromTopLevel()
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {

@@ -377,7 +377,10 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.SETTINGS_PATTERN) {
-                BackHandler(onBack = handleTabBack)
+                // No standalone BackHandler here - SettingsScreenTv owns Back entirely for this
+                // route (detail-pane-to-section-tabs internally, escalating to onBackFromTopLevel
+                // otherwise) via a single handler, rather than a second independently-registered
+                // one here whose priority relative to that inner one isn't worth depending on.
                 SettingsScreenTv(
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onEmbyClick = { navController.navigate(Route.EMBY_SETTINGS_PATTERN) },
@@ -392,6 +395,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     onIptvPlaybackClick = { navController.navigate(Route.IPTV_PLAYBACK_SETTINGS_PATTERN) },
                     onScheduledManagementClick = { navController.navigate(Route.SCHEDULED_MANAGEMENT_PATTERN) },
                     onDownloadsManagementClick = { navController.navigate(Route.DOWNLOADS_MANAGEMENT_PATTERN) },
+                    onBackFromTopLevel = handleTabBack,
                 )
             }
             composable(Route.IPTV_SETTINGS_PATTERN) {
