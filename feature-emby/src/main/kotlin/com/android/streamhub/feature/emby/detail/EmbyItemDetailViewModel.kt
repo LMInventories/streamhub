@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadTracker
+import com.android.streamhub.core.tmdb.PersonLookupState
+import com.android.streamhub.core.tmdb.TmdbRepository
 import com.android.streamhub.feature.emby.data.EmbyAppSettingsRepository
 import com.android.streamhub.feature.emby.data.EmbyAudioChoice
 import com.android.streamhub.feature.emby.data.EmbyBrowseRepository
@@ -54,6 +56,7 @@ class EmbyItemDetailViewModel @Inject constructor(
     private val downloadTracker: DownloadTracker,
     private val appSettingsRepository: EmbyAppSettingsRepository,
     private val playbackPreferenceStore: EmbyPlaybackPreferenceStore,
+    private val tmdbRepository: TmdbRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -65,6 +68,9 @@ class EmbyItemDetailViewModel @Inject constructor(
     val downloadInfo: StateFlow<DownloadInfo?> = downloadTracker.downloads
         .map { downloads -> downloads.firstOrNull { it.id == itemId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _personLookupState = MutableStateFlow<PersonLookupState>(PersonLookupState.Idle)
+    val personLookupState: StateFlow<PersonLookupState> = _personLookupState
 
     init {
         viewModelScope.launch {
@@ -193,4 +199,17 @@ class EmbyItemDetailViewModel @Inject constructor(
     fun pauseDownload() = downloadTracker.pauseDownload(itemId)
     fun resumeDownload() = downloadTracker.resumeDownload(itemId)
     fun removeDownload() = downloadTracker.removeDownload(itemId)
+
+    /** See JellyfinItemDetailViewModel.onPersonClick's matching doc - identical shape, both sources share TmdbRepository unchanged. */
+    fun onPersonClick(name: String) {
+        _personLookupState.value = PersonLookupState.Loading
+        viewModelScope.launch {
+            val person = tmdbRepository.findPerson(name)
+            _personLookupState.value = person?.let { PersonLookupState.Found(it.id) } ?: PersonLookupState.NotFound
+        }
+    }
+
+    fun consumePersonLookup() {
+        _personLookupState.value = PersonLookupState.Idle
+    }
 }

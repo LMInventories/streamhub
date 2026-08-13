@@ -3,6 +3,8 @@ package com.android.streamhub.feature.jellyfin.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.android.streamhub.core.tmdb.PersonLookupState
+import com.android.streamhub.core.tmdb.TmdbRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +37,7 @@ private data class LoadedSeries(
 @HiltViewModel
 class JellyfinSeriesDetailViewModel @Inject constructor(
     private val browseRepository: JellyfinBrowseRepository,
+    private val tmdbRepository: TmdbRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -42,6 +45,9 @@ class JellyfinSeriesDetailViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(JellyfinSeriesDetailUiState())
     val uiState: StateFlow<JellyfinSeriesDetailUiState> = _uiState
+
+    private val _personLookupState = MutableStateFlow<PersonLookupState>(PersonLookupState.Idle)
+    val personLookupState: StateFlow<PersonLookupState> = _personLookupState
 
     init {
         viewModelScope.launch {
@@ -83,5 +89,18 @@ class JellyfinSeriesDetailViewModel @Inject constructor(
             val confirmed = browseRepository.toggleFavorite(series.id, series.isFavorite)
             _uiState.update { it.copy(series = it.series?.copy(isFavorite = confirmed ?: series.isFavorite)) }
         }
+    }
+
+    /** See JellyfinItemDetailViewModel.onPersonClick's matching doc - identical shape. */
+    fun onPersonClick(name: String) {
+        _personLookupState.value = PersonLookupState.Loading
+        viewModelScope.launch {
+            val person = tmdbRepository.findPerson(name)
+            _personLookupState.value = person?.let { PersonLookupState.Found(it.id) } ?: PersonLookupState.NotFound
+        }
+    }
+
+    fun consumePersonLookup() {
+        _personLookupState.value = PersonLookupState.Idle
     }
 }

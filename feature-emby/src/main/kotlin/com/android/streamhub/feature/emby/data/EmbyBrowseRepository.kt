@@ -450,7 +450,14 @@ class EmbyBrowseRepository @Inject constructor(
             playedPercentage = userData?.playedPercentage,
             resumePositionTicks = userData?.playbackPositionTicks ?: 0L,
             cast = people.filter { it.type == "Actor" }.map { person ->
-                EmbyCastMember(id = person.id.orEmpty(), name = person.name.orEmpty(), role = person.role)
+                EmbyCastMember(
+                    id = person.id.orEmpty(),
+                    name = person.name.orEmpty(),
+                    role = person.role,
+                    imageUrl = person.primaryImageTag?.let { tag ->
+                        imageUrl(config, person.id.orEmpty(), "Primary", tag)
+                    },
+                )
             },
             childCount = childCount,
             subtitleTracks = subtitleTracks,

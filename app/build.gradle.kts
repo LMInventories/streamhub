@@ -68,6 +68,7 @@ dependencies {
     implementation(project(":core-ui-phone"))
     implementation(project(":core-ui-tv"))
     implementation(project(":feature-player-screen"))
+    implementation(project(":feature-person"))
     implementation(project(":feature-iptv"))
     implementation(project(":feature-jellyfin"))
     implementation(project(":feature-emby"))

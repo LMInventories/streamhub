@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,9 +49,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.home.JellyfinPoster
@@ -61,9 +64,17 @@ fun JellyfinSeriesDetailScreen(
     onBack: () -> Unit,
     onOpenEpisode: (itemId: String) -> Unit,
     onOpenSeries: (seriesId: String) -> Unit,
+    onOpenPerson: (tmdbPersonId: Int, sourceType: SourceType) -> Unit,
     viewModel: JellyfinSeriesDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val personLookupState by viewModel.personLookupState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(personLookupState) {
+        val found = personLookupState as? PersonLookupState.Found ?: return@LaunchedEffect
+        onOpenPerson(found.tmdbPersonId, SourceType.JELLYFIN)
+        viewModel.consumePersonLookup()
+    }
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -109,6 +120,7 @@ fun JellyfinSeriesDetailScreen(
                             nextUpEpisode = uiState.nextUpEpisode,
                             onOpenEpisode = onOpenEpisode,
                             onOpenSeries = onOpenSeries,
+                            onPersonClick = viewModel::onPersonClick,
                         )
                     }
                 }
@@ -126,6 +138,7 @@ private fun JellyfinSeriesDetailContent(
     nextUpEpisode: JellyfinItemInfo?,
     onOpenEpisode: (String) -> Unit,
     onOpenSeries: (String) -> Unit,
+    onPersonClick: (String) -> Unit,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
@@ -231,7 +244,7 @@ private fun JellyfinSeriesDetailContent(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(series.cast, key = { it.id }) { member -> CastMemberCard(member) }
+                    items(series.cast, key = { it.id }) { member -> CastMemberCard(member, onClick = onPersonClick) }
                 }
             }
         }

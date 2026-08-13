@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,9 +41,11 @@ import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.home.JellyfinPosterTv
 
@@ -52,9 +55,17 @@ fun JellyfinSeriesDetailScreenTv(
     onBack: () -> Unit,
     onOpenEpisode: (itemId: String) -> Unit,
     onOpenSeries: (seriesId: String) -> Unit,
+    onOpenPerson: (tmdbPersonId: Int, sourceType: SourceType) -> Unit,
     viewModel: JellyfinSeriesDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val personLookupState by viewModel.personLookupState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(personLookupState) {
+        val found = personLookupState as? PersonLookupState.Found ?: return@LaunchedEffect
+        onOpenPerson(found.tmdbPersonId, SourceType.JELLYFIN)
+        viewModel.consumePersonLookup()
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -101,6 +112,7 @@ fun JellyfinSeriesDetailScreenTv(
                     similarShows = uiState.similarShows,
                     onOpenEpisode = onOpenEpisode,
                     onOpenSeries = onOpenSeries,
+                    onPersonClick = viewModel::onPersonClick,
                 )
             }
         }
@@ -115,6 +127,7 @@ private fun JellyfinSeriesDetailContentTv(
     similarShows: List<JellyfinItemInfo>,
     onOpenEpisode: (String) -> Unit,
     onOpenSeries: (String) -> Unit,
+    onPersonClick: (String) -> Unit,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
@@ -201,7 +214,7 @@ private fun JellyfinSeriesDetailContentTv(
                 Text(text = "Cast & Crew", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                TvCastRow(cast = series.cast)
+                TvCastRow(cast = series.cast, onPersonClick = onPersonClick)
             }
         }
 

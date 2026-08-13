@@ -67,9 +67,11 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadState
+import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.emby.data.EmbyAudioTrackInfo
 import com.android.streamhub.feature.emby.data.EmbyCastMember
@@ -94,10 +96,18 @@ fun EmbyItemDetailScreen(
     itemId: String,
     onPlay: (itemId: String) -> Unit,
     onBack: () -> Unit,
+    onOpenPerson: (tmdbPersonId: Int, sourceType: SourceType) -> Unit,
     viewModel: EmbyItemDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadInfo by viewModel.downloadInfo.collectAsStateWithLifecycle()
+    val personLookupState by viewModel.personLookupState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(personLookupState) {
+        val found = personLookupState as? PersonLookupState.Found ?: return@LaunchedEffect
+        onOpenPerson(found.tmdbPersonId, SourceType.EMBY)
+        viewModel.consumePersonLookup()
+    }
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -157,6 +167,7 @@ fun EmbyItemDetailScreen(
                             selectedVersionId = uiState.selectedVersionId,
                             onSelectVideoVersion = viewModel::selectVideoVersion,
                             onPlay = { onPlay(itemId) },
+                            onPersonClick = viewModel::onPersonClick,
                             onStartDownload = viewModel::startDownload,
                             onPauseDownload = viewModel::pauseDownload,
                             onResumeDownload = viewModel::resumeDownload,
@@ -181,6 +192,7 @@ private fun EmbyItemDetailContent(
     selectedVersionId: String?,
     onSelectVideoVersion: (String) -> Unit,
     onPlay: () -> Unit,
+    onPersonClick: (String) -> Unit,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
     onResumeDownload: () -> Unit,
@@ -296,7 +308,7 @@ private fun EmbyItemDetailContent(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(item.cast, key = { it.id }) { member -> EmbyCastMemberCard(member) }
+                items(item.cast, key = { it.id }) { member -> EmbyCastMemberCard(member, onClick = onPersonClick) }
             }
         }
 
@@ -558,11 +570,17 @@ private fun DownloadButton(
     }
 }
 
-/** Cast card with name/role text only - EmbyCastMember has no image URL field (unlike JellyfinCastMember), so this always shows the same plain placeholder box no AsyncImage branch would ever pick. Public - reused as-is by EmbySeriesDetailScreen (same package). */
+/** Cast card, photo when EmbyCastMember.imageUrl resolved (see EmbyPersonDto.primaryImageTag's own UNVERIFIED-field doc), else the same placeholder box as before that field existed. Public - reused as-is by EmbySeriesDetailScreen (same package). */
 @Composable
-fun EmbyCastMemberCard(member: EmbyCastMember) {
-    Column(modifier = Modifier.width(90.dp)) {
-        Box(modifier = Modifier.size(90.dp).clip(AppShapes.small).background(Palette.Surface))
+fun EmbyCastMemberCard(member: EmbyCastMember, onClick: (String) -> Unit = {}) {
+    Column(modifier = Modifier.width(90.dp).clickable { onClick(member.name) }) {
+        Box(modifier = Modifier.size(90.dp).clip(AppShapes.small)) {
+            if (member.imageUrl != null) {
+                AsyncImage(model = member.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+            }
+        }
         Text(text = member.name, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Palette.TextPrimary, modifier = Modifier.padding(top = 4.dp))
         member.role?.let { role ->
             Text(text = role, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Palette.TextMuted)

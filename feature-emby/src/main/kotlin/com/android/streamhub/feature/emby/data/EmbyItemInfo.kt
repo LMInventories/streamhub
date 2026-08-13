@@ -22,6 +22,7 @@ data class EmbyCastMember(
     val id: String,
     val name: String,
     val role: String?,
+    val imageUrl: String?,
 )
 
 /**

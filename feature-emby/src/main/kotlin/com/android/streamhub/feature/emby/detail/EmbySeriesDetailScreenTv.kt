@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,9 +41,11 @@ import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.feature.emby.data.EmbyItemInfo
 
 /** TV-native sibling of EmbySeriesDetailScreen - same EmbySeriesDetailViewModel, tv-material3 components + tvFocusBorder on the custom (non-Card) rows. Reuses EmbyCastRowTv from EmbyItemDetailScreenTv (same package). */
@@ -51,9 +54,17 @@ fun EmbySeriesDetailScreenTv(
     seriesId: String,
     onPlayEpisode: (episodeId: String) -> Unit,
     onBack: () -> Unit,
+    onOpenPerson: (tmdbPersonId: Int, sourceType: SourceType) -> Unit,
     viewModel: EmbySeriesDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val personLookupState by viewModel.personLookupState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(personLookupState) {
+        val found = personLookupState as? PersonLookupState.Found ?: return@LaunchedEffect
+        onOpenPerson(found.tmdbPersonId, SourceType.EMBY)
+        viewModel.consumePersonLookup()
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -90,6 +101,7 @@ fun EmbySeriesDetailScreenTv(
                     episodesBySeasonNumber = uiState.episodesBySeasonNumber,
                     nextUpEpisode = uiState.nextUpEpisode,
                     onPlayEpisode = onPlayEpisode,
+                    onPersonClick = viewModel::onPersonClick,
                 )
             }
         }
@@ -103,6 +115,7 @@ private fun EmbySeriesDetailContentTv(
     episodesBySeasonNumber: Map<Int, List<EmbyItemInfo>>,
     nextUpEpisode: EmbyItemInfo?,
     onPlayEpisode: (String) -> Unit,
+    onPersonClick: (String) -> Unit,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
@@ -168,7 +181,7 @@ private fun EmbySeriesDetailContentTv(
                 Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                EmbyCastRowTv(cast = series.cast)
+                EmbyCastRowTv(cast = series.cast, onPersonClick = onPersonClick)
             }
         }
 

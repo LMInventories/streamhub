@@ -44,6 +44,12 @@ data class EmbyPersonDto(
     // "Actor" / "Director" / "GuestStar" / etc - Emby's own PersonKind-equivalent string, mirrors
     // Jellyfin's BaseItemPerson.type.
     @SerialName("Type") val type: String? = null,
+    // UNVERIFIED against a live Emby server, same caveat as EmbyMediaStreamDto/EmbyTrickplayTileDto
+    // above - Emby People share BaseItem lineage with Jellyfin's BaseItemPerson, which does carry
+    // this field, so this is a plausible-but-unconfirmed guess. Degrades gracefully: if absent,
+    // this stays null and EmbyCastMember.imageUrl stays null too, falling back to the existing
+    // placeholder box exactly as before this field existed.
+    @SerialName("PrimaryImageTag") val primaryImageTag: String? = null,
 )
 
 @Serializable

@@ -63,6 +63,11 @@ sealed class Route {
 
     data class Player(val itemId: String, val sourceType: SourceType) : Route()
 
+    // sourceType records which library (Jellyfin/Emby) the cast member was tapped from, so
+    // feature-person's ViewModel can pick the right LibraryTitleFinder implementation and the
+    // NavHost can resolve a matched filmography item to the right item/series detail route.
+    data class PersonDetail(val tmdbPersonId: Int, val sourceType: SourceType) : Route()
+
     companion object {
         const val SEARCH_PATTERN = "search"
         const val LIVE_TV_PATTERN = "live_tv"
@@ -97,9 +102,13 @@ sealed class Route {
         const val SCHEDULED_MANAGEMENT_PATTERN = "scheduled_management"
         const val DOWNLOADS_MANAGEMENT_PATTERN = "downloads_management"
         const val PLAYER_PATTERN = "player/{sourceType}/{itemId}"
+        const val PERSON_DETAIL_PATTERN = "person_detail/{sourceType}/{tmdbPersonId}"
 
         fun playerRoute(itemId: String, sourceType: SourceType): String =
             "player/${sourceType.name}/$itemId"
+
+        fun personDetailRoute(tmdbPersonId: Int, sourceType: SourceType): String =
+            "person_detail/${sourceType.name}/$tmdbPersonId"
 
         // itemId can be "vod:<id>" or "episode:<seriesId>:<episodeId>" - colons are safe as a
         // raw path segment (only "/" is a route separator), so no encoding needed, same as the

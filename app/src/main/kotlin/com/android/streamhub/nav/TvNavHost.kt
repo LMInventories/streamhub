@@ -79,6 +79,7 @@ import com.android.streamhub.feature.jellyfin.settings.JellyfinHomeSectionOrderS
 import com.android.streamhub.feature.jellyfin.settings.JellyfinLibraryVisibilityScreenTv
 import com.android.streamhub.feature.jellyfin.settings.JellyfinPlaybackSettingsScreenTv
 import com.android.streamhub.feature.jellyfin.settings.JellyfinSettingsScreenTv
+import com.android.streamhub.feature.person.detail.PersonDetailScreenTv
 import com.android.streamhub.feature.player.PlayerScreenTv
 import com.android.streamhub.search.SearchScreen
 import com.android.streamhub.settings.AppUiSettingsScreenTv
@@ -312,6 +313,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     itemId = itemId,
                     onBack = { navController.popBackStack() },
                     onPlay = { id -> navController.navigate(Route.playerRoute(id, SourceType.EMBY)) },
+                    onOpenPerson = { tmdbPersonId, sourceType -> navController.navigate(Route.personDetailRoute(tmdbPersonId, sourceType)) },
                 )
             }
             composable(
@@ -323,6 +325,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     seriesId = seriesId,
                     onPlayEpisode = { episodeId -> navController.navigate(Route.playerRoute(episodeId, SourceType.EMBY)) },
                     onBack = { navController.popBackStack() },
+                    onOpenPerson = { tmdbPersonId, sourceType -> navController.navigate(Route.personDetailRoute(tmdbPersonId, sourceType)) },
                 )
             }
             composable(Route.EMBY_SETTINGS_PATTERN) {
@@ -385,6 +388,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     onPlay = { navController.navigate(Route.playerRoute(itemId, SourceType.JELLYFIN)) },
                     onOpenSeries = { seriesId -> navController.navigate(Route.jellyfinSeriesDetailRoute(seriesId)) },
                     onOpenEpisode = { episodeId -> navController.navigate(Route.jellyfinItemDetailRoute(episodeId)) },
+                    onOpenPerson = { tmdbPersonId, sourceType -> navController.navigate(Route.personDetailRoute(tmdbPersonId, sourceType)) },
                 )
             }
             composable(
@@ -395,6 +399,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                     onBack = { navController.popBackStack() },
                     onOpenEpisode = { itemId -> navController.navigate(Route.jellyfinItemDetailRoute(itemId)) },
                     onOpenSeries = { seriesId -> navController.navigate(Route.jellyfinSeriesDetailRoute(seriesId)) },
+                    onOpenPerson = { tmdbPersonId, sourceType -> navController.navigate(Route.personDetailRoute(tmdbPersonId, sourceType)) },
                 )
             }
             composable(Route.SETTINGS_PATTERN) {
@@ -466,6 +471,27 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 val appUiSettingsViewModel: AppUiSettingsViewModel = hiltViewModel()
                 val appUiState by appUiSettingsViewModel.uiState.collectAsStateWithLifecycle()
                 PlayerScreenTv(onBack = { navController.popBackStack() }, matchRefreshRate = appUiState.matchRefreshRate)
+            }
+            composable(
+                route = Route.PERSON_DETAIL_PATTERN,
+                arguments = listOf(
+                    navArgument("sourceType") { type = NavType.StringType },
+                    navArgument("tmdbPersonId") { type = NavType.IntType },
+                ),
+            ) { backStackEntry ->
+                val sourceType = SourceType.valueOf(checkNotNull(backStackEntry.arguments?.getString("sourceType")))
+                PersonDetailScreenTv(
+                    onBack = { navController.popBackStack() },
+                    onOpenLibraryItem = { itemId, isSeries ->
+                        // Unreachable else branch - PersonDetail is only ever navigated to from a Jellyfin/Emby cast row.
+                        val route = when (sourceType) {
+                            SourceType.JELLYFIN -> if (isSeries) Route.jellyfinSeriesDetailRoute(itemId) else Route.jellyfinItemDetailRoute(itemId)
+                            SourceType.EMBY -> if (isSeries) Route.embySeriesDetailRoute(itemId) else Route.embyItemDetailRoute(itemId)
+                            else -> null
+                        }
+                        route?.let { navController.navigate(it) }
+                    },
+                )
             }
         }
     }

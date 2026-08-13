@@ -72,9 +72,11 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.SignalBar
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.player.download.DownloadInfo
 import com.android.streamhub.core.player.download.DownloadState
+import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.jellyfin.data.JellyfinAudioTrackInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
@@ -90,10 +92,18 @@ fun JellyfinItemDetailScreen(
     onPlay: () -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenEpisode: (String) -> Unit,
+    onOpenPerson: (tmdbPersonId: Int, sourceType: SourceType) -> Unit,
     viewModel: JellyfinItemDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val downloadInfo by viewModel.downloadInfo.collectAsStateWithLifecycle()
+    val personLookupState by viewModel.personLookupState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(personLookupState) {
+        val found = personLookupState as? PersonLookupState.Found ?: return@LaunchedEffect
+        onOpenPerson(found.tmdbPersonId, SourceType.JELLYFIN)
+        viewModel.consumePersonLookup()
+    }
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -157,6 +167,7 @@ fun JellyfinItemDetailScreen(
                             onPlay = onPlay,
                             onOpenSeries = onOpenSeries,
                             onOpenEpisode = onOpenEpisode,
+                            onPersonClick = viewModel::onPersonClick,
                             onStartDownload = viewModel::startDownload,
                             onPauseDownload = viewModel::pauseDownload,
                             onResumeDownload = viewModel::resumeDownload,
@@ -184,6 +195,7 @@ private fun JellyfinItemDetailContent(
     onPlay: () -> Unit,
     onOpenSeries: (String) -> Unit,
     onOpenEpisode: (String) -> Unit,
+    onPersonClick: (String) -> Unit,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
     onResumeDownload: () -> Unit,
@@ -378,7 +390,7 @@ private fun JellyfinItemDetailContent(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(castAndCrew, key = { it.id }) { member -> CastMemberCard(member) }
+                items(castAndCrew, key = { it.id }) { member -> CastMemberCard(member, onClick = onPersonClick) }
             }
         }
 
@@ -388,7 +400,7 @@ private fun JellyfinItemDetailContent(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(item.guestStars, key = { it.id }) { member -> CastMemberCard(member) }
+                items(item.guestStars, key = { it.id }) { member -> CastMemberCard(member, onClick = onPersonClick) }
             }
         }
 
@@ -718,8 +730,8 @@ fun ExternalLinksRow(links: List<Pair<String, String>>, modifier: Modifier = Mod
 }
 
 @Composable
-fun CastMemberCard(member: JellyfinCastMember) {
-    Column(modifier = Modifier.width(90.dp)) {
+fun CastMemberCard(member: JellyfinCastMember, onClick: (String) -> Unit = {}) {
+    Column(modifier = Modifier.width(90.dp).clickable { onClick(member.name) }) {
         Box(modifier = Modifier.size(90.dp).clip(AppShapes.small)) {
             if (member.imageUrl != null) {
                 AsyncImage(

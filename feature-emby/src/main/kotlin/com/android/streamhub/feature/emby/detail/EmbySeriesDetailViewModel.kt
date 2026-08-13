@@ -3,6 +3,8 @@ package com.android.streamhub.feature.emby.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.android.streamhub.core.tmdb.PersonLookupState
+import com.android.streamhub.core.tmdb.TmdbRepository
 import com.android.streamhub.feature.emby.data.EmbyBrowseRepository
 import com.android.streamhub.feature.emby.data.EmbyItemInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,6 +43,7 @@ private data class LoadedSeries(
 @HiltViewModel
 class EmbySeriesDetailViewModel @Inject constructor(
     private val browseRepository: EmbyBrowseRepository,
+    private val tmdbRepository: TmdbRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -48,6 +51,9 @@ class EmbySeriesDetailViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(EmbySeriesDetailUiState())
     val uiState: StateFlow<EmbySeriesDetailUiState> = _uiState
+
+    private val _personLookupState = MutableStateFlow<PersonLookupState>(PersonLookupState.Idle)
+    val personLookupState: StateFlow<PersonLookupState> = _personLookupState
 
     init {
         viewModelScope.launch {
@@ -78,5 +84,18 @@ class EmbySeriesDetailViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load series") }
             }
         }
+    }
+
+    /** See JellyfinItemDetailViewModel.onPersonClick's matching doc - identical shape, both sources share TmdbRepository unchanged. */
+    fun onPersonClick(name: String) {
+        _personLookupState.value = PersonLookupState.Loading
+        viewModelScope.launch {
+            val person = tmdbRepository.findPerson(name)
+            _personLookupState.value = person?.let { PersonLookupState.Found(it.id) } ?: PersonLookupState.NotFound
+        }
+    }
+
+    fun consumePersonLookup() {
+        _personLookupState.value = PersonLookupState.Idle
     }
 }

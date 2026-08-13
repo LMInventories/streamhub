@@ -33,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,9 +47,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.emby.data.EmbyItemInfo
 
@@ -67,9 +70,17 @@ fun EmbySeriesDetailScreen(
     seriesId: String,
     onPlayEpisode: (episodeId: String) -> Unit,
     onBack: () -> Unit,
+    onOpenPerson: (tmdbPersonId: Int, sourceType: SourceType) -> Unit,
     viewModel: EmbySeriesDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val personLookupState by viewModel.personLookupState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(personLookupState) {
+        val found = personLookupState as? PersonLookupState.Found ?: return@LaunchedEffect
+        onOpenPerson(found.tmdbPersonId, SourceType.EMBY)
+        viewModel.consumePersonLookup()
+    }
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -102,6 +113,7 @@ fun EmbySeriesDetailScreen(
                             episodesBySeasonNumber = uiState.episodesBySeasonNumber,
                             nextUpEpisode = uiState.nextUpEpisode,
                             onPlayEpisode = onPlayEpisode,
+                            onPersonClick = viewModel::onPersonClick,
                         )
                     }
                 }
@@ -117,6 +129,7 @@ private fun EmbySeriesDetailContent(
     episodesBySeasonNumber: Map<Int, List<EmbyItemInfo>>,
     nextUpEpisode: EmbyItemInfo?,
     onPlayEpisode: (String) -> Unit,
+    onPersonClick: (String) -> Unit,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
@@ -194,7 +207,7 @@ private fun EmbySeriesDetailContent(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(series.cast, key = { it.id }) { member -> EmbyCastMemberCard(member) }
+                    items(series.cast, key = { it.id }) { member -> EmbyCastMemberCard(member, onClick = onPersonClick) }
                 }
             }
         }
