@@ -84,10 +84,21 @@ class PlayerController @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            val durationMs = exoPlayer.duration.coerceAtLeast(0L)
             _uiState.update {
                 it.copy(
                     isBuffering = playbackState == Player.STATE_BUFFERING,
-                    durationMs = exoPlayer.duration.coerceAtLeast(0L),
+                    durationMs = durationMs,
+                    // The position ticker only runs while isPlaying is true (see
+                    // startPositionTicker/onIsPlayingChanged) and playback stops "playing" the
+                    // instant it reaches STATE_ENDED - without this, positionMs freezes at
+                    // whatever the last ~500ms tick happened to read (up to a second short of the
+                    // real end), so nextEpisodeCountdownSeconds' remaining-time math never lands
+                    // on exactly 0 and the "Next Episode" prompt's auto-advance (which only fires
+                    // at precisely 0) never triggers - it just sits on "1" forever. Forcing
+                    // position to duration here flushes that last mile the instant playback
+                    // actually ends.
+                    positionMs = if (playbackState == Player.STATE_ENDED) durationMs else it.positionMs,
                 )
             }
         }
