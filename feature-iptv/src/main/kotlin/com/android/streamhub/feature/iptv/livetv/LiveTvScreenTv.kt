@@ -15,9 +15,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,10 +33,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 import com.android.streamhub.feature.iptv.data.EpgProgram
 import com.android.streamhub.feature.iptv.livetv.cast.CastButton
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // How long Back has to be held before it's treated as a "long press" shortcut rather than a
-// normal press - long enough that an ordinary tap-and-release back press never triggers it.
-private const val LONG_PRESS_BACK_THRESHOLD_MS = 500L
+// normal press - fires while still held, not on release, so the screen visibly goes fullscreen
+// mid-hold rather than waiting for the remote's Back button to come back up.
+private const val LONG_PRESS_BACK_FULLSCREEN_DELAY_MS = 2000L
 
 /**
  * Reuses LiveTvScreenPhone's own landscape rendering (LiveTvBrowseContent with isLandscape=true)
@@ -103,112 +107,130 @@ fun LiveTvScreenTv(
         return
     }
 
-    val focusedChannel = uiState.focusedChannel
-    if (uiState.isFullscreen && focusedChannel != null) {
-        LiveFullscreenOverlay(
-            exoPlayer = viewModel.miniPlayerController.exoPlayer,
-            playerUiState = miniPlayerState,
-            channel = focusedChannel,
-            nowProgram = uiState.nowProgram,
-            nextProgram = uiState.nextProgram,
-            recentChannels = recentChannels,
-            categories = uiState.categories,
-            multiviewPickerTab = uiState.multiviewPickerTab,
-            multiviewPickerChannels = uiState.multiviewPickerChannels,
-            isLoadingMultiviewPickerChannels = uiState.isLoadingMultiviewPickerChannels,
-            onSelectMultiviewPickerTab = viewModel::selectMultiviewPickerTab,
-            onResetMultiviewPicker = viewModel::resetMultiviewPicker,
-            onSwitchChannel = viewModel::switchFullscreenChannel,
-            onPlayPause = viewModel::toggleMiniPlayerPlayback,
-            onToggleMute = viewModel::toggleMiniPlayerMute,
-            onStartMultiview = viewModel::startMultiviewFromFullscreen,
-            onCollapse = viewModel::exitFullscreen,
-            modifier = Modifier.fillMaxSize(),
-        )
-        return
-    }
+    // Tracks the physical Back key's down-to-up span with a delayed coroutine (not something
+    // BackHandler exposes - it only ever sees a completed, already-classified press) so a genuine
+    // long-press while browsing jumps straight to fullscreen mid-hold instead of waiting for
+    // release to check elapsed time. KeyDown is deliberately never consumed (returns false) so a
+    // normal short press still reaches the regular Back handling untouched; only a KeyUp that
+    // arrives after the timer already fired fullscreen is consumed, so that release doesn't also
+    // trigger a normal Back navigation on top of the fullscreen it just entered.
+    //
+    // This modifier lives on the outer Box below - wrapping BOTH the fullscreen and browse
+    // branches, not just the browse Column alone - specifically so it stays mounted (and its
+    // longPressJob/longPressFired state survives) across the recomposition that swaps in
+    // LiveFullscreenOverlay once the timer fires. Attaching it only to the browse Column would
+    // mean that Column (and this whole key interceptor) disappears from composition the instant
+    // isFullscreen flips true, so the eventual physical KeyUp would fall through uncaught to
+    // LiveFullscreenOverlay's own unconditional BackHandler instead - collapsing straight back out
+    // of the fullscreen the long-press just opened.
+    var longPressJob by remember { mutableStateOf<Job?>(null) }
+    var longPressFired by remember { mutableStateOf(false) }
+    val backKeyScope = rememberCoroutineScope()
 
-    // Tracks the physical Back key's own down-to-up duration (not something BackHandler exposes -
-    // it only ever sees a completed, already-classified press) so a genuine long-press while
-    // browsing can jump straight to fullscreen instead of just backing out a level. KeyDown is
-    // deliberately never consumed (returns false) so a normal short press still reaches the
-    // regular Back handling untouched; only a KeyUp that's held long enough is consumed here.
-    var backKeyDownAtMillis by remember { mutableLongStateOf(0L) }
-
-    MaterialTheme(colorScheme = appColorScheme()) {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
-                    .onPreviewKeyEvent { event ->
-                        if (event.key != Key.Back) return@onPreviewKeyEvent false
-                        when (event.type) {
-                            KeyEventType.KeyDown -> {
-                                if (backKeyDownAtMillis == 0L) backKeyDownAtMillis = System.currentTimeMillis()
-                                false
-                            }
-                            KeyEventType.KeyUp -> {
-                                val downAtMillis = backKeyDownAtMillis
-                                backKeyDownAtMillis = 0L
-                                val heldMillis = if (downAtMillis == 0L) 0L else System.currentTimeMillis() - downAtMillis
-                                if (heldMillis >= LONG_PRESS_BACK_THRESHOLD_MS && uiState.focusedChannel != null) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (event.key != Key.Back) return@onPreviewKeyEvent false
+                when (event.type) {
+                    KeyEventType.KeyDown -> {
+                        if (longPressJob == null) {
+                            longPressFired = false
+                            longPressJob = backKeyScope.launch {
+                                delay(LONG_PRESS_BACK_FULLSCREEN_DELAY_MS)
+                                if (uiState.focusedChannel != null) {
+                                    longPressFired = true
                                     viewModel.enterFullscreen()
-                                    true
-                                } else {
-                                    false
                                 }
                             }
-                            else -> false
                         }
-                    },
-            ) {
-                uiState.errorMessage?.let { error ->
-                    Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
+                        false
+                    }
+                    KeyEventType.KeyUp -> {
+                        longPressJob?.cancel()
+                        longPressJob = null
+                        val fired = longPressFired
+                        longPressFired = false
+                        fired // only consume the release if the timer already went fullscreen
+                    }
+                    else -> false
                 }
+            },
+    ) {
+        val focusedChannel = uiState.focusedChannel
+        if (uiState.isFullscreen && focusedChannel != null) {
+            LiveFullscreenOverlay(
+                exoPlayer = viewModel.miniPlayerController.exoPlayer,
+                playerUiState = miniPlayerState,
+                channel = focusedChannel,
+                nowProgram = uiState.nowProgram,
+                nextProgram = uiState.nextProgram,
+                recentChannels = recentChannels,
+                categories = uiState.categories,
+                multiviewPickerTab = uiState.multiviewPickerTab,
+                multiviewPickerChannels = uiState.multiviewPickerChannels,
+                isLoadingMultiviewPickerChannels = uiState.isLoadingMultiviewPickerChannels,
+                onSelectMultiviewPickerTab = viewModel::selectMultiviewPickerTab,
+                onResetMultiviewPicker = viewModel::resetMultiviewPicker,
+                onSwitchChannel = viewModel::switchFullscreenChannel,
+                onPlayPause = viewModel::toggleMiniPlayerPlayback,
+                onToggleMute = viewModel::toggleMiniPlayerMute,
+                onStartMultiview = viewModel::startMultiviewFromFullscreen,
+                onCollapse = viewModel::exitFullscreen,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            MaterialTheme(colorScheme = appColorScheme()) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                        uiState.errorMessage?.let { error ->
+                            Text(text = error, color = Color.Red, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp))
+                        }
 
-                if (!uiState.hasSource) {
-                    AddSourcePrompt(modifier = Modifier.weight(1f))
-                    return@Column
-                }
+                        if (!uiState.hasSource) {
+                            AddSourcePrompt(modifier = Modifier.weight(1f))
+                            return@Column
+                        }
 
-                val previewSizeMultiplier = uiState.previewPlayerSize.multiplier
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth().height(180.dp * previewSizeMultiplier)) {
-                        MiniPlayerPreview(
-                            exoPlayer = viewModel.miniPlayerController.exoPlayer,
-                            uiState = miniPlayerState,
-                            onTap = viewModel::enterFullscreen,
-                            modifier = Modifier.width(280.dp * previewSizeMultiplier).fillMaxHeight(),
-                        )
-                        EpgInfoPanel(
-                            channelName = uiState.focusedChannel?.name,
-                            nowProgram = previewNowProgram ?: uiState.nowProgram,
-                            nextProgram = previewNextProgram ?: uiState.nextProgram,
-                            modifier = Modifier.padding(16.dp),
+                        val previewSizeMultiplier = uiState.previewPlayerSize.multiplier
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth().height(180.dp * previewSizeMultiplier)) {
+                                MiniPlayerPreview(
+                                    exoPlayer = viewModel.miniPlayerController.exoPlayer,
+                                    uiState = miniPlayerState,
+                                    onTap = viewModel::enterFullscreen,
+                                    modifier = Modifier.width(280.dp * previewSizeMultiplier).fillMaxHeight(),
+                                )
+                                EpgInfoPanel(
+                                    channelName = uiState.focusedChannel?.name,
+                                    nowProgram = previewNowProgram ?: uiState.nowProgram,
+                                    nextProgram = previewNextProgram ?: uiState.nextProgram,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
+                            CastButton(isAvailable = viewModel.isCastAvailable, modifier = Modifier.align(Alignment.TopEnd))
+                        }
+
+                        LiveTvBrowseContent(
+                            uiState = uiState,
+                            // TV is always landscape-shaped, so this always takes the same branch
+                            // phone does in landscape (the inline EPG grid) rather than ever
+                            // falling back to the plain portrait channel list.
+                            isLandscape = true,
+                            onSelectCategory = viewModel::selectCategory,
+                            onBackToCategories = viewModel::clearCategorySelection,
+                            onFocusChannel = viewModel::focusChannel,
+                            onPlayFullscreen = onFullscreen,
+                            onToggleFavorite = viewModel::toggleFavorite,
+                            onScheduleRecording = viewModel::scheduleRecording,
+                            onScheduleReminder = viewModel::scheduleReminder,
+                            onOpenRecordings = onOpenRecordings,
+                            onPreviewProgramChange = { current, next -> previewNowProgram = current; previewNextProgram = next },
+                            // Load-bearing, not decorative - see LiveTvScreenPhone's matching comment.
+                            modifier = Modifier.weight(1f),
                         )
                     }
-                    CastButton(isAvailable = viewModel.isCastAvailable, modifier = Modifier.align(Alignment.TopEnd))
                 }
-
-                LiveTvBrowseContent(
-                    uiState = uiState,
-                    // TV is always landscape-shaped, so this always takes the same branch phone
-                    // does in landscape (the inline EPG grid) rather than ever falling back to
-                    // the plain portrait channel list.
-                    isLandscape = true,
-                    onSelectCategory = viewModel::selectCategory,
-                    onBackToCategories = viewModel::clearCategorySelection,
-                    onFocusChannel = viewModel::focusChannel,
-                    onPlayFullscreen = onFullscreen,
-                    onToggleFavorite = viewModel::toggleFavorite,
-                    onScheduleRecording = viewModel::scheduleRecording,
-                    onScheduleReminder = viewModel::scheduleReminder,
-                    onOpenRecordings = onOpenRecordings,
-                    onPreviewProgramChange = { current, next -> previewNowProgram = current; previewNextProgram = next },
-                    // Load-bearing, not decorative - see LiveTvScreenPhone's matching comment.
-                    modifier = Modifier.weight(1f),
-                )
             }
         }
     }

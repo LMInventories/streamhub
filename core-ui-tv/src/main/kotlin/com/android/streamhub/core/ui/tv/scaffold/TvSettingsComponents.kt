@@ -85,9 +85,14 @@ fun TvSettingsTopBar(title: String, onBack: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp),
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Palette.TextPrimary)
         }
-        Text(text = title, style = TvMaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 12.dp))
+        Text(
+            text = title,
+            color = Palette.TextPrimary,
+            style = TvMaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(start = 12.dp),
+        )
     }
 }
 

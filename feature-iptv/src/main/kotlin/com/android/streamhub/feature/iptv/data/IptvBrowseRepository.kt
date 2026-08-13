@@ -134,6 +134,22 @@ class IptvBrowseRepository @Inject constructor(
             .let { deferreds -> deferreds.flatMap { it.await() } }
     }
 
+    /**
+     * Which category a channel belongs to, if any - IptvChannelInfo carries no category id of its
+     * own (Xtream's stream-list endpoint doesn't expose one at that level), so this is a reverse
+     * lookup: check every category's already-cached-or-fetched channel list in parallel for a
+     * match, same fan-out/fault-tolerance shape as getAllChannels(). Used to auto-select the
+     * resumed channel's category on Live TV launch so its EPG grid shows immediately rather than
+     * the plain category list - a once-per-launch lookup, not a hot path, so this fan-out cost is
+     * the same already-accepted trade-off as getAllChannels()/Search.
+     */
+    suspend fun findCategoryForChannel(channelId: String): IptvCategoryInfo? = coroutineScope {
+        getCategories()
+            .map { category -> category to async { runCatching { getChannels(category.id) }.getOrDefault(emptyList()) } }
+            .firstOrNull { (_, deferred) -> deferred.await().any { it.id == channelId } }
+            ?.first
+    }
+
     private suspend fun m3uChannels(playlistUrl: String): List<M3uChannel> {
         cachedM3uChannels?.let { return it }
         val fetched = m3uRemoteDataSource.fetchChannels(playlistUrl)

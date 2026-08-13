@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +76,14 @@ fun TvScaffold(
     currentRoute: String?,
     tabRowVisible: Boolean,
     onNavigate: (String) -> Unit,
+    // Reports whenever focus enters/leaves the rail subtree - lets a caller (TvNavHost) know
+    // "the sidebar is currently open" for its own Back-navigation ladder, without needing to own
+    // the rail's internal expand/collapse state itself.
+    onRailFocusChanged: (Boolean) -> Unit = {},
+    // Optional - when given, attached to whichever TvNavRailItem is currently selected, so a
+    // caller can programmatically "open the sidebar" (Back's second-to-last step) by requesting
+    // focus onto it, the same way every other cross-screen focus restore in this app works.
+    railFocusRequester: FocusRequester? = null,
     content: @Composable () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -93,15 +103,17 @@ fun TvScaffold(
                     // separate D-pad stop - the same combination Compose's own docs use for
                     // exactly this "expand a rail while a descendant is focused" pattern.
                     .focusGroup()
-                    .onFocusChanged { railFocused = it.hasFocus }
+                    .onFocusChanged { railFocused = it.hasFocus; onRailFocusChanged(it.hasFocus) }
                     .verticalScroll(rememberScrollState())
                     .padding(vertical = 8.dp),
             ) {
                 tvNavItems.forEach { item ->
+                    val selected = currentRoute == item.route
                     TvNavRailItem(
                         item = item,
-                        selected = currentRoute == item.route,
+                        selected = selected,
                         expanded = railFocused,
+                        modifier = if (selected && railFocusRequester != null) Modifier.focusRequester(railFocusRequester) else Modifier,
                         onClick = { onNavigate(item.route) },
                     )
                 }
@@ -114,12 +126,12 @@ fun TvScaffold(
 }
 
 @Composable
-private fun TvNavRailItem(item: TvNavItem, selected: Boolean, expanded: Boolean, onClick: () -> Unit) {
+private fun TvNavRailItem(item: TvNavItem, selected: Boolean, expanded: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val contentColor = if (selected) Palette.Accent else Palette.TextMuted
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 6.dp, vertical = 4.dp)
             .tvSettingsFocusIndicator(interactionSource, selected = selected, shape = AppShapes.small)

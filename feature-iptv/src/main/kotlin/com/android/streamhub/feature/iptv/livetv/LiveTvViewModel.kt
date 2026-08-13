@@ -418,7 +418,16 @@ class LiveTvViewModel @Inject constructor(
         }
         viewModelScope.launch {
             if (appSettingsRepository.settingsFlow.first().resumeLastChannel) {
-                recentChannelsRepository.observeRecent().first().firstOrNull()?.let(::focusChannel)
+                val channel = recentChannelsRepository.observeRecent().first().firstOrNull() ?: return@launch
+                focusChannel(channel)
+                // Also select the resumed channel's own category so its EPG grid shows
+                // immediately, instead of leaving the plain category list on screen until the
+                // user manually taps in - focusChannel() above already set focusedChannel, so
+                // selectCategory()'s own "only auto-preview the first channel" guard leaves this
+                // one alone rather than overwriting it.
+                runCatching { browseRepository.findCategoryForChannel(channel.id) }
+                    .getOrNull()
+                    ?.let(::selectCategory)
             }
         }
     }

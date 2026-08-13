@@ -1,13 +1,29 @@
 package com.android.streamhub.nav
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -18,8 +34,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.tv.material3.Button
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.common.nav.Route
+import com.android.streamhub.core.design.AppShapes
+import com.android.streamhub.core.design.Palette
 import com.android.streamhub.core.ui.tv.scaffold.TvScaffold
 import com.android.streamhub.downloads.DownloadsManagementScreenTv
 import com.android.streamhub.feature.iptv.livetv.LiveTvScreenTv
@@ -134,14 +155,45 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
         }
     }
 
+    // Back on a tab route used to just no-op (and silently fall through to the Activity's default
+    // finish()) once tabBackHistory ran out - reported as "Back closes the app" from e.g. Settings
+    // with a row merely focused, not even opened. This is the deterministic 3-step ladder instead:
+    // previous tab if any, else open the nav rail (the "second-to-last" back - always somewhere to
+    // go before actually leaving), else only then offer to exit. Always enabled (not gated on
+    // tabBackHistory like the old per-tab handler was) since every branch here has *something* to
+    // do - there's no longer a state where this handler has nothing left to catch.
+    var railFocused by remember { mutableStateOf(false) }
+    var showExitConfirmation by remember { mutableStateOf(false) }
+    val railFocusRequester = remember { FocusRequester() }
+    val handleTabBack: () -> Unit = {
+        when {
+            tabBackHistory.isNotEmpty() -> goBackToPreviousTab()
+            !railFocused -> runCatching { railFocusRequester.requestFocus() }
+            else -> showExitConfirmation = true
+        }
+    }
+
+    if (showExitConfirmation) {
+        // Captured here (during composition) rather than read inside the onConfirm lambda itself -
+        // LocalContext.current is only safe to read while actually composing, not from inside a
+        // callback that fires later on a click, same reasoning as PlayerScreenTv's own activity lookup.
+        val activity = LocalContext.current as? Activity
+        ExitConfirmationDialog(
+            onConfirm = { activity?.finish() },
+            onDismiss = { showExitConfirmation = false },
+        )
+    }
+
     TvScaffold(
         currentRoute = currentRoute,
         tabRowVisible = currentRoute in TAB_ROUTES && !isFullscreenOverlayActive,
         onNavigate = navigateToTab,
+        onRailFocusChanged = { railFocused = it },
+        railFocusRequester = railFocusRequester,
     ) {
         NavHost(navController = navController, startDestination = Route.LIVE_TV_PATTERN) {
             composable(Route.SEARCH_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
+                BackHandler(onBack = handleTabBack)
                 SearchScreen(
                     paddingValues = PaddingValues(24.dp),
                     onPlayChannel = { channelId -> navController.navigate(Route.playerRoute(channelId, SourceType.IPTV)) },
@@ -152,7 +204,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.LIVE_TV_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
+                BackHandler(onBack = handleTabBack)
                 LiveTvScreenTv(
                     onFullscreen = { channelId -> navController.navigate(Route.playerRoute(channelId, SourceType.IPTV)) },
                     onOpenRecordings = { navController.navigate(Route.RECORDINGS_PATTERN) },
@@ -165,7 +217,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.VOD_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
+                BackHandler(onBack = handleTabBack)
                 VodScreenTv(
                     onOpenLibrary = { mode -> navController.navigate(Route.vodLibraryRoute(mode.name)) },
                     onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
@@ -202,7 +254,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.EMBY_HOME_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
+                BackHandler(onBack = handleTabBack)
                 EmbyHomeScreenTv(
                     onOpenLibrary = { libraryId, itemType ->
                         navController.navigate(Route.embyLibraryRoute(libraryId, itemType.name))
@@ -265,7 +317,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 EmbyHomeSectionOrderScreenTv(onDone = { navController.popBackStack() })
             }
             composable(Route.JELLYFIN_HOME_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
+                BackHandler(onBack = handleTabBack)
                 JellyfinHomeScreenTv(
                     onOpenLibrary = { library ->
                         navController.navigate(Route.jellyfinLibraryRoute(library.id, jellyfinItemTypeFor(library).name))
@@ -325,7 +377,7 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 )
             }
             composable(Route.SETTINGS_PATTERN) {
-                BackHandler(enabled = tabBackHistory.isNotEmpty(), onBack = goBackToPreviousTab)
+                BackHandler(onBack = handleTabBack)
                 SettingsScreenTv(
                     onIptvClick = { navController.navigate(Route.IPTV_SETTINGS_PATTERN) },
                     onEmbyClick = { navController.navigate(Route.EMBY_SETTINGS_PATTERN) },
@@ -385,6 +437,44 @@ fun TvApp(navController: NavHostController = rememberNavController()) {
                 val appUiSettingsViewModel: AppUiSettingsViewModel = hiltViewModel()
                 val appUiState by appUiSettingsViewModel.uiState.collectAsStateWithLifecycle()
                 PlayerScreenTv(onBack = { navController.popBackStack() }, matchRefreshRate = appUiState.matchRefreshRate)
+            }
+        }
+    }
+}
+
+/**
+ * The true last step of the Back ladder - only reached once there's no previous tab to return to
+ * and the nav rail is already focused. No custom BackHandler needed here: Dialog's own default
+ * DialogProperties(dismissOnBackPress = true) already treats Back as Cancel, and since a Dialog
+ * runs in its own Window, it naturally intercepts Back before TvNavHost's own handleTabBack ever
+ * sees it again - no ordering/registration concerns to reason about. Initial D-pad focus lands on
+ * Cancel, not Exit, the same "don't default onto the destructive option" reasoning as every other
+ * confirmation-style choice in this app.
+ */
+@Composable
+private fun ExitConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        val cancelFocusRequester = remember { FocusRequester() }
+        LaunchedEffect(Unit) { runCatching { cancelFocusRequester.requestFocus() } }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .width(360.dp)
+                .clip(AppShapes.large)
+                .background(Palette.Surface)
+                .padding(24.dp),
+        ) {
+            Text(text = "Exit StreamHub?", color = Palette.TextPrimary, style = MaterialTheme.typography.titleLarge)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(top = 20.dp),
+            ) {
+                Button(onClick = onDismiss, modifier = Modifier.focusRequester(cancelFocusRequester)) {
+                    Text("Cancel")
+                }
+                Button(onClick = onConfirm) {
+                    Text("Exit")
+                }
             }
         }
     }

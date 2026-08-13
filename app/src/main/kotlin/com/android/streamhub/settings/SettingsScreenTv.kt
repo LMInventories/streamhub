@@ -1,5 +1,7 @@
 package com.android.streamhub.settings
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -12,15 +14,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRow
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsRowDivider
 import com.android.streamhub.core.ui.tv.scaffold.TvSettingsSection
@@ -98,10 +100,18 @@ fun SettingsScreenTv(
         runCatching { targetRequester?.requestFocus() }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
-        Text(text = "Settings", style = MaterialTheme.typography.headlineMedium)
+    // Back here means "leave the row-detail pane and land back on the section-tab list" - only
+    // relevant while focus is actually in the detail pane, so it doesn't shadow the tab-level
+    // back ladder (previous tab / open nav rail / exit confirmation) once focus is already on a
+    // section tab. Tracked the same focusGroup()+onFocusChanged idiom TvScaffold's nav rail uses
+    // for its own "is focus anywhere in this subtree" signal.
+    var detailPaneFocused by remember { mutableStateOf(false) }
+    BackHandler(enabled = detailPaneFocused) {
+        runCatching { sectionTabFocusRequesters[selectedSectionIndex].requestFocus() }
+    }
 
-        Row(modifier = Modifier.fillMaxSize().padding(top = 24.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
+        Row(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .width(SECTION_LIST_WIDTH)
@@ -125,6 +135,8 @@ fun SettingsScreenTv(
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(start = 32.dp)
+                        .focusGroup()
+                        .onFocusChanged { detailPaneFocused = it.hasFocus }
                         .verticalScroll(rememberScrollState()),
                 ) {
                     TvSettingsSection(title = selectedSection.title) {
