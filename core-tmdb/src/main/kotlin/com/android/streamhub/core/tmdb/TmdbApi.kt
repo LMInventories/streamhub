@@ -5,7 +5,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /** TMDB v3 REST API - only the endpoints this app actually uses (person search/detail/credits). */
-internal interface TmdbApi {
+interface TmdbApi {
 
     @GET("search/person")
     suspend fun searchPerson(
