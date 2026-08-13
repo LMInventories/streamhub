@@ -76,6 +76,10 @@ data class XtreamSeries(
     @Serializable(with = FlexibleStringSerializer::class)
     @SerialName("category_id")
     val categoryId: String = "",
+    // See XtreamVodStream.added's own comment - same convention, same caveats.
+    @Serializable(with = FlexibleStringSerializer::class)
+    @SerialName("added")
+    val added: String = "",
 )
 
 @Serializable

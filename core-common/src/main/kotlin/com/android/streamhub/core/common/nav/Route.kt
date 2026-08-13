@@ -43,6 +43,8 @@ sealed class Route {
 
     data class VodSeriesDetail(val seriesId: String) : Route()
 
+    data class VodLibrary(val mode: String) : Route()
+
     data class JellyfinLibrary(val libraryId: String, val itemType: String) : Route()
 
     data object JellyfinFavorites : Route()
@@ -85,6 +87,7 @@ sealed class Route {
         const val IPTV_PLAYBACK_SETTINGS_PATTERN = "iptv_playback_settings"
         const val VOD_ITEM_DETAIL_PATTERN = "vod_item_detail/{itemId}"
         const val VOD_SERIES_DETAIL_PATTERN = "vod_series_detail/{seriesId}"
+        const val VOD_LIBRARY_PATTERN = "vod_library/{mode}"
         const val JELLYFIN_LIBRARY_PATTERN = "jellyfin_library/{libraryId}/{itemType}"
         const val JELLYFIN_FAVORITES_PATTERN = "jellyfin_favorites"
         const val JELLYFIN_SEE_ALL_PATTERN = "jellyfin_see_all/{kind}"
@@ -104,6 +107,11 @@ sealed class Route {
         fun vodItemDetailRoute(itemId: String): String = "vod_item_detail/$itemId"
 
         fun vodSeriesDetailRoute(seriesId: String): String = "vod_series_detail/$seriesId"
+
+        // mode is one of VodMode's enum names ("MOVIES"/"SHOWS") - core-common can't depend on
+        // feature-iptv to reference that type directly, so callers pass the raw string, same
+        // reasoning as jellyfinSeeAllRoute's kind param below.
+        fun vodLibraryRoute(mode: String): String = "vod_library/$mode"
 
         // itemType is a plain enum name (e.g. "MOVIE"/"SERIES") - no special characters, safe
         // as a raw path segment. The library's display name isn't passed here - the screen looks

@@ -15,12 +15,16 @@ data class VodMovieInfo(
     val name: String,
     val posterUrl: String?,
     val streamUrl: String,
+    // Best-effort "recently added" signal - see getRecentMovies's own doc. Null when the
+    // provider doesn't send it (or sends "0"), not an error - callers should degrade gracefully.
+    val addedEpochSeconds: Long? = null,
 )
 
 data class VodShowInfo(
     val id: String,
     val name: String,
     val posterUrl: String?,
+    val addedEpochSeconds: Long? = null,
 )
 
 data class VodEpisodeInfo(
@@ -116,6 +120,7 @@ class IptvVodRepository @Inject constructor(
                 name = it.name,
                 posterUrl = it.streamIcon,
                 streamUrl = config.vodStreamUrl(it.streamId, it.containerExtension ?: "mp4"),
+                addedEpochSeconds = it.added.toLongOrNull()?.takeIf { epoch -> epoch > 0 },
             )
         }
         cachedMoviesByCategory[categoryId] = result
@@ -138,6 +143,33 @@ class IptvVodRepository @Inject constructor(
                 .flatMap { it.await() }
         }.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
+
+    /**
+     * Every movie across every category, merged - same parallel/fault-tolerant fan-out as
+     * searchMovies (calls the same per-category getMovies, so it shares its cache), used by the
+     * VOD Library screen's "All" filter chip since Xtream has no "all movies" endpoint of its
+     * own. First call after a cold cache (app launch, or "Update Playlist") pays for N concurrent
+     * requests, one per category - every call after that just replays cached per-category lists.
+     */
+    suspend fun getAllMovies(): List<VodMovieInfo> {
+        if (!isSupported()) return emptyList()
+        return coroutineScope {
+            getCategories()
+                .map { category -> async { runCatching { getMovies(category.id) }.getOrDefault(emptyList()) } }
+                .flatMap { it.await() }
+        }.sortedBy { it.name }
+    }
+
+    /**
+     * Best-effort "recently added" movies for VOD Home's row - sorted by [VodMovieInfo.addedEpochSeconds]
+     * descending, itself sourced from Xtream's undocumented (here, unverified against any live
+     * panel) "added" stream field. Items with no timestamp sort to the bottom rather than
+     * corrupting the order, so if a provider never sends this field at all, the row quietly
+     * degrades to "whatever order the categories happened to fetch in" instead of erroring or
+     * showing nothing - same fan-out/caching characteristics as getAllMovies.
+     */
+    suspend fun getRecentMovies(limit: Int = 20): List<VodMovieInfo> =
+        getAllMovies().sortedByDescending { it.addedEpochSeconds ?: Long.MIN_VALUE }.take(limit)
 
     suspend fun getMovieDetail(playbackId: String): VodDetailInfo? {
         val config = configRepository.configFlow.first() as? IptvSourceConfig.Xtream ?: return null
@@ -172,7 +204,14 @@ class IptvVodRepository @Inject constructor(
     suspend fun getShows(categoryId: String): List<VodShowInfo> {
         cachedShowsByCategory[categoryId]?.let { return it }
         val config = configRepository.configFlow.first() as? IptvSourceConfig.Xtream ?: return emptyList()
-        val result = xtreamRemoteDataSource.getSeries(config, categoryId).map { VodShowInfo(it.seriesId, it.name, it.cover) }
+        val result = xtreamRemoteDataSource.getSeries(config, categoryId).map {
+            VodShowInfo(
+                id = it.seriesId,
+                name = it.name,
+                posterUrl = it.cover,
+                addedEpochSeconds = it.added.toLongOrNull()?.takeIf { epoch -> epoch > 0 },
+            )
+        }
         cachedShowsByCategory[categoryId] = result
         return result
     }
@@ -186,6 +225,20 @@ class IptvVodRepository @Inject constructor(
                 .flatMap { it.await() }
         }.filter { FuzzyMatch.matches(it.name, query) }.take(limit)
     }
+
+    /** Every show across every series category, merged - see getAllMovies's own doc, same reasoning/caching. */
+    suspend fun getAllShows(): List<VodShowInfo> {
+        if (!isSupported()) return emptyList()
+        return coroutineScope {
+            getSeriesCategories()
+                .map { category -> async { runCatching { getShows(category.id) }.getOrDefault(emptyList()) } }
+                .flatMap { it.await() }
+        }.sortedBy { it.name }
+    }
+
+    /** Best-effort "recently added" shows for VOD Home's row - see getRecentMovies's own doc, same reasoning/caveats. */
+    suspend fun getRecentShows(limit: Int = 20): List<VodShowInfo> =
+        getAllShows().sortedByDescending { it.addedEpochSeconds ?: Long.MIN_VALUE }.take(limit)
 
     /** Drops every cached category/item list - mirrors IptvBrowseRepository.invalidateCache(), called from the same refresh flow. */
     fun invalidateCache() {

@@ -13,27 +13,25 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 /**
- * Reuses VodScreenPhone's own VodBrowseContent rather than a second, separately-maintained TV
+ * Reuses VodScreenPhone's own VodHomeContent rather than a second, separately-maintained TV
  * layout - same reasoning as LiveTvScreenTv. Wraps its own Material3 MaterialTheme since the
- * shared content uses Material3 components (ListItem, DropdownMenu, ...) and the ambient theme
- * from TvNavHost is tv-material3's, not this one.
+ * shared content uses Material3 components and the ambient theme from TvNavHost is tv-material3's,
+ * not this one.
  */
 @Composable
 fun VodScreenTv(
+    onOpenLibrary: (VodMode) -> Unit,
     onOpenMovie: (itemId: String) -> Unit,
     onOpenShow: (seriesId: String) -> Unit,
-    viewModel: VodViewModel = hiltViewModel(),
+    viewModel: VodHomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     MaterialTheme(colorScheme = appColorScheme()) {
         Surface(modifier = Modifier.fillMaxSize()) {
-            VodBrowseContent(
+            VodHomeContent(
                 uiState = uiState,
-                onSelectCategory = viewModel::selectCategory,
-                onClearCategorySelection = viewModel::clearCategorySelection,
-                onSetMode = viewModel::setMode,
-                onSetGridColumns = viewModel::setGridColumns,
+                onOpenLibrary = onOpenLibrary,
                 onOpenMovie = onOpenMovie,
                 onOpenShow = onOpenShow,
                 modifier = Modifier.fillMaxSize().padding(24.dp),

@@ -25,6 +25,7 @@ import com.android.streamhub.feature.iptv.settings.IptvPlaybackSettingsScreen
 import com.android.streamhub.feature.iptv.settings.IptvSettingsScreen
 import com.android.streamhub.feature.iptv.vod.ItemDetailScreen
 import com.android.streamhub.feature.iptv.vod.SeriesDetailScreen
+import com.android.streamhub.feature.iptv.vod.VodLibraryScreen
 import com.android.streamhub.feature.iptv.vod.VodScreenPhone
 import com.android.streamhub.feature.emby.detail.EmbyItemDetailScreen
 import com.android.streamhub.feature.emby.detail.EmbySeriesDetailScreen
@@ -131,6 +132,17 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
             composable(Route.VOD_PATTERN) {
                 VodScreenPhone(
                     paddingValues = paddingValues,
+                    onOpenLibrary = { mode -> navController.navigate(Route.vodLibraryRoute(mode.name)) },
+                    onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
+                    onOpenShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
+                )
+            }
+            composable(
+                route = Route.VOD_LIBRARY_PATTERN,
+                arguments = listOf(navArgument("mode") { type = NavType.StringType }),
+            ) {
+                VodLibraryScreen(
+                    onBack = { navController.popBackStack() },
                     onOpenMovie = { itemId -> navController.navigate(Route.vodItemDetailRoute(itemId)) },
                     onOpenShow = { seriesId -> navController.navigate(Route.vodSeriesDetailRoute(seriesId)) },
                 )

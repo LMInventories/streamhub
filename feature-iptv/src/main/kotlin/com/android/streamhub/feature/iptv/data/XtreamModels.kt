@@ -53,4 +53,12 @@ data class XtreamVodStream(
     @Serializable(with = FlexibleStringSerializer::class)
     @SerialName("category_id")
     val categoryId: String = "",
+    // Unix-epoch-seconds string, per common Xtream panel convention - unverified against a live
+    // panel (see IptvVodRepository.getRecentMovies's own doc). Non-nullable with an empty-string
+    // default (same pattern as categoryId above) rather than a nullable field, since
+    // FlexibleStringSerializer is a non-null KSerializer<String> - toLongOrNull() downstream
+    // already treats "" the same as "no value" either way.
+    @Serializable(with = FlexibleStringSerializer::class)
+    @SerialName("added")
+    val added: String = "",
 )
