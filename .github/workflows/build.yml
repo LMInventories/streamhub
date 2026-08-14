@@ -126,6 +126,12 @@ jobs:
           git push origin HEAD:main
 
       - name: Assemble release APK
+        # ORG_GRADLE_PROJECT_TMDB_API_KEY is Gradle's standard env-var convention for a project
+        # property named TMDB_API_KEY - core-tmdb/build.gradle.kts already reads it via
+        # providers.gradleProperty("TMDB_API_KEY") as its fallback when local.properties (which
+        # doesn't exist on this runner) has no entry, so no build-script change was needed here.
+        env:
+          ORG_GRADLE_PROJECT_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Create GitHub Release
