@@ -54,6 +54,15 @@ interface EmbyApi {
         @Query("SearchTerm") searchTerm: String? = null,
         @Query("Fields") fields: String? = null,
         @Query("IsFavorite") isFavorite: Boolean? = null,
+        // UNVERIFIED against a live Emby server, same caveat as every other guessed param in this
+        // file - no live server to test against. Delimiters (pipe for genres, comma for years)
+        // mirror Jellyfin's own confirmed ItemsApi.getItems doc ("genres... pipe delimited",
+        // "years... comma delimited") since Emby shares this same Items-query lineage; the param
+        // names themselves (Genres/Years, PascalCase) match this file's existing confirmed-working
+        // convention for every other query param here. Degrades gracefully if wrong - the server
+        // would just ignore an unrecognized param rather than error, same as a no-op filter.
+        @Query("Genres") genres: String? = null,
+        @Query("Years") years: String? = null,
     ): EmbyItemsResponse
 
     @GET("Users/{userId}/Items/{itemId}")

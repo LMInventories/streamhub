@@ -81,6 +81,26 @@ fun JellyfinLibraryScreen(
                         onClick = { viewModel.setUnwatchedOnly(!uiState.unwatchedOnly) },
                         label = { Text("Unwatched") },
                     )
+                    if (uiState.availableGenres.isNotEmpty()) {
+                        LibraryFilterMenuChip(
+                            options = uiState.availableGenres,
+                            selected = uiState.selectedGenre,
+                            placeholderLabel = "Genre",
+                            allLabel = "All Genres",
+                            optionLabel = { it },
+                            onSelect = viewModel::setGenre,
+                        )
+                    }
+                    if (uiState.availableYears.isNotEmpty()) {
+                        LibraryFilterMenuChip(
+                            options = uiState.availableYears,
+                            selected = uiState.selectedYear,
+                            placeholderLabel = "Year",
+                            allLabel = "All Years",
+                            optionLabel = { it.toString() },
+                            onSelect = viewModel::setYear,
+                        )
+                    }
                 }
 
                 uiState.errorMessage?.let { error ->
@@ -121,6 +141,52 @@ private fun SortMenuButton(selected: JellyfinSortOption, onSelect: (JellyfinSort
                 DropdownMenuItem(
                     text = { Text(option.label, color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
                     modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
+                    onClick = { onSelect(option); closeMenu() },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Single-select filter chip + anchored DropdownMenu, same TV-focus-safety shape as SortMenuButton
+ * above (anchor FocusRequester restored on close, first menu item grabs focus on open - a plain
+ * DropdownMenu never moves D-pad focus into itself). Generic over T (genre name String, year Int)
+ * rather than two near-identical copies, since both are being added together and are otherwise
+ * identical apart from the option type/labels. [selected] null means "no filter" - shown as
+ * [placeholderLabel] on the chip itself, with [allLabel] as the menu's own clearing entry.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> LibraryFilterMenuChip(
+    options: List<T>,
+    selected: T?,
+    placeholderLabel: String,
+    allLabel: String,
+    optionLabel: (T) -> String,
+    onSelect: (T?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
+    Box {
+        FilterChip(
+            selected = selected != null,
+            onClick = { expanded = true },
+            label = { Text(selected?.let(optionLabel) ?: placeholderLabel) },
+            modifier = Modifier.focusRequester(anchorFocusRequester),
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
+            val firstItemFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+            DropdownMenuItem(
+                text = { Text(allLabel, color = if (selected == null) Palette.Accent else Palette.TextPrimary) },
+                modifier = Modifier.focusRequester(firstItemFocusRequester),
+                onClick = { onSelect(null); closeMenu() },
+            )
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option), color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
                     onClick = { onSelect(option); closeMenu() },
                 )
             }

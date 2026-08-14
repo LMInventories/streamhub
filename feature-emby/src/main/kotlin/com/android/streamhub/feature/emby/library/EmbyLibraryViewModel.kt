@@ -22,12 +22,18 @@ data class EmbyLibraryUiState(
     val isLoading: Boolean = false,
     val canLoadMore: Boolean = true,
     val sortOption: EmbySortOption = EmbySortOption.NAME_ASC,
+    // Populated once via getLibraryFilterOptions (see init) - the full set of genres/years
+    // available to pick from, independent of whatever's currently selected/loaded.
+    val availableGenres: List<String> = emptyList(),
+    val availableYears: List<Int> = emptyList(),
+    val selectedGenre: String? = null,
+    val selectedYear: Int? = null,
     val errorMessage: String? = null,
 )
 
 /**
- * Paginated single-library browse - sort-option-only this pass (no favourites/unwatched filter,
- * unlike JellyfinLibraryViewModel; those are out of scope per the plan's locked-in MVP scope).
+ * Paginated single-library browse - sort/genre/year this pass (no favourites/unwatched filter,
+ * unlike JellyfinLibraryViewModel; those remain out of scope per the plan's locked-in MVP scope).
  */
 @HiltViewModel
 class EmbyLibraryViewModel @Inject constructor(
@@ -49,6 +55,10 @@ class EmbyLibraryViewModel @Inject constructor(
             val name = browseRepository.getLibraries().firstOrNull { it.id == libraryId }?.name.orEmpty()
             _uiState.update { it.copy(libraryName = name) }
         }
+        viewModelScope.launch {
+            val options = browseRepository.getLibraryFilterOptions(libraryId, itemType)
+            _uiState.update { it.copy(availableGenres = options.genres, availableYears = options.years) }
+        }
         loadMore()
     }
 
@@ -65,6 +75,8 @@ class EmbyLibraryViewModel @Inject constructor(
                     startIndex = startIndex,
                     limit = PAGE_SIZE,
                     sortOption = state.sortOption,
+                    genre = state.selectedGenre,
+                    year = state.selectedYear,
                 )
             }
                 .onSuccess { newItems ->
@@ -76,9 +88,14 @@ class EmbyLibraryViewModel @Inject constructor(
         }
     }
 
-    /** Sort is server-side (the server, not this list, owns ordering) - changing it invalidates the whole loaded page set, so reset and reload from the start rather than trying to reconcile the existing pages. */
-    fun setSortOption(option: EmbySortOption) {
-        _uiState.update { it.copy(sortOption = option, items = emptyList(), canLoadMore = true) }
+    fun setSortOption(option: EmbySortOption) = reloadWith { it.copy(sortOption = option) }
+    // null clears the filter ("All Genres"/"All Years").
+    fun setGenre(genre: String?) = reloadWith { it.copy(selectedGenre = genre) }
+    fun setYear(year: Int?) = reloadWith { it.copy(selectedYear = year) }
+
+    /** Sort/filters are server-side (the server, not this list, owns ordering/filtering) - changing any of them invalidates the whole loaded page set, so reset and reload from the start rather than trying to reconcile the existing pages. */
+    private fun reloadWith(transform: (EmbyLibraryUiState) -> EmbyLibraryUiState) {
+        _uiState.update { transform(it).copy(items = emptyList(), canLoadMore = true) }
         loadMore()
     }
 }

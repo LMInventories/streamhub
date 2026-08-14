@@ -15,6 +15,14 @@ private const val TICKS_PER_MINUTE = 600_000_000L
 // watched" rather than just a resume point.
 private const val NEARLY_COMPLETE_FRACTION = 0.92f
 
+// No confirmed distinct-genre/year listing endpoint exists for Emby's hand-rolled client (unlike
+// Jellyfin, which has a real GenresApi) - getLibraryFilterOptions derives both from a single capped
+// items scan instead, reusing the already-proven getItems call rather than guessing a new endpoint
+// shape with no live server to verify against. Bounded here rather than the library's true size for
+// the same "one reasonably-sized request, not the whole library" reasoning as JellyfinBrowseRepository's
+// own FILTER_YEAR_SCAN_LIMIT.
+private const val FILTER_OPTIONS_SCAN_LIMIT = 2000
+
 /**
  * The one class making all authenticated Emby calls plus DTO-to-EmbyItemInfo mapping. Reads
  * EmbySourceConfigRepository.configFlow.first() fresh on every call rather than caching a
@@ -94,6 +102,8 @@ class EmbyBrowseRepository @Inject constructor(
         startIndex: Int,
         limit: Int,
         sortOption: EmbySortOption = EmbySortOption.NAME_ASC,
+        genre: String? = null,
+        year: Int? = null,
     ): List<EmbyItemInfo> {
         val config = configRepository.configFlow.first() ?: return emptyList()
         val kind = when (itemType) {
@@ -114,8 +124,40 @@ class EmbyBrowseRepository @Inject constructor(
                 sortOrder = sortOrder,
                 startIndex = startIndex,
                 limit = limit,
+                genres = genre,
+                years = year?.toString(),
             ).items.map { it.toItemInfo(config) }
         }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Distinct genres and production years present in this library, derived from a single capped
+     * items scan (see FILTER_OPTIONS_SCAN_LIMIT) - populated once per library-screen visit to back
+     * the Genre/Year filter dropdowns. Best-effort - a failure or empty scan just means both
+     * dropdowns show nothing to pick, not a broken screen.
+     */
+    suspend fun getLibraryFilterOptions(libraryId: String, itemType: EmbyItemType): EmbyLibraryFilterOptions {
+        val config = configRepository.configFlow.first() ?: return EmbyLibraryFilterOptions(emptyList(), emptyList())
+        val kind = when (itemType) {
+            EmbyItemType.MOVIE -> "Movie"
+            EmbyItemType.SERIES -> "Series"
+            else -> return EmbyLibraryFilterOptions(emptyList(), emptyList())
+        }
+        val items = runCatching {
+            remoteDataSource.getItems(
+                baseUrl = config.serverUrl,
+                token = config.accessToken,
+                userId = config.userId,
+                parentId = libraryId,
+                includeItemTypes = kind,
+                recursive = true,
+                limit = FILTER_OPTIONS_SCAN_LIMIT,
+            ).items
+        }.getOrDefault(emptyList())
+        return EmbyLibraryFilterOptions(
+            genres = items.flatMap { it.genres }.distinct().sorted(),
+            years = items.mapNotNull { it.productionYear }.distinct().sortedDescending(),
+        )
     }
 
     suspend fun getItem(itemId: String): EmbyItemInfo? {

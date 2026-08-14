@@ -4,6 +4,7 @@ import com.android.streamhub.core.common.domain.PlaybackSegments
 import com.android.streamhub.core.common.search.FuzzyMatch
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.genresApi
 import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.itemsApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
@@ -50,6 +51,13 @@ private val PREMIERE_DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPat
 // Matches WatchProgress.isNearlyComplete (core-common) - close enough to the end that the server
 // should treat this the same as an explicit "mark watched" rather than just a resume point.
 private const val NEARLY_COMPLETE_FRACTION = 0.92f
+
+// No dedicated "distinct years present in this library" endpoint exists (unlike genres, which has
+// its own GenresApi) - getLibraryFilterOptions derives the year list from a single capped items
+// scan instead. Bounded here rather than the library's true size to keep this one reasonably-sized
+// request instead of paging the whole library just to build a filter picker - same "good enough,
+// not exhaustive" tradeoff search() already accepts for its own broad scan.
+private const val FILTER_YEAR_SCAN_LIMIT = 2000
 
 @Singleton
 class JellyfinBrowseRepository @Inject constructor(
@@ -129,6 +137,8 @@ class JellyfinBrowseRepository @Inject constructor(
         sortOption: JellyfinSortOption = JellyfinSortOption.NAME_ASC,
         favoritesOnly: Boolean = false,
         unwatchedOnly: Boolean = false,
+        genre: String? = null,
+        year: Int? = null,
     ): List<JellyfinItemInfo> {
         val api = apiOrNull() ?: return emptyList()
         val kind = when (itemType) {
@@ -148,7 +158,40 @@ class JellyfinBrowseRepository @Inject constructor(
             sortOrder = listOf(sortOrder),
             isFavorite = if (favoritesOnly) true else null,
             isPlayed = if (unwatchedOnly) false else null,
+            genres = genre?.let { listOf(it) } ?: emptyList(),
+            years = year?.let { listOf(it) } ?: emptyList(),
         ).content.items.map { it.toItemInfo(api) }
+    }
+
+    /**
+     * Distinct genres (via the SDK's own GenresApi, scoped to this library/item type - an exact,
+     * cheap taxonomy lookup, not derived from items) and distinct production years (no equivalent
+     * dedicated endpoint exists for years - derived from a single capped items scan instead, see
+     * FILTER_YEAR_SCAN_LIMIT) present in this library. Populated once per library-screen visit to
+     * back the Genre/Year filter dropdowns. Best-effort - either half degrades to an empty list
+     * (filter simply shows nothing to pick) rather than failing the whole screen.
+     */
+    suspend fun getLibraryFilterOptions(libraryId: String, itemType: JellyfinItemType): JellyfinLibraryFilterOptions {
+        val api = apiOrNull() ?: return JellyfinLibraryFilterOptions(emptyList(), emptyList())
+        val kind = when (itemType) {
+            JellyfinItemType.MOVIE -> BaseItemKind.MOVIE
+            JellyfinItemType.SERIES -> BaseItemKind.SERIES
+            else -> return JellyfinLibraryFilterOptions(emptyList(), emptyList())
+        }
+        val genres = runCatching {
+            api.genresApi.getGenres(parentId = UUID.fromString(libraryId), includeItemTypes = listOf(kind))
+                .content.items.mapNotNull { it.name }.distinct().sorted()
+        }.getOrDefault(emptyList())
+        val years = runCatching {
+            api.itemsApi.getItems(
+                userId = currentUserId(),
+                parentId = UUID.fromString(libraryId),
+                includeItemTypes = listOf(kind),
+                recursive = true,
+                limit = FILTER_YEAR_SCAN_LIMIT,
+            ).content.items.mapNotNull { it.productionYear }.distinct().sortedDescending()
+        }.getOrDefault(emptyList())
+        return JellyfinLibraryFilterOptions(genres = genres, years = years)
     }
 
     /**

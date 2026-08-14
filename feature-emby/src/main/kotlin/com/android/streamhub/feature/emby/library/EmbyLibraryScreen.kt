@@ -1,17 +1,22 @@
 package com.android.streamhub.feature.emby.library
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +72,34 @@ fun EmbyLibraryScreen(
                     modifier = Modifier.statusBarsPadding(),
                 )
 
+                if (uiState.availableGenres.isNotEmpty() || uiState.availableYears.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        if (uiState.availableGenres.isNotEmpty()) {
+                            LibraryFilterMenuChip(
+                                options = uiState.availableGenres,
+                                selected = uiState.selectedGenre,
+                                placeholderLabel = "Genre",
+                                allLabel = "All Genres",
+                                optionLabel = { it },
+                                onSelect = viewModel::setGenre,
+                            )
+                        }
+                        if (uiState.availableYears.isNotEmpty()) {
+                            LibraryFilterMenuChip(
+                                options = uiState.availableYears,
+                                selected = uiState.selectedYear,
+                                placeholderLabel = "Year",
+                                allLabel = "All Years",
+                                optionLabel = { it.toString() },
+                                onSelect = viewModel::setYear,
+                            )
+                        }
+                    }
+                }
+
                 uiState.errorMessage?.let { error ->
                     Text(text = error, color = Palette.Error, modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp))
                 }
@@ -105,6 +138,53 @@ private fun SortMenuButton(selected: EmbySortOption, onSelect: (EmbySortOption) 
                 DropdownMenuItem(
                     text = { Text(option.label, color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
                     modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier,
+                    onClick = { onSelect(option); closeMenu() },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Single-select filter chip + anchored DropdownMenu, same TV-focus-safety shape as SortMenuButton
+ * above (anchor FocusRequester restored on close, first menu item grabs focus on open - a plain
+ * DropdownMenu never moves D-pad focus into itself). Generic over T (genre name String, year Int)
+ * rather than two near-identical copies. [selected] null means "no filter" - shown as
+ * [placeholderLabel] on the chip itself, with [allLabel] as the menu's own clearing entry. Mirrors
+ * JellyfinLibraryScreen's own LibraryFilterMenuChip exactly - feature modules don't share code, so
+ * this is duplicated rather than extracted into a shared module, same as SortMenuButton above it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> LibraryFilterMenuChip(
+    options: List<T>,
+    selected: T?,
+    placeholderLabel: String,
+    allLabel: String,
+    optionLabel: (T) -> String,
+    onSelect: (T?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val anchorFocusRequester = remember { FocusRequester() }
+    val closeMenu: () -> Unit = { expanded = false; runCatching { anchorFocusRequester.requestFocus() } }
+    Box {
+        FilterChip(
+            selected = selected != null,
+            onClick = { expanded = true },
+            label = { Text(selected?.let(optionLabel) ?: placeholderLabel) },
+            modifier = Modifier.focusRequester(anchorFocusRequester),
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = closeMenu) {
+            val firstItemFocusRequester = remember { FocusRequester() }
+            LaunchedEffect(Unit) { firstItemFocusRequester.requestFocus() }
+            DropdownMenuItem(
+                text = { Text(allLabel, color = if (selected == null) Palette.Accent else Palette.TextPrimary) },
+                modifier = Modifier.focusRequester(firstItemFocusRequester),
+                onClick = { onSelect(null); closeMenu() },
+            )
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option), color = if (option == selected) Palette.Accent else Palette.TextPrimary) },
                     onClick = { onSelect(option); closeMenu() },
                 )
             }

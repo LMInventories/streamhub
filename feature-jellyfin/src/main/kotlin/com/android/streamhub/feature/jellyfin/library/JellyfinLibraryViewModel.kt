@@ -24,6 +24,12 @@ data class JellyfinLibraryUiState(
     val sortOption: JellyfinSortOption = JellyfinSortOption.NAME_ASC,
     val favoritesOnly: Boolean = false,
     val unwatchedOnly: Boolean = false,
+    // Populated once via getLibraryFilterOptions (see init) - the full set of genres/years
+    // available to pick from, independent of whatever's currently selected/loaded.
+    val availableGenres: List<String> = emptyList(),
+    val availableYears: List<Int> = emptyList(),
+    val selectedGenre: String? = null,
+    val selectedYear: Int? = null,
     val errorMessage: String? = null,
 )
 
@@ -47,6 +53,10 @@ class JellyfinLibraryViewModel @Inject constructor(
             val name = browseRepository.getLibraries().firstOrNull { it.id == libraryId }?.name.orEmpty()
             _uiState.update { it.copy(libraryName = name) }
         }
+        viewModelScope.launch {
+            val options = browseRepository.getLibraryFilterOptions(libraryId, itemType)
+            _uiState.update { it.copy(availableGenres = options.genres, availableYears = options.years) }
+        }
         loadMore()
     }
 
@@ -65,6 +75,8 @@ class JellyfinLibraryViewModel @Inject constructor(
                     sortOption = state.sortOption,
                     favoritesOnly = state.favoritesOnly,
                     unwatchedOnly = state.unwatchedOnly,
+                    genre = state.selectedGenre,
+                    year = state.selectedYear,
                 )
             }
                 .onSuccess { newItems ->
@@ -79,6 +91,9 @@ class JellyfinLibraryViewModel @Inject constructor(
     fun setSortOption(option: JellyfinSortOption) = reloadWith { it.copy(sortOption = option) }
     fun setFavoritesOnly(enabled: Boolean) = reloadWith { it.copy(favoritesOnly = enabled) }
     fun setUnwatchedOnly(enabled: Boolean) = reloadWith { it.copy(unwatchedOnly = enabled) }
+    // null clears the filter ("All Genres"/"All Years").
+    fun setGenre(genre: String?) = reloadWith { it.copy(selectedGenre = genre) }
+    fun setYear(year: Int?) = reloadWith { it.copy(selectedYear = year) }
 
     /** Changing sort/filter invalidates the whole loaded page set (the server, not this list, owns ordering/filtering) - reset and reload from the start rather than trying to reconcile the existing pages. */
     private fun reloadWith(transform: (JellyfinLibraryUiState) -> JellyfinLibraryUiState) {

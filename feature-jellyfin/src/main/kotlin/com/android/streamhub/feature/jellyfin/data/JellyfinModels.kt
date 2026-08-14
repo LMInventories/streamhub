@@ -23,6 +23,12 @@ enum class JellyfinSortOption(val label: String) {
     RELEASE_DATE_NEWEST("Newest Release"),
 }
 
+/** Distinct genres/production years available within one library - populated once per library-screen visit to back the Genre/Year filter dropdowns. See JellyfinBrowseRepository.getLibraryFilterOptions for how each list is sourced. */
+data class JellyfinLibraryFilterOptions(
+    val genres: List<String>,
+    val years: List<Int>,
+)
+
 @Serializable
 data class JellyfinCastMember(
     val id: String,

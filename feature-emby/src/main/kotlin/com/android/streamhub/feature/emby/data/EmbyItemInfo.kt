@@ -18,6 +18,12 @@ enum class EmbySortOption(val label: String) {
     RELEASE_DATE_NEWEST("Newest Release"),
 }
 
+/** Distinct genres/production years available within one library - populated once per library-screen visit to back the Genre/Year filter dropdowns. See EmbyBrowseRepository.getLibraryFilterOptions for how these are derived. */
+data class EmbyLibraryFilterOptions(
+    val genres: List<String>,
+    val years: List<Int>,
+)
+
 data class EmbyCastMember(
     val id: String,
     val name: String,

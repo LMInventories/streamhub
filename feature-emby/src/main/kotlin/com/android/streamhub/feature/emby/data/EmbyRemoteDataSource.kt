@@ -85,6 +85,8 @@ class EmbyRemoteDataSource @Inject constructor(
         searchTerm: String? = null,
         fields: String? = null,
         isFavorite: Boolean? = null,
+        genres: String? = null,
+        years: String? = null,
     ): EmbyItemsResponse = apiFor(baseUrl).getItems(
         headers = authHeaders(token),
         userId = userId,
@@ -98,6 +100,8 @@ class EmbyRemoteDataSource @Inject constructor(
         searchTerm = searchTerm,
         fields = fields,
         isFavorite = isFavorite,
+        genres = genres,
+        years = years,
     )
 
     suspend fun getItem(baseUrl: String, token: String, userId: String, itemId: String): EmbyItemDto =
