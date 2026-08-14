@@ -1,8 +1,6 @@
 package com.android.streamhub.feature.jellyfin.detail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +42,6 @@ import coil3.compose.AsyncImage
 import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
-import com.android.streamhub.core.design.tvFocusBorder
 import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.home.JellyfinPosterTv
@@ -109,6 +106,7 @@ fun JellyfinSeriesDetailScreenTv(
                     series = uiState.series!!,
                     seasons = uiState.seasons,
                     episodesBySeasonNumber = uiState.episodesBySeasonNumber,
+                    nextUpEpisode = uiState.nextUpEpisode,
                     similarShows = uiState.similarShows,
                     onOpenEpisode = onOpenEpisode,
                     onOpenSeries = onOpenSeries,
@@ -124,13 +122,25 @@ private fun JellyfinSeriesDetailContentTv(
     series: JellyfinItemInfo,
     seasons: List<JellyfinItemInfo>,
     episodesBySeasonNumber: Map<Int, List<JellyfinItemInfo>>,
+    nextUpEpisode: JellyfinItemInfo?,
     similarShows: List<JellyfinItemInfo>,
     onOpenEpisode: (String) -> Unit,
     onOpenSeries: (String) -> Unit,
     onPersonClick: (String) -> Unit,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
-    var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
+    // Defaults to whichever season the Next Up episode belongs to (resuming where the viewer left
+    // off), falling back to the first season for a series with nothing watched yet - rather than
+    // requiring an extra tap before any episode is visible at all.
+    var selectedSeason by remember(seasonNumbers) {
+        mutableStateOf(nextUpEpisode?.parentIndexNumber ?: seasonNumbers.firstOrNull() ?: 1)
+    }
+    val selectedSeasonEpisodes = episodesBySeasonNumber[selectedSeason].orEmpty()
+    // Tracks which episode card currently has D-pad focus, driving the description text below the
+    // row - defaults to the first episode so the panel shows something the instant a season is
+    // selected, before the user has actually moved focus into the row.
+    var focusedEpisodeId by remember(selectedSeason) { mutableStateOf(selectedSeasonEpisodes.firstOrNull()?.id) }
+    val focusedEpisode = selectedSeasonEpisodes.firstOrNull { it.id == focusedEpisodeId } ?: selectedSeasonEpisodes.firstOrNull()
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -194,17 +204,49 @@ private fun JellyfinSeriesDetailContentTv(
                 // 20dp (was 12dp) - JellyfinPosterTv below grows 15% on focus without affecting
                 // layout size, so this needs slack to keep that growth clear of its neighbors.
                 LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    item(key = "all_seasons") {
-                        AllSeasonsTileTv(selected = selectedSeason == null, onClick = { selectedSeason = null })
-                    }
                     items(seasons, key = { it.id }) { season ->
                         JellyfinPosterTv(
                             item = season,
                             badge = season.childCount?.let { count -> "$count ep" },
                             unwatchedCount = season.unplayedItemCount,
-                            onClick = { selectedSeason = season.indexNumber ?: 0 },
+                            selected = season.indexNumber == selectedSeason,
+                            onClick = { selectedSeason = season.indexNumber ?: selectedSeason },
                         )
                     }
+                }
+            }
+        }
+
+        // Directly below the season row rather than after Cast - one row for whichever season is
+        // currently selected, not every season's episodes stacked one after another (which used to
+        // make this page effectively as long as the show has episodes).
+        if (selectedSeasonEpisodes.isNotEmpty()) {
+            item {
+                Text(text = "Season $selectedSeason", color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(24.dp, 12.dp, 24.dp, 8.dp))
+            }
+            item {
+                // 20dp (was 12dp) - EpisodeThumbnailCardTv below grows 15% on focus, see the
+                // Seasons row's matching comment above.
+                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    items(selectedSeasonEpisodes, key = { it.id }) { episode ->
+                        EpisodeThumbnailCardTv(
+                            episode = episode,
+                            onClick = { onOpenEpisode(episode.id) },
+                            onFocused = { isFocused -> if (isFocused) focusedEpisodeId = episode.id },
+                        )
+                    }
+                }
+            }
+            item {
+                focusedEpisode?.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                    Text(
+                        text = overview,
+                        color = Palette.TextMuted,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp, 24.dp, 0.dp),
+                    )
                 }
             }
         }
@@ -215,29 +257,6 @@ private fun JellyfinSeriesDetailContentTv(
             }
             item {
                 TvCastRow(cast = series.cast, onPersonClick = onPersonClick)
-            }
-        }
-
-        // Horizontal thumbnail row (same EpisodeThumbnailCardTv as the episode detail page's own
-        // "More from Season X") rather than a vertical text list - the Next Up episode (if any)
-        // is simply wherever it naturally falls in its own season's episode order, rather than a
-        // separate huge full-width showcase card above this.
-        val visibleSeasons = selectedSeason?.let { listOf(it) } ?: seasonNumbers
-        visibleSeasons.forEach { season ->
-            val episodes = episodesBySeasonNumber[season].orEmpty()
-            if (selectedSeason == null) {
-                item(key = "season_$season") {
-                    Text(text = "Season $season", color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(24.dp, 12.dp, 24.dp, 8.dp))
-                }
-            }
-            item(key = "season_${season}_episodes") {
-                // 20dp (was 12dp) - EpisodeThumbnailCardTv below grows 15% on focus, see the
-                // Seasons row's matching comment above.
-                LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    items(episodes, key = { it.id }) { episode ->
-                        EpisodeThumbnailCardTv(episode = episode, onClick = { onOpenEpisode(episode.id) })
-                    }
-                }
             }
         }
 
@@ -255,22 +274,5 @@ private fun JellyfinSeriesDetailContentTv(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AllSeasonsTileTv(selected: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .width(94.dp)
-            .aspectRatio(2f / 3f)
-            .clip(AppShapes.small)
-            .background(if (selected) Palette.Accent.copy(alpha = 0.2f) else Palette.Surface)
-            .tvFocusBorder(interactionSource, AppShapes.small)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = "All Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.labelSmall)
     }
 }

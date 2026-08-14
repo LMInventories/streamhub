@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -374,11 +375,15 @@ private fun JellyfinItemDetailContentTv(
     }
 }
 
-/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned "N. Name" (matches the official Jellyfin app) with a watched checkmark overlay when already seen. Not private - reused as-is by JellyfinSeriesDetailScreenTv's own per-season episode row (same package). */
+/** "More from Season X" card - a real 16:9 scene thumbnail (not the series poster JellyfinPosterTv would show for an episode) captioned "N. Name" (matches the official Jellyfin app) with a watched checkmark overlay when already seen. Not private - reused as-is by JellyfinSeriesDetailScreenTv's own per-season episode row (same package), where [onFocused] drives the description text shown below that row. */
 @Composable
-fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit) {
+fun EpisodeThumbnailCardTv(episode: JellyfinItemInfo, onClick: () -> Unit, onFocused: (Boolean) -> Unit = {}) {
     Column(modifier = Modifier.width(160.dp)) {
-        Card(onClick = onClick, scale = CardDefaults.scale(focusedScale = 1.15f), modifier = Modifier.fillMaxWidth()) {
+        Card(
+            onClick = onClick,
+            scale = CardDefaults.scale(focusedScale = 1.15f),
+            modifier = Modifier.fillMaxWidth().onFocusChanged { state -> onFocused(state.isFocused) },
+        ) {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(AppShapes.small)) {
                 val thumbUrl = episode.episodeThumbnailUrl ?: episode.primaryImageUrl
                 if (thumbUrl != null) {

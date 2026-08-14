@@ -1,6 +1,7 @@
 package com.android.streamhub.feature.jellyfin.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -433,7 +434,9 @@ private fun SeeAllTileTv(onClick: () -> Unit) {
  * count) - null renders nothing extra, the plain poster look every existing caller already
  * expects. [unwatchedCount] overlays a small roundel top-end (a separate corner from [badge], so
  * the two never collide) - the unwatched count when > 0, or a checkmark once fully watched (0);
- * null renders nothing.
+ * null renders nothing. [selected] draws an accent border around the poster - used by the series
+ * detail screens' season row to show which season's episodes are currently displayed below it;
+ * every other caller leaves this false (no visual change from before this param existed).
  */
 @Composable
 fun JellyfinPosterTv(
@@ -442,6 +445,7 @@ fun JellyfinPosterTv(
     onFocused: (Boolean) -> Unit = {},
     badge: String? = null,
     unwatchedCount: Int? = null,
+    selected: Boolean = false,
 ) {
     Card(
         onClick = onClick,
@@ -452,7 +456,8 @@ fun JellyfinPosterTv(
             modifier = Modifier
                 .aspectRatio(2f / 3f)
                 .fillMaxWidth()
-                .clip(AppShapes.small),
+                .clip(AppShapes.small)
+                .let { if (selected) it.border(2.dp, Palette.Accent, AppShapes.small) else it },
         ) {
             if (item.primaryImageUrl != null) {
                 AsyncImage(

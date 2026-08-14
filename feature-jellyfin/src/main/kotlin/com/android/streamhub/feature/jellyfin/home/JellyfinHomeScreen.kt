@@ -1,6 +1,7 @@
 package com.android.streamhub.feature.jellyfin.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -287,13 +288,20 @@ private fun MediaCard(label: String, onClick: () -> Unit) {
  * other rows that reuse this same composable).
  */
 @Composable
-fun JellyfinPoster(item: JellyfinItemInfo, onClick: () -> Unit, badge: String? = null, unwatchedCount: Int? = null) {
+fun JellyfinPoster(
+    item: JellyfinItemInfo,
+    onClick: () -> Unit,
+    badge: String? = null,
+    unwatchedCount: Int? = null,
+    selected: Boolean = false,
+) {
     Column(modifier = Modifier.width(120.dp).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .aspectRatio(2f / 3f)
                 .fillMaxWidth()
-                .clip(AppShapes.small),
+                .clip(AppShapes.small)
+                .let { if (selected) it.border(2.dp, Palette.Accent, AppShapes.small) else it },
         ) {
             if (item.primaryImageUrl != null) {
                 AsyncImage(

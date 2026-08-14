@@ -2,6 +2,7 @@ package com.android.streamhub.feature.jellyfin.detail
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -141,7 +142,19 @@ private fun JellyfinSeriesDetailContent(
     onPersonClick: (String) -> Unit,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
-    var selectedSeason by remember(seasonNumbers) { mutableStateOf<Int?>(null) }
+    // Defaults to whichever season the Next Up episode belongs to (resuming where the viewer left
+    // off), falling back to the first season for a series with nothing watched yet - see
+    // JellyfinSeriesDetailScreenTv's matching comment.
+    var selectedSeason by remember(seasonNumbers) {
+        mutableStateOf(nextUpEpisode?.parentIndexNumber ?: seasonNumbers.firstOrNull() ?: 1)
+    }
+    val selectedSeasonEpisodes = episodesBySeasonNumber[selectedSeason].orEmpty()
+    // No D-pad focus on phone, so "highlighted" is tap-driven instead: tapping an episode that
+    // isn't already selected just selects it (and shows its description below); tapping the
+    // already-selected one opens it. Defaults to the first episode so the description panel shows
+    // something the instant a season is picked, before any tap.
+    var selectedEpisodeId by remember(selectedSeason) { mutableStateOf(selectedSeasonEpisodes.firstOrNull()?.id) }
+    val selectedEpisode = selectedSeasonEpisodes.firstOrNull { it.id == selectedEpisodeId } ?: selectedSeasonEpisodes.firstOrNull()
 
     LazyColumn(modifier = Modifier.fillMaxSize().navigationBarsPadding(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -220,17 +233,51 @@ private fun JellyfinSeriesDetailContent(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    item(key = "all_seasons") {
-                        AllSeasonsTile(selected = selectedSeason == null, onClick = { selectedSeason = null })
-                    }
                     items(seasons, key = { it.id }) { season ->
                         JellyfinPoster(
                             item = season,
                             badge = season.childCount?.let { count -> "$count ep" },
                             unwatchedCount = season.unplayedItemCount,
-                            onClick = { selectedSeason = season.indexNumber ?: 0 },
+                            selected = season.indexNumber == selectedSeason,
+                            onClick = { selectedSeason = season.indexNumber ?: selectedSeason },
                         )
                     }
+                }
+            }
+        }
+
+        // Directly below the season row rather than after Cast - one row for whichever season is
+        // currently selected, not every season's episodes stacked into one long list.
+        if (selectedSeasonEpisodes.isNotEmpty()) {
+            item {
+                Text(text = "Season $selectedSeason", color = Palette.TextPrimary, modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp, 16.dp, 8.dp))
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(selectedSeasonEpisodes, key = { it.id }) { episode ->
+                        EpisodeCard(
+                            episode = episode,
+                            selected = episode.id == selectedEpisodeId,
+                            onClick = {
+                                if (episode.id == selectedEpisodeId) onOpenEpisode(episode.id) else selectedEpisodeId = episode.id
+                            },
+                        )
+                    }
+                }
+            }
+            item {
+                selectedEpisode?.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                    Text(
+                        text = overview,
+                        color = Palette.TextMuted,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp, 16.dp, 0.dp),
+                    )
                 }
             }
         }
@@ -246,23 +293,6 @@ private fun JellyfinSeriesDetailContent(
                 ) {
                     items(series.cast, key = { it.id }) { member -> CastMemberCard(member, onClick = onPersonClick) }
                 }
-            }
-        }
-
-        val visibleSeasons = selectedSeason?.let { listOf(it) } ?: seasonNumbers
-        visibleSeasons.forEach { season ->
-            val episodes = episodesBySeasonNumber[season].orEmpty()
-            if (selectedSeason == null) {
-                item(key = "season_$season") {
-                    Text(
-                        text = "Season $season",
-                        color = Palette.TextPrimary,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp, 16.dp, 4.dp),
-                    )
-                }
-            }
-            items(episodes, key = { it.id }) { episode ->
-                EpisodeRow(episode = episode, onClick = { onOpenEpisode(episode.id) })
             }
         }
 
@@ -325,45 +355,30 @@ private fun NextUpCard(episode: JellyfinItemInfo, onClick: () -> Unit, modifier:
     }
 }
 
+/** "N. Name" thumbnail card for the season's episode row - tap-select-then-open (see JellyfinSeriesDetailContent's own onClick wiring), [selected] draws an accent border the same way JellyfinPoster's own selected param does, replacing the always-expanded synopsis text this used to show inline (now surfaced once, below the whole row, for whichever episode is selected). */
 @Composable
-private fun AllSeasonsTile(selected: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .width(120.dp)
-            .aspectRatio(2f / 3f)
-            .clip(AppShapes.small)
-            .background(if (selected) Palette.Accent.copy(alpha = 0.2f) else Palette.Surface)
-            .tvFocusBorder(interactionSource, AppShapes.small)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = "All Seasons", color = Palette.TextPrimary, modifier = Modifier.padding(8.dp))
-    }
-}
-
-@Composable
-private fun EpisodeRow(episode: JellyfinItemInfo, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .tvFocusBorder(interactionSource)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
-            .padding(16.dp, 10.dp),
-    ) {
-        Row {
-            Text(text = "${episode.indexNumber?.toString() ?: "?"}.", color = Palette.TextMuted, modifier = Modifier.width(28.dp))
-            Text(text = episode.name, color = Palette.TextPrimary)
+private fun EpisodeCard(episode: JellyfinItemInfo, selected: Boolean, onClick: () -> Unit) {
+    Column(modifier = Modifier.width(150.dp).clickable(onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(AppShapes.small)
+                .let { if (selected) it.border(2.dp, Palette.Accent, AppShapes.small) else it },
+        ) {
+            val thumbUrl = episode.episodeThumbnailUrl ?: episode.primaryImageUrl
+            if (thumbUrl != null) {
+                AsyncImage(model = thumbUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
+            }
         }
-        episode.overview?.let { overview ->
-            Text(
-                text = overview,
-                color = Palette.TextMuted,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 28.dp, top = 2.dp),
-            )
-        }
+        Text(
+            text = listOfNotNull(episode.indexNumber?.let { "$it." }, episode.name.takeIf { it.isNotBlank() }).joinToString(" "),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = Palette.TextPrimary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
