@@ -104,6 +104,7 @@ fun EmbySeriesDetailScreenTv(
                     nextUpEpisode = uiState.nextUpEpisode,
                     onPlayEpisode = onPlayEpisode,
                     onPersonClick = viewModel::onPersonClick,
+                    castImageFallbacks = uiState.castImageFallbacks,
                 )
             }
         }
@@ -118,6 +119,7 @@ private fun EmbySeriesDetailContentTv(
     nextUpEpisode: EmbyItemInfo?,
     onPlayEpisode: (String) -> Unit,
     onPersonClick: (String) -> Unit,
+    castImageFallbacks: Map<String, String>,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     // Defaults to whichever season the Next Up episode belongs to (resuming where the viewer left
@@ -225,7 +227,7 @@ private fun EmbySeriesDetailContentTv(
                 Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                EmbyCastRowTv(cast = series.cast, onPersonClick = onPersonClick)
+                EmbyCastRowTv(cast = series.cast, onPersonClick = onPersonClick, imageFallbacks = castImageFallbacks)
             }
         }
     }

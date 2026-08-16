@@ -35,14 +35,16 @@ import androidx.tv.material3.IconButton
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.label
 
 /** TV-native sibling of PersonDetailScreen - same PersonDetailViewModel, tv-material3 Card-based carousels for D-pad focus traversal, mirroring TvCastRow/JellyfinPosterTv's own Card usage. */
 @Composable
 fun PersonDetailScreenTv(
     onBack: () -> Unit,
-    onOpenLibraryItem: (itemId: String, isSeries: Boolean) -> Unit,
+    onOpenLibraryItem: (itemId: String, isSeries: Boolean, sourceType: SourceType) -> Unit,
     viewModel: PersonDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -70,7 +72,7 @@ fun PersonDetailScreenTv(
 @Composable
 private fun PersonDetailContentTv(
     uiState: PersonDetailUiState,
-    onOpenLibraryItem: (String, Boolean) -> Unit,
+    onOpenLibraryItem: (String, Boolean, SourceType) -> Unit,
 ) {
     val person = uiState.person ?: return
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -101,7 +103,7 @@ private fun PersonDetailContentTv(
                 Text(text = "Movies", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                FilmographyRowTv(items = uiState.movies, onOpenLibraryItem = onOpenLibraryItem)
+                FilmographyRowTv(items = uiState.movies, requestedSourceType = uiState.requestedSourceType, onOpenLibraryItem = onOpenLibraryItem)
             }
         }
 
@@ -110,7 +112,7 @@ private fun PersonDetailContentTv(
                 Text(text = "TV Shows", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                FilmographyRowTv(items = uiState.tvShows, onOpenLibraryItem = onOpenLibraryItem)
+                FilmographyRowTv(items = uiState.tvShows, requestedSourceType = uiState.requestedSourceType, onOpenLibraryItem = onOpenLibraryItem)
             }
         }
 
@@ -127,18 +129,20 @@ private fun PersonDetailContentTv(
 }
 
 @Composable
-private fun FilmographyRowTv(items: List<FilmographyItem>, onOpenLibraryItem: (String, Boolean) -> Unit) {
+private fun FilmographyRowTv(items: List<FilmographyItem>, requestedSourceType: SourceType, onOpenLibraryItem: (String, Boolean, SourceType) -> Unit) {
     LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        items(items, key = { it.tmdbId }) { item -> FilmographyPosterTv(item = item, onOpenLibraryItem = onOpenLibraryItem) }
+        items(items, key = { it.tmdbId }) { item ->
+            FilmographyPosterTv(item = item, requestedSourceType = requestedSourceType, onOpenLibraryItem = onOpenLibraryItem)
+        }
     }
 }
 
 @Composable
-private fun FilmographyPosterTv(item: FilmographyItem, onOpenLibraryItem: (String, Boolean) -> Unit) {
+private fun FilmographyPosterTv(item: FilmographyItem, requestedSourceType: SourceType, onOpenLibraryItem: (String, Boolean, SourceType) -> Unit) {
     val matched = item.matchState as? LibraryMatchState.Matched
     Column(modifier = Modifier.width(120.dp)) {
         Card(
-            onClick = { matched?.let { onOpenLibraryItem(it.itemId, item.isSeries) } },
+            onClick = { matched?.let { onOpenLibraryItem(it.itemId, item.isSeries, it.sourceType) } },
             modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
         ) {
             Box(modifier = Modifier.fillMaxSize().clip(AppShapes.small).alpha(if (matched != null) 1f else 0.6f)) {
@@ -151,7 +155,11 @@ private fun FilmographyPosterTv(item: FilmographyItem, onOpenLibraryItem: (Strin
         }
         Text(text = item.title, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Palette.TextPrimary, modifier = Modifier.padding(top = 4.dp))
         Text(
-            text = if (item.matchState is LibraryMatchState.NotInLibrary) "Not in your library" else item.year?.toString().orEmpty(),
+            text = when {
+                item.matchState is LibraryMatchState.NotInLibrary -> "Not in your library"
+                matched != null && matched.sourceType != requestedSourceType -> "On ${matched.sourceType.label()}"
+                else -> item.year?.toString().orEmpty()
+            },
             color = Palette.TextMuted,
             style = MaterialTheme.typography.labelSmall,
         )

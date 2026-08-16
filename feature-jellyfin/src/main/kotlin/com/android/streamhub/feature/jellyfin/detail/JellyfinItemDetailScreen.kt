@@ -168,6 +168,7 @@ fun JellyfinItemDetailScreen(
                             onOpenSeries = onOpenSeries,
                             onOpenEpisode = onOpenEpisode,
                             onPersonClick = viewModel::onPersonClick,
+                            castImageFallbacks = uiState.castImageFallbacks,
                             onStartDownload = viewModel::startDownload,
                             onPauseDownload = viewModel::pauseDownload,
                             onResumeDownload = viewModel::resumeDownload,
@@ -196,6 +197,7 @@ private fun JellyfinItemDetailContent(
     onOpenSeries: (String) -> Unit,
     onOpenEpisode: (String) -> Unit,
     onPersonClick: (String) -> Unit,
+    castImageFallbacks: Map<String, String>,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
     onResumeDownload: () -> Unit,
@@ -390,7 +392,9 @@ private fun JellyfinItemDetailContent(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(castAndCrew, key = { it.id }) { member -> CastMemberCard(member, onClick = onPersonClick) }
+                items(castAndCrew, key = { it.id }) { member ->
+                    CastMemberCard(member, onClick = onPersonClick, fallbackImageUrl = castImageFallbacks[member.id])
+                }
             }
         }
 
@@ -400,7 +404,9 @@ private fun JellyfinItemDetailContent(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(item.guestStars, key = { it.id }) { member -> CastMemberCard(member, onClick = onPersonClick) }
+                items(item.guestStars, key = { it.id }) { member ->
+                    CastMemberCard(member, onClick = onPersonClick, fallbackImageUrl = castImageFallbacks[member.id])
+                }
             }
         }
 
@@ -730,12 +736,13 @@ fun ExternalLinksRow(links: List<Pair<String, String>>, modifier: Modifier = Mod
 }
 
 @Composable
-fun CastMemberCard(member: JellyfinCastMember, onClick: (String) -> Unit = {}) {
+fun CastMemberCard(member: JellyfinCastMember, onClick: (String) -> Unit = {}, fallbackImageUrl: String? = null) {
     Column(modifier = Modifier.width(90.dp).clickable { onClick(member.name) }) {
         Box(modifier = Modifier.size(90.dp).clip(AppShapes.small)) {
-            if (member.imageUrl != null) {
+            val imageUrl = member.imageUrl ?: fallbackImageUrl
+            if (imageUrl != null) {
                 AsyncImage(
-                    model = member.imageUrl,
+                    model = imageUrl,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

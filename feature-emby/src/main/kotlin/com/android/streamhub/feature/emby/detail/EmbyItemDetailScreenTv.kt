@@ -146,6 +146,7 @@ fun EmbyItemDetailScreenTv(
                     onSelectVideoVersion = viewModel::selectVideoVersion,
                     onPlay = { onPlay(itemId) },
                     onPersonClick = viewModel::onPersonClick,
+                    castImageFallbacks = uiState.castImageFallbacks,
                     onStartDownload = viewModel::startDownload,
                     onPauseDownload = viewModel::pauseDownload,
                     onResumeDownload = viewModel::resumeDownload,
@@ -169,6 +170,7 @@ private fun EmbyItemDetailContentTv(
     onSelectVideoVersion: (String) -> Unit,
     onPlay: () -> Unit,
     onPersonClick: (String) -> Unit,
+    castImageFallbacks: Map<String, String>,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
     onResumeDownload: () -> Unit,
@@ -283,22 +285,23 @@ private fun EmbyItemDetailContentTv(
                 Text(text = "Cast", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                EmbyCastRowTv(cast = item.cast, onPersonClick = onPersonClick)
+                EmbyCastRowTv(cast = item.cast, onPersonClick = onPersonClick, imageFallbacks = castImageFallbacks)
             }
         }
     }
 }
 
-/** Shared cast row for both TV detail screens - tv-material3 Card equivalent of the phone EmbyCastMemberCard. Photo when EmbyCastMember.imageUrl resolved (see EmbyPersonDto.primaryImageTag's own UNVERIFIED-field doc), else the plain placeholder box. Not private - reused as-is by EmbySeriesDetailScreenTv (same package). */
+/** Shared cast row for both TV detail screens - tv-material3 Card equivalent of the phone EmbyCastMemberCard. Photo from EmbyCastMember.imageUrl when Emby's own PrimaryImageTag resolved (see EmbyPersonDto.primaryImageTag's own UNVERIFIED-field doc), else [imageFallbacks] (TMDB photos backfilled by EmbyItemDetailViewModel.resolveCastImageFallbacks), else the plain placeholder box. Not private - reused as-is by EmbySeriesDetailScreenTv (same package). */
 @Composable
-fun EmbyCastRowTv(cast: List<EmbyCastMember>, onPersonClick: (String) -> Unit = {}) {
+fun EmbyCastRowTv(cast: List<EmbyCastMember>, onPersonClick: (String) -> Unit = {}, imageFallbacks: Map<String, String> = emptyMap()) {
     LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         items(cast, key = { it.id }) { member ->
             Column(modifier = Modifier.width(100.dp)) {
                 Card(onClick = { onPersonClick(member.name) }, modifier = Modifier.size(100.dp)) {
                     Box(modifier = Modifier.fillMaxSize().clip(AppShapes.small)) {
-                        if (member.imageUrl != null) {
-                            AsyncImage(model = member.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        val imageUrl = member.imageUrl ?: imageFallbacks[member.id]
+                        if (imageUrl != null) {
+                            AsyncImage(model = imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         } else {
                             Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
                         }

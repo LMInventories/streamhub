@@ -1,10 +1,12 @@
 package com.android.streamhub.feature.iptv.livetv
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Box
@@ -48,7 +50,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import coil3.compose.AsyncImage
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
-import com.android.streamhub.core.player.KeepScreenOnWhilePlaying
+import com.android.streamhub.core.design.tvFocusBorder
+import com.android.streamhub.core.player.KeepScreenOnWhileOpen
 import com.android.streamhub.core.player.PlayerUiState
 import com.android.streamhub.core.player.VideoAspectMode
 import com.android.streamhub.core.player.VideoSurface
@@ -91,7 +94,12 @@ fun LiveFullscreenOverlay(
 ) {
     LockLandscapeWhileFullscreen()
     HideSystemBarsWhileFullscreen()
-    KeepScreenOnWhilePlaying(isPlaying = playerUiState.isPlaying)
+    // Not KeepScreenOnWhilePlaying(isPlaying = ...) - Player.isPlaying flips false on every
+    // transient rebuffer (normal for IPTV live streams), which dropped keepScreenOn mid-stall and
+    // let the screensaver/system reclaim the app exactly like the bug KeepScreenOnWhileOpen's own
+    // doc describes for the on-demand player. This screen has no real "paused" state to gate on,
+    // so it stays on for as long as it's open, same fix already applied there.
+    KeepScreenOnWhileOpen()
 
     // This composable is only ever on screen while fullscreen is active, so Back always means
     // "collapse back to the mini-player/browse view" - without this, Back here had nothing to
@@ -116,6 +124,18 @@ fun LiveFullscreenOverlay(
     val boxFocusRequester = remember { FocusRequester() }
     LaunchedEffect(controlsVisible) {
         if (!controlsVisible) boxFocusRequester.requestFocus()
+    }
+
+    // The reverse case: controls just became visible (auto-shown, or brought back via the
+    // DirectionCenter handler below) but focus was left sitting on the outer Box from the branch
+    // above - with nothing here to move it, the Box's own .focusable() kept eating every D-pad
+    // press (no arrow-key handling, no click-on-Enter) while every button underneath sat
+    // unreachable, which is what made the whole control row look completely dead on a TV remote.
+    // Landing on Play/Pause specifically (same choice PlayerScreenTv.kt's own overlay makes) puts
+    // the single most likely next press somewhere useful immediately.
+    val playPauseFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(controlsVisible) {
+        if (controlsVisible) runCatching { playPauseFocusRequester.requestFocus() }
     }
 
     Box(
@@ -165,7 +185,11 @@ fun LiveFullscreenOverlay(
                         StatBadge(audioChannelsLabel(playerUiState.audioChannelCount))
                     }
                     Row(modifier = Modifier.padding(top = 12.dp)) {
-                        OverlayTextButton(if (playerUiState.isPlaying) "Pause" else "Play", onClick = onPlayPause)
+                        OverlayTextButton(
+                            if (playerUiState.isPlaying) "Pause" else "Play",
+                            onClick = onPlayPause,
+                            modifier = Modifier.focusRequester(playPauseFocusRequester),
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         OverlayTextButton(if (playerUiState.isMuted) "Unmute" else "Mute", onClick = onToggleMute)
                         Spacer(modifier = Modifier.width(12.dp))
@@ -219,8 +243,13 @@ fun LiveFullscreenOverlay(
 
 @Composable
 private fun RecentChannelTile(channel: IptvChannelInfo, isCurrent: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
-        modifier = Modifier.padding(end = 10.dp).width(72.dp).clickable(onClick = onClick),
+        modifier = Modifier
+            .padding(end = 10.dp)
+            .width(72.dp)
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -252,11 +281,13 @@ private fun RecentChannelTile(channel: IptvChannelInfo, isCurrent: Boolean, onCl
 }
 
 @Composable
-private fun OverlayTextButton(label: String, onClick: () -> Unit) {
+private fun OverlayTextButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .background(Color.White.copy(alpha = 0.15f), AppShapes.small)
-            .clickable(onClick = onClick)
+            .tvFocusBorder(interactionSource, AppShapes.small)
+            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         BasicText(text = label, style = TextStyle(color = Color.White, fontSize = 13.sp))

@@ -168,6 +168,7 @@ fun EmbyItemDetailScreen(
                             onSelectVideoVersion = viewModel::selectVideoVersion,
                             onPlay = { onPlay(itemId) },
                             onPersonClick = viewModel::onPersonClick,
+                            castImageFallbacks = uiState.castImageFallbacks,
                             onStartDownload = viewModel::startDownload,
                             onPauseDownload = viewModel::pauseDownload,
                             onResumeDownload = viewModel::resumeDownload,
@@ -193,6 +194,7 @@ private fun EmbyItemDetailContent(
     onSelectVideoVersion: (String) -> Unit,
     onPlay: () -> Unit,
     onPersonClick: (String) -> Unit,
+    castImageFallbacks: Map<String, String>,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
     onResumeDownload: () -> Unit,
@@ -308,7 +310,9 @@ private fun EmbyItemDetailContent(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(item.cast, key = { it.id }) { member -> EmbyCastMemberCard(member, onClick = onPersonClick) }
+                items(item.cast, key = { it.id }) { member ->
+                    EmbyCastMemberCard(member, onClick = onPersonClick, fallbackImageUrl = castImageFallbacks[member.id])
+                }
             }
         }
 
@@ -570,13 +574,14 @@ private fun DownloadButton(
     }
 }
 
-/** Cast card, photo when EmbyCastMember.imageUrl resolved (see EmbyPersonDto.primaryImageTag's own UNVERIFIED-field doc), else the same placeholder box as before that field existed. Public - reused as-is by EmbySeriesDetailScreen (same package). */
+/** Cast card - photo from EmbyCastMember.imageUrl when Emby's own PrimaryImageTag resolved (see EmbyPersonDto.primaryImageTag's own UNVERIFIED-field doc), else [fallbackImageUrl] (a TMDB photo backfilled by EmbyItemDetailViewModel.resolveCastImageFallbacks), else the plain placeholder box. Public - reused as-is by EmbySeriesDetailScreen (same package). */
 @Composable
-fun EmbyCastMemberCard(member: EmbyCastMember, onClick: (String) -> Unit = {}) {
+fun EmbyCastMemberCard(member: EmbyCastMember, onClick: (String) -> Unit = {}, fallbackImageUrl: String? = null) {
     Column(modifier = Modifier.width(90.dp).clickable { onClick(member.name) }) {
         Box(modifier = Modifier.size(90.dp).clip(AppShapes.small)) {
-            if (member.imageUrl != null) {
-                AsyncImage(model = member.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            val imageUrl = member.imageUrl ?: fallbackImageUrl
+            if (imageUrl != null) {
+                AsyncImage(model = imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
             }

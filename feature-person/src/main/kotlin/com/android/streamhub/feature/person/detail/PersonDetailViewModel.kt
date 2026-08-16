@@ -21,7 +21,11 @@ import javax.inject.Inject
 
 sealed class LibraryMatchState {
     data object Pending : LibraryMatchState()
-    data class Matched(val itemId: String) : LibraryMatchState()
+    // sourceType is whichever library the title was actually found in - the one the actor page was
+    // opened from if it's there, otherwise the other configured source (see
+    // PersonDetailViewModel.findMatch). The UI compares this against PersonDetailUiState's own
+    // requestedSourceType to decide whether a "found on Emby/Jellyfin" hint is worth showing.
+    data class Matched(val itemId: String, val sourceType: SourceType) : LibraryMatchState()
     data object NotInLibrary : LibraryMatchState()
 }
 
@@ -40,6 +44,11 @@ data class PersonDetailUiState(
     val movies: List<FilmographyItem> = emptyList(),
     val tvShows: List<FilmographyItem> = emptyList(),
     val errorMessage: String? = null,
+    // The source this actor page was opened from (which cast row was tapped) - not necessarily
+    // where a given filmography entry ends up matched (see LibraryMatchState.Matched's own doc).
+    // Exposed so the UI can tell "found in the library you're already in" apart from "found on the
+    // other one instead" without duplicating the ViewModel's own sourceType field.
+    val requestedSourceType: SourceType = SourceType.JELLYFIN,
 )
 
 /**
@@ -87,6 +96,7 @@ class PersonDetailViewModel @Inject constructor(
                     person = person,
                     movies = filmography.movies.map { entry -> entry.toPendingItem(isSeries = false) },
                     tvShows = filmography.tvShows.map { entry -> entry.toPendingItem(isSeries = true) },
+                    requestedSourceType = sourceType,
                 )
             }
 
@@ -101,13 +111,31 @@ class PersonDetailViewModel @Inject constructor(
             coroutineScope {
                 batch.map { item ->
                     async {
-                        val match = runCatching { libraryFinder.findInLibrary(item.title, item.year, isSeries) }.getOrNull()
-                        val newState = if (match != null) LibraryMatchState.Matched(match.itemId) else LibraryMatchState.NotInLibrary
+                        val newState = findMatch(item.title, item.year, isSeries)
                         updateMatchState(tmdbId = item.tmdbId, isSeries = isSeries, matchState = newState)
                     }
                 }.forEach { it.await() }
             }
         }
+    }
+
+    /**
+     * Tries the library this actor page was actually opened from first - the common case, and the
+     * one that should win if a title happens to be in both, so it always opens from wherever the
+     * user was already browsing rather than whichever source's search finished first. Only falls
+     * back to the other configured source (a no-op, empty-result search if the user has no source
+     * of that kind configured at all - see JellyfinBrowseRepository/EmbyBrowseRepository.search's
+     * own null-config guard) once the current one comes up empty, per the user's own ask: prefer
+     * the library they're already in, and only offer the other one when nothing else exists.
+     */
+    private suspend fun findMatch(title: String, year: Int?, isSeries: Boolean): LibraryMatchState {
+        val ownMatch = runCatching { libraryFinder.findInLibrary(title, year, isSeries) }.getOrNull()
+        if (ownMatch != null) return LibraryMatchState.Matched(ownMatch.itemId, sourceType)
+
+        val otherSourceType = if (sourceType == SourceType.JELLYFIN) SourceType.EMBY else SourceType.JELLYFIN
+        val otherFinder = if (sourceType == SourceType.JELLYFIN) embyFinder else jellyfinFinder
+        val otherMatch = runCatching { otherFinder.findInLibrary(title, year, isSeries) }.getOrNull()
+        return otherMatch?.let { LibraryMatchState.Matched(it.itemId, otherSourceType) } ?: LibraryMatchState.NotInLibrary
     }
 
     private fun updateMatchState(tmdbId: Int, isSeries: Boolean, matchState: LibraryMatchState) {

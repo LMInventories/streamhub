@@ -40,15 +40,17 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.android.streamhub.core.common.domain.SourceType
 import com.android.streamhub.core.design.AppShapes
 import com.android.streamhub.core.design.Palette
+import com.android.streamhub.core.design.label
 import com.android.streamhub.core.ui.phone.theme.appColorScheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PersonDetailScreen(
     onBack: () -> Unit,
-    onOpenLibraryItem: (itemId: String, isSeries: Boolean) -> Unit,
+    onOpenLibraryItem: (itemId: String, isSeries: Boolean, sourceType: SourceType) -> Unit,
     viewModel: PersonDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -83,7 +85,7 @@ fun PersonDetailScreen(
 @Composable
 private fun PersonDetailContent(
     uiState: PersonDetailUiState,
-    onOpenLibraryItem: (String, Boolean) -> Unit,
+    onOpenLibraryItem: (String, Boolean, SourceType) -> Unit,
 ) {
     val person = uiState.person ?: return
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
@@ -110,12 +112,12 @@ private fun PersonDetailContent(
 
         if (uiState.movies.isNotEmpty()) {
             Text(text = "Movies", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
-            FilmographyRow(items = uiState.movies, onOpenLibraryItem = onOpenLibraryItem)
+            FilmographyRow(items = uiState.movies, requestedSourceType = uiState.requestedSourceType, onOpenLibraryItem = onOpenLibraryItem)
         }
 
         if (uiState.tvShows.isNotEmpty()) {
             Text(text = "TV Shows", color = Palette.TextPrimary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp))
-            FilmographyRow(items = uiState.tvShows, onOpenLibraryItem = onOpenLibraryItem)
+            FilmographyRow(items = uiState.tvShows, requestedSourceType = uiState.requestedSourceType, onOpenLibraryItem = onOpenLibraryItem)
         }
 
         // Required by TMDB's free-API terms.
@@ -129,19 +131,21 @@ private fun PersonDetailContent(
 }
 
 @Composable
-private fun FilmographyRow(items: List<FilmographyItem>, onOpenLibraryItem: (String, Boolean) -> Unit) {
+private fun FilmographyRow(items: List<FilmographyItem>, requestedSourceType: SourceType, onOpenLibraryItem: (String, Boolean, SourceType) -> Unit) {
     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(items, key = { it.tmdbId }) { item -> FilmographyPoster(item = item, onOpenLibraryItem = onOpenLibraryItem) }
+        items(items, key = { it.tmdbId }) { item ->
+            FilmographyPoster(item = item, requestedSourceType = requestedSourceType, onOpenLibraryItem = onOpenLibraryItem)
+        }
     }
 }
 
 @Composable
-private fun FilmographyPoster(item: FilmographyItem, onOpenLibraryItem: (String, Boolean) -> Unit) {
+private fun FilmographyPoster(item: FilmographyItem, requestedSourceType: SourceType, onOpenLibraryItem: (String, Boolean, SourceType) -> Unit) {
     val matched = item.matchState as? LibraryMatchState.Matched
     Column(
         modifier = Modifier
             .width(110.dp)
-            .let { if (matched != null) it.clickable { onOpenLibraryItem(matched.itemId, item.isSeries) } else it },
+            .let { if (matched != null) it.clickable { onOpenLibraryItem(matched.itemId, item.isSeries, matched.sourceType) } else it },
     ) {
         Box(
             modifier = Modifier
@@ -158,7 +162,15 @@ private fun FilmographyPoster(item: FilmographyItem, onOpenLibraryItem: (String,
         }
         Text(text = item.title, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Palette.TextPrimary, modifier = Modifier.padding(top = 4.dp))
         Text(
-            text = if (item.matchState is LibraryMatchState.NotInLibrary) "Not in your library" else item.year?.toString().orEmpty(),
+            text = when {
+                item.matchState is LibraryMatchState.NotInLibrary -> "Not in your library"
+                // Found, but not in the library this actor page was opened from - flagged rather
+                // than silently opening a different source than the one the user was just
+                // browsing, per the user's own ask for a same-library-first, other-library-fallback
+                // match.
+                matched != null && matched.sourceType != requestedSourceType -> "On ${matched.sourceType.label()}"
+                else -> item.year?.toString().orEmpty()
+            },
             color = Palette.TextMuted,
             style = MaterialTheme.typography.labelSmall,
         )

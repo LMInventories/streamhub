@@ -1,5 +1,7 @@
 package com.android.streamhub.core.tmdb
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -83,6 +85,26 @@ class TmdbRepository @Inject constructor(
             ?.let { TmdbPersonSummary(id = it.id, name = it.name.orEmpty(), profileUrl = TmdbImageUrls.profile(it.profilePath)) }
         personByNameMutex.withLock { personByNameCache[key] = result }
         return result
+    }
+
+    /**
+     * Backfills TMDB profile photos for cast members whose own Jellyfin/Emby source has no image
+     * - the overview cast row used to show only member.imageUrl, sourced from that platform's own
+     * PrimaryImageTag, which frequently comes back null/absent (see EmbyPersonDto.primaryImageTag's
+     * own UNVERIFIED-field doc); the actor-profile screen already gets a reliable photo via this
+     * same [findPerson] lookup, just triggered per-name on click rather than proactively for a
+     * whole row. Takes bare id/name pairs rather than either platform's own CastMember type so one
+     * function serves both without either feature module depending on the other. Concurrent per
+     * member (findPerson's own cache + mutex keep repeat names cheap); a member with no TMDB match
+     * is simply absent from the result rather than mapped to null, so callers can merge this
+     * straight onto whatever placeholder they already show.
+     */
+    suspend fun findProfileImageFallbacks(members: List<Pair<String, String>>): Map<String, String> = coroutineScope {
+        members
+            .map { (id, name) -> async { id to findPerson(name)?.profileUrl } }
+            .map { it.await() }
+            .mapNotNull { (id, url) -> url?.let { id to it } }
+            .toMap()
     }
 
     suspend fun getPersonDetail(personId: Int): TmdbPersonDetail? {

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.core.tmdb.TmdbRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
+import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,9 @@ data class JellyfinSeriesDetailUiState(
     // is hidden entirely in that case rather than shown empty.
     val nextUpEpisode: JellyfinItemInfo? = null,
     val errorMessage: String? = null,
+    // See JellyfinItemDetailUiState.castImageFallbacks' own doc - identical shape, just keyed off
+    // the series' own cast list instead of an item's cast/crew/guestStars.
+    val castImageFallbacks: Map<String, String> = emptyMap(),
 )
 
 private data class LoadedSeries(
@@ -75,9 +79,20 @@ class JellyfinSeriesDetailViewModel @Inject constructor(
                         nextUpEpisode = loaded.nextUpEpisode,
                     )
                 }
+                loaded.series?.let { resolveCastImageFallbacks(it.cast) }
             }.onFailure { e ->
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load series") }
             }
+        }
+    }
+
+    /** See TmdbRepository.findProfileImageFallbacks's own doc. Fire-and-forget past series load - merges into uiState whenever it resolves rather than blocking isLoading on a TMDB round trip. */
+    private fun resolveCastImageFallbacks(members: List<JellyfinCastMember>) {
+        val missing = members.filter { it.imageUrl == null }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            val fallbacks = tmdbRepository.findProfileImageFallbacks(missing.map { it.id to it.name })
+            if (fallbacks.isNotEmpty()) _uiState.update { it.copy(castImageFallbacks = it.castImageFallbacks + fallbacks) }
         }
     }
 

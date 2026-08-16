@@ -11,6 +11,7 @@ import com.android.streamhub.core.tmdb.TmdbRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinAppSettingsRepository
 import com.android.streamhub.feature.jellyfin.data.JellyfinAudioChoice
 import com.android.streamhub.feature.jellyfin.data.JellyfinBrowseRepository
+import com.android.streamhub.feature.jellyfin.data.JellyfinCastMember
 import com.android.streamhub.feature.jellyfin.data.JellyfinItemInfo
 import com.android.streamhub.feature.jellyfin.data.JellyfinPlaybackPreferenceStore
 import com.android.streamhub.feature.jellyfin.data.JellyfinSubtitleChoice
@@ -42,6 +43,11 @@ data class JellyfinItemDetailUiState(
     val selectedVersionId: String? = null,
     // Only populated for episodes (excludes the current item) - "More from Season X" row.
     val seasonEpisodes: List<JellyfinItemInfo> = emptyList(),
+    // Cast/crew/guest-star id -> TMDB profile photo, backfilled for whichever members Jellyfin's
+    // own PrimaryImageTag came back null for - see TmdbRepository.findProfileImageFallbacks's own
+    // doc. Populated after the item itself (never blocks isLoading), so the row first renders with
+    // whatever native images exist, then upgrades in place as fallbacks resolve.
+    val castImageFallbacks: Map<String, String> = emptyMap(),
 )
 
 @HiltViewModel
@@ -76,6 +82,7 @@ class JellyfinItemDetailViewModel @Inject constructor(
                 hydrateDefaultSubtitle(item)
                 hydrateDefaultAudio(item)
                 hydrateDefaultVersion(item)
+                resolveCastImageFallbacks(item.cast + item.crew + item.guestStars)
             }
 
             val seriesId = item?.seriesId
@@ -130,6 +137,16 @@ class JellyfinItemDetailViewModel @Inject constructor(
         val resolved = playbackPreferenceStore.get(itemId)?.mediaSourceId ?: item.videoVersions.first().id
         playbackPreferenceStore.setMediaSourceId(itemId, resolved)
         _uiState.update { it.copy(selectedVersionId = resolved) }
+    }
+
+    /** See TmdbRepository.findProfileImageFallbacks's own doc. Fire-and-forget past item load - merges into uiState whenever it resolves rather than blocking isLoading on a TMDB round trip. */
+    private fun resolveCastImageFallbacks(members: List<JellyfinCastMember>) {
+        val missing = members.filter { it.imageUrl == null }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            val fallbacks = tmdbRepository.findProfileImageFallbacks(missing.map { it.id to it.name })
+            if (fallbacks.isNotEmpty()) _uiState.update { it.copy(castImageFallbacks = it.castImageFallbacks + fallbacks) }
+        }
     }
 
     fun toggleFavorite() {

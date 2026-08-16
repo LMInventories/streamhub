@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.android.streamhub.core.tmdb.PersonLookupState
 import com.android.streamhub.core.tmdb.TmdbRepository
 import com.android.streamhub.feature.emby.data.EmbyBrowseRepository
+import com.android.streamhub.feature.emby.data.EmbyCastMember
 import com.android.streamhub.feature.emby.data.EmbyItemInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,9 @@ data class EmbySeriesDetailUiState(
     // ("More Like This" is out of scope this pass per the approved plan).
     val nextUpEpisode: EmbyItemInfo? = null,
     val errorMessage: String? = null,
+    // See EmbyItemDetailUiState.castImageFallbacks' own doc - identical shape, just keyed off the
+    // series' own cast list instead of a single item's.
+    val castImageFallbacks: Map<String, String> = emptyMap(),
 )
 
 private data class LoadedSeries(
@@ -80,9 +84,20 @@ class EmbySeriesDetailViewModel @Inject constructor(
                         nextUpEpisode = loaded.nextUpEpisode,
                     )
                 }
+                loaded.series?.let { resolveCastImageFallbacks(it.cast) }
             }.onFailure { e ->
                 _uiState.update { it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load series") }
             }
+        }
+    }
+
+    /** See TmdbRepository.findProfileImageFallbacks's own doc. Fire-and-forget past series load - merges into uiState whenever it resolves rather than blocking isLoading on a TMDB round trip. */
+    private fun resolveCastImageFallbacks(members: List<EmbyCastMember>) {
+        val missing = members.filter { it.imageUrl == null }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            val fallbacks = tmdbRepository.findProfileImageFallbacks(missing.map { it.id to it.name })
+            if (fallbacks.isNotEmpty()) _uiState.update { it.copy(castImageFallbacks = it.castImageFallbacks + fallbacks) }
         }
     }
 

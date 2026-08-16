@@ -42,6 +42,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -281,6 +282,18 @@ private fun SearchResultsTabs(
     onExpandVod: () -> Unit,
 ) {
     var selectedTab by remember { mutableStateOf(SearchTab.LIVE_TV) }
+    // Re-picks the default tab once per completed search (see SearchUiState.searchGeneration's own
+    // doc) rather than always landing on Live TV - previously hardcoded, which was actively
+    // misleading whenever Live TV wasn't even one of the enabled filters (its tab would just show
+    // "No upcoming Live TV matches" while the real results sat one tap away). Only overrides the
+    // default landing spot, not a tap the user already made this search - it runs once per
+    // searchGeneration bump, not on every recomposition.
+    LaunchedEffect(uiState.searchGeneration) {
+        SearchTab.entries
+            .filter { it.sourceFilter() in uiState.enabledFilters }
+            .maxByOrNull { tabResultCount(it, uiState) }
+            ?.let { selectedTab = it }
+    }
     val use24Hour = rememberUse24HourTime()
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -317,14 +330,21 @@ private fun SearchResultsTabs(
     }
 }
 
-private fun tabLabel(tab: SearchTab, uiState: SearchUiState): String {
-    val count = when (tab) {
-        SearchTab.LIVE_TV -> uiState.epgResults.size
-        SearchTab.VOD -> uiState.vodMovies.size + uiState.vodShows.size
-        SearchTab.JELLYFIN -> uiState.jellyfinResults.size
-        SearchTab.EMBY -> uiState.embyResults.size
-    }
-    return "${tab.label} ($count)"
+private fun tabLabel(tab: SearchTab, uiState: SearchUiState): String = "${tab.label} (${tabResultCount(tab, uiState)})"
+
+private fun tabResultCount(tab: SearchTab, uiState: SearchUiState): Int = when (tab) {
+    SearchTab.LIVE_TV -> uiState.epgResults.size
+    SearchTab.VOD -> uiState.vodMovies.size + uiState.vodShows.size
+    SearchTab.JELLYFIN -> uiState.jellyfinResults.size
+    SearchTab.EMBY -> uiState.embyResults.size
+}
+
+/** Which SearchFilterRow checkbox gates this tab's own results - a tab whose source is unchecked never had a network call made for it (see SearchViewModel.runSearch), so its count is always 0 and it should never win the "most results" default-tab pick over an actually-searched one. */
+private fun SearchTab.sourceFilter(): SearchSourceFilter = when (this) {
+    SearchTab.LIVE_TV -> SearchSourceFilter.LIVE
+    SearchTab.VOD -> SearchSourceFilter.VOD
+    SearchTab.JELLYFIN -> SearchSourceFilter.JELLYFIN
+    SearchTab.EMBY -> SearchSourceFilter.EMBY
 }
 
 @Composable

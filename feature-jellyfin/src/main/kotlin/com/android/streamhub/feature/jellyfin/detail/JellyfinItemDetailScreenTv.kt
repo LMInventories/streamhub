@@ -154,6 +154,7 @@ fun JellyfinItemDetailScreenTv(
                     onOpenSeries = onOpenSeries,
                     onOpenEpisode = onOpenEpisode,
                     onPersonClick = viewModel::onPersonClick,
+                    castImageFallbacks = uiState.castImageFallbacks,
                     onStartDownload = viewModel::startDownload,
                     onPauseDownload = viewModel::pauseDownload,
                     onResumeDownload = viewModel::resumeDownload,
@@ -180,6 +181,7 @@ private fun JellyfinItemDetailContentTv(
     onOpenSeries: (String) -> Unit,
     onOpenEpisode: (String) -> Unit,
     onPersonClick: (String) -> Unit,
+    castImageFallbacks: Map<String, String>,
     onStartDownload: () -> Unit,
     onPauseDownload: () -> Unit,
     onResumeDownload: () -> Unit,
@@ -360,7 +362,7 @@ private fun JellyfinItemDetailContentTv(
                 Text(text = "Cast & Crew", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                TvCastRow(cast = castAndCrew, onPersonClick = onPersonClick)
+                TvCastRow(cast = castAndCrew, onPersonClick = onPersonClick, imageFallbacks = castImageFallbacks)
             }
         }
 
@@ -369,7 +371,7 @@ private fun JellyfinItemDetailContentTv(
                 Text(text = "Guest Stars", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                TvCastRow(cast = item.guestStars, onPersonClick = onPersonClick)
+                TvCastRow(cast = item.guestStars, onPersonClick = onPersonClick, imageFallbacks = castImageFallbacks)
             }
         }
     }
@@ -436,14 +438,15 @@ fun ExternalLinksRowTv(links: List<Pair<String, String>>, modifier: Modifier = M
 
 /** Shared cast row for both TV detail screens - tv-material3 Card equivalent of the phone CastMemberCard. */
 @Composable
-fun TvCastRow(cast: List<JellyfinCastMember>, onPersonClick: (String) -> Unit = {}) {
+fun TvCastRow(cast: List<JellyfinCastMember>, onPersonClick: (String) -> Unit = {}, imageFallbacks: Map<String, String> = emptyMap()) {
     LazyRow(contentPadding = PaddingValues(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         items(cast, key = { it.id }) { member ->
             Column(modifier = Modifier.width(100.dp)) {
                 Card(onClick = { onPersonClick(member.name) }, modifier = Modifier.size(100.dp)) {
                     Box(modifier = Modifier.fillMaxSize().clip(AppShapes.small)) {
-                        if (member.imageUrl != null) {
-                            AsyncImage(model = member.imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        val imageUrl = member.imageUrl ?: imageFallbacks[member.id]
+                        if (imageUrl != null) {
+                            AsyncImage(model = imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         } else {
                             Box(modifier = Modifier.fillMaxSize().background(Palette.Surface))
                         }

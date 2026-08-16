@@ -357,13 +357,17 @@ fun PhoneApp(navController: NavHostController = rememberNavController()) {
                     navArgument("sourceType") { type = NavType.StringType },
                     navArgument("tmdbPersonId") { type = NavType.IntType },
                 ),
-            ) { backStackEntry ->
-                val sourceType = SourceType.valueOf(checkNotNull(backStackEntry.arguments?.getString("sourceType")))
+            ) {
                 PersonDetailScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenLibraryItem = { itemId, isSeries ->
-                        // Unreachable else branch - PersonDetail is only ever navigated to from a Jellyfin/Emby cast row.
-                        val route = when (sourceType) {
+                    // matchSourceType is whichever library the title was actually matched in - not
+                    // necessarily the route's own "sourceType" arg (which library the cast row was
+                    // opened from) - a filmography entry only found on the other configured source
+                    // opens there instead (see PersonDetailViewModel.findMatch). Unreachable else
+                    // branch - PersonDetailViewModel only ever resolves a match against Jellyfin or
+                    // Emby.
+                    onOpenLibraryItem = { itemId, isSeries, matchSourceType ->
+                        val route = when (matchSourceType) {
                             SourceType.JELLYFIN -> if (isSeries) Route.jellyfinSeriesDetailRoute(itemId) else Route.jellyfinItemDetailRoute(itemId)
                             SourceType.EMBY -> if (isSeries) Route.embySeriesDetailRoute(itemId) else Route.embyItemDetailRoute(itemId)
                             else -> null

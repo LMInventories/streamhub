@@ -111,6 +111,7 @@ fun JellyfinSeriesDetailScreenTv(
                     onOpenEpisode = onOpenEpisode,
                     onOpenSeries = onOpenSeries,
                     onPersonClick = viewModel::onPersonClick,
+                    castImageFallbacks = uiState.castImageFallbacks,
                 )
             }
         }
@@ -127,6 +128,7 @@ private fun JellyfinSeriesDetailContentTv(
     onOpenEpisode: (String) -> Unit,
     onOpenSeries: (String) -> Unit,
     onPersonClick: (String) -> Unit,
+    castImageFallbacks: Map<String, String>,
 ) {
     val seasonNumbers = episodesBySeasonNumber.keys.sorted()
     // Defaults to whichever season the Next Up episode belongs to (resuming where the viewer left
@@ -256,7 +258,7 @@ private fun JellyfinSeriesDetailContentTv(
                 Text(text = "Cast & Crew", color = Palette.TextPrimary, modifier = Modifier.padding(24.dp, 12.dp, 24.dp, 8.dp))
             }
             item {
-                TvCastRow(cast = series.cast, onPersonClick = onPersonClick)
+                TvCastRow(cast = series.cast, onPersonClick = onPersonClick, imageFallbacks = castImageFallbacks)
             }
         }
 

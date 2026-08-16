@@ -54,6 +54,13 @@ data class SearchUiState(
     val vodExpanded: Boolean = false,
     val jellyfinResults: List<JellyfinItemInfo> = emptyList(),
     val embyResults: List<EmbyItemInfo> = emptyList(),
+    // Bumped once per completed base search (a fresh query, or a toggleFilter-triggered rerun) -
+    // deliberately not touched by expandLiveTvResults/expandVodResults, which only grow an
+    // already-displayed tab's own results rather than starting a new search. SearchResultsTabs
+    // keys its "default to whichever enabled tab has the most results" pick off this rather than
+    // off uiState.query directly, since query changes on every keystroke (immediately, ahead of
+    // the debounced search) while this only changes once real results actually land.
+    val searchGeneration: Int = 0,
 ) {
     val isEmpty: Boolean
         get() = epgResults.isEmpty() && vodMovies.isEmpty() && vodShows.isEmpty() && jellyfinResults.isEmpty() && embyResults.isEmpty()
@@ -158,6 +165,7 @@ class SearchViewModel @Inject constructor(
                 vodExpanded = false,
                 jellyfinResults = jellyfin,
                 embyResults = emby,
+                searchGeneration = it.searchGeneration + 1,
             )
         }
     }
